@@ -1,12 +1,18 @@
 use crate::{
     building::builders::{UnfinishedBlockBuildingSink, UnfinishedBlockBuildingSinkFactory},
     live_builder::payload_events::MevBoostSlotData,
+    live_builder::streaming::block_subscription_server::start_block_subscription_server
 };
-use alloy_primitives::U256;
+use alloy_primitives::{B256,U256};
+use alloy_rpc_types_eth::state::{StateOverride, AccountOverride};
 use reth_provider::{HeaderProvider, StateProviderFactory};
+use serde_json::json;
+use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
-use tracing::error;
+use tokio::sync::broadcast;
+use tracing::{error, info, warn};
+use uuid::Uuid;
 
 use super::{
     bid_value_source::interfaces::{BidValueObs, BidValueSource},
@@ -34,6 +40,8 @@ pub struct BlockSealingBidderFactory<P> {
     wallet_balance_watcher: WalletBalanceWatcher<P>,
     /// See [ParallelSealerBidMaker]
     max_concurrent_seals: usize,
+    /// State Diff WS Server
+    state_diff_server: broadcast::Sender<String>
 }
 
 impl<P> Debug for BlockSealingBidderFactory<P> {
@@ -51,19 +59,21 @@ impl<P> Debug for BlockSealingBidderFactory<P> {
 }
 
 impl<P> BlockSealingBidderFactory<P> {
-    pub fn new(
+    pub async fn new(
         bidding_service: Box<dyn BiddingService>,
         block_sink_factory: Box<dyn BuilderSinkFactory>,
         competition_bid_value_source: Arc<dyn BidValueSource + Send + Sync>,
         wallet_balance_watcher: WalletBalanceWatcher<P>,
         max_concurrent_seals: usize,
     ) -> Self {
+        let state_diff_server = start_block_subscription_server().await.expect("Failed to start block subscription server");
         Self {
             bidding_service,
             block_sink_factory,
             competition_bid_value_source,
             wallet_balance_watcher,
             max_concurrent_seals,
+            state_diff_server
         }
     }
 }
@@ -133,6 +143,7 @@ where
             slot_data,
             slot_bidder,
             self.competition_bid_value_source.clone(),
+            self.state_diff_server.clone()
         );
 
         Arc::new(res)
@@ -148,6 +159,7 @@ struct BlockSealingBidder {
     /// Used to unsubscribe on drop.
     competition_bid_value_source: Arc<dyn BidValueSource + Send + Sync>,
     bidder: Arc<dyn SlotBidder>,
+    state_diff_server: broadcast::Sender<String>
 }
 
 impl BlockSealingBidder {
@@ -155,6 +167,7 @@ impl BlockSealingBidder {
         slot_data: MevBoostSlotData,
         bidder: Arc<dyn SlotBidder>,
         competition_bid_value_source: Arc<dyn BidValueSource + Send + Sync>,
+        state_diff_server: broadcast::Sender<String>
     ) -> Self {
         let slot_bidder_to_bid_value_obs: Arc<dyn BidValueObs + Send + Sync> =
             Arc::new(SlotBidderToBidValueObs {
@@ -171,6 +184,7 @@ impl BlockSealingBidder {
             bid_value_source_to_unsubscribe: slot_bidder_to_bid_value_obs,
             competition_bid_value_source,
             bidder,
+            state_diff_server
         }
     }
 }
@@ -180,6 +194,45 @@ impl UnfinishedBlockBuildingSink for BlockSealingBidder {
         &self,
         block: Box<dyn crate::building::builders::block_building_helper::BlockBuildingHelper>,
     ) {
+        let building_context = block.building_context();
+        let bundle_state = block.get_bundle_state().state();
+
+        // Create a new StateOverride object to store the changes
+        let mut pending_state = StateOverride::new();
+
+        // Iterate through each address and account in the bundle state
+        for (address, account) in bundle_state.iter() {
+            let mut account_override = AccountOverride::default();
+
+            let mut state_diff = HashMap::new();
+            for (storage_key, storage_slot) in &account.storage {
+                let key = B256::from(*storage_key);
+                let value = B256::from(storage_slot.present_value);
+                state_diff.insert(key, value);
+            }
+
+            if !state_diff.is_empty() {
+                account_override.state_diff = Some(state_diff);
+                pending_state.insert(*address, account_override);
+            }
+
+        }
+
+        let block_data = json!({
+            "blockNumber": building_context.block_env.number,
+            "blockTimestamp": building_context.block_env.timestamp,
+            "blockUuid": Uuid::new_v4().to_string(),
+            "pendingState": pending_state
+        });
+
+        if let Err(_e) = self.state_diff_server.send(serde_json::to_string(&block_data).unwrap()) {
+            warn!("Failed to send block data");
+        }
+
+        info!(
+            "Block generated. Order Count: {}", block.built_block_trace().included_orders.len()
+        );
+
         self.bidder.new_block(block);
     }
 
