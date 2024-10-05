@@ -79,9 +79,11 @@ pub trait BlockBuildingHelper: Send + Sync {
 
     /// Updates the cached reads for the block state.
     fn update_cached_reads(&mut self, cached_reads: CachedReads);
-    
+
     /// Get the bundle state.
     fn get_bundle_state(&self) -> &BundleState;
+
+    fn gas_remaining(&self) -> u64;
 }
 
 /// Implementation of BlockBuildingHelper based on a generic Provider
@@ -425,5 +427,9 @@ where
 
     fn get_bundle_state(&self) -> &BundleState {
         self.block_state.get_bundle_state()
+    }
+
+    fn gas_remaining(&self) -> u64 {
+        self.partial_block.gas_reserved - self.partial_block.gas_used
     }
 }
