@@ -4,10 +4,13 @@ use crate::{
     building::{
         builders::{
             BlockBuildingAlgorithm, BlockBuildingAlgorithmInput, UnfinishedBlockBuildingSinkFactory,
+            UnfinishedBlockBuildingSink,
         },
         BlockBuildingContext,
     },
-    live_builder::{payload_events::MevBoostSlotData, simulation::SlotOrderSimResults},
+    live_builder::{simulation::SlotOrderSimResults},
+    live_builder::block_output::block_router::UnfinishedBlockRouter,
+    live_builder::streaming::block_subscription_server::start_block_subscription_server,
     roothash::run_trie_prefetcher,
 };
 use reth_db::Database;
@@ -33,6 +36,7 @@ pub struct BlockBuildingPool<P, DB> {
     order_simulation_pool: OrderSimulationPool<P>,
     run_sparse_trie_prefetcher: bool,
     phantom: PhantomData<DB>,
+    state_diff_server: broadcast::Sender<serde_json::Value>,
 }
 
 impl<P, DB> BlockBuildingPool<P, DB>
@@ -40,7 +44,7 @@ where
     DB: Database + Clone + 'static,
     P: DatabaseProviderFactory<DB> + StateProviderFactory + Clone + 'static,
 {
-    pub fn new(
+    pub async fn new(
         provider: P,
         builders: Vec<Arc<dyn BlockBuildingAlgorithm<P, DB>>>,
         sink_factory: Box<dyn UnfinishedBlockBuildingSinkFactory>,
@@ -48,6 +52,7 @@ where
         order_simulation_pool: OrderSimulationPool<P>,
         run_sparse_trie_prefetcher: bool,
     ) -> Self {
+        let state_diff_server = start_block_subscription_server().await.expect("Failed to start block subscription server");
         BlockBuildingPool {
             provider,
             builders,
@@ -56,6 +61,7 @@ where
             order_simulation_pool,
             run_sparse_trie_prefetcher,
             phantom: PhantomData,
+            state_diff_server,
         }
     }
 
@@ -85,6 +91,13 @@ where
             true,
         );
 
+        let slot_timestamp = payload.timestamp();
+        let block_router = Arc::new(UnfinishedBlockRouter::new(
+            self.sink_factory.create_sink(payload, block_cancellation.clone()),
+            self.state_diff_server.clone(),
+            slot_timestamp,
+        ));
+
         let simulations_for_block = self.order_simulation_pool.spawn_simulation_job(
             block_ctx.clone(),
             orders_for_block,
@@ -92,7 +105,7 @@ where
         );
         self.start_building_job(
             block_ctx,
-            payload,
+            block_router,
             simulations_for_block,
             block_cancellation,
         );
@@ -102,11 +115,10 @@ where
     fn start_building_job(
         &mut self,
         ctx: BlockBuildingContext,
-        slot_data: MevBoostSlotData,
+        builder_sink: Arc<dyn UnfinishedBlockBuildingSink>,
         input: SlotOrderSimResults,
         cancel: CancellationToken,
     ) {
-        let builder_sink = self.sink_factory.create_sink(slot_data, cancel.clone());
         let (broadcast_input, _) = broadcast::channel(10_000);
 
         let block_number = ctx.block_env.number.to::<u64>();

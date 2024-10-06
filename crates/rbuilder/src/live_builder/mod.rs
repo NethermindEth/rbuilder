@@ -174,7 +174,7 @@ where
             orderpool_subscriber,
             order_simulation_pool,
             self.run_sparse_trie_prefetcher,
-        );
+        ).await;
 
         let watchdog_sender = spawn_watchdog_thread(self.watchdog_timeout)?;
 
