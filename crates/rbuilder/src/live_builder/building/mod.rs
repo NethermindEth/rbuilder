@@ -5,6 +5,7 @@ use crate::{
         builders::{
             BlockBuildingAlgorithm, BlockBuildingAlgorithmInput, UnfinishedBlockBuildingSinkFactory,
             UnfinishedBlockBuildingSink,
+            bob_builder::run_bob_builder,
         },
         BlockBuildingContext,
     },
@@ -21,7 +22,10 @@ use tracing::{debug, trace};
 
 use super::{
     order_input::{
-        self, order_replacement_manager::OrderReplacementManager, orderpool::OrdersForBlock,
+        self,
+        bob_order_shim::BobOrderShim,
+        order_replacement_manager::OrderReplacementManager,
+        orderpool::OrdersForBlock,
     },
     payload_events,
     simulation::OrderSimulationPool,
@@ -91,12 +95,20 @@ where
             true,
         );
 
+        let (bob_order_shim, bob_order_receiver) = BobOrderShim::new();
+        self.orderpool_subscriber.add_sink(
+            block_ctx.block_env.number.to::<u64>(),
+            Box::new(bob_order_shim),
+            false,
+        );
+
         let slot_timestamp = payload.timestamp();
-        let block_router = Arc::new(UnfinishedBlockRouter::new(
+        let (block_router, block_receiver) = UnfinishedBlockRouter::new(
             self.sink_factory.create_sink(payload, block_cancellation.clone()),
             self.state_diff_server.clone(),
             slot_timestamp,
-        ));
+        );
+        let block_router = Arc::new(block_router);
 
         let simulations_for_block = self.order_simulation_pool.spawn_simulation_job(
             block_ctx.clone(),
@@ -105,10 +117,16 @@ where
         );
         self.start_building_job(
             block_ctx,
-            block_router,
+            block_router.clone(),
             simulations_for_block,
-            block_cancellation,
+            block_cancellation.clone(),
         );
+        tokio::spawn(run_bob_builder(
+            block_router,
+            bob_order_receiver,
+            block_receiver,
+            block_cancellation.clone(),
+        ));
     }
 
     /// Per each BlockBuildingAlgorithm creates BlockBuildingAlgorithmInput and Sinks and spawn a task to run it
