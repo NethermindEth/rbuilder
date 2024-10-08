@@ -256,7 +256,7 @@ where
                             }
                             o.replacement_key().is_some()
                         },
-                        ReplaceableOrderPoolCommand::BobOrder(_) => true,
+                        ReplaceableOrderPoolCommand::BobOrder(_) => false,
                         ReplaceableOrderPoolCommand::CancelBundle(_)=> true,
                         ReplaceableOrderPoolCommand::CancelShareBundle(_) => true,
                     };
