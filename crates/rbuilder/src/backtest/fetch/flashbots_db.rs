@@ -47,7 +47,7 @@ impl RelayDB {
             "SELECT \
                  inserted_at, bundle_hash, param_block_number, param_signed_txs, param_reverting_tx_hashes, \
                  coinbase_diff, total_gas_used, signing_address, replacement_uuid, param_timestamp \
-                 FROM bundles \
+                 FROM bundles_v2 \
                  WHERE is_simulated = true and param_block_number = $1\
                  ORDER BY inserted_at ASC",
         )
