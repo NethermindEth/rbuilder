@@ -1,50 +1,51 @@
-use alloy_primitives::{B256};
+use alloy_primitives::B256;
 use alloy_rpc_types_eth::state::{AccountOverride, StateOverride};
 use serde_json::{json, Value};
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::{
+    sync::{Arc, Mutex},
+    time::Duration,
+};
+use tokio::sync::broadcast;
 use tracing::{info, warn};
-use tokio::sync::{broadcast, mpsc};
 use uuid::Uuid;
 
-use crate::{
-    building::builders::{
-        UnfinishedBlockBuildingSink,
-        block_building_helper::{BlockBuildingHelper},
-    },
+use crate::building::builders::{
+    block_building_helper::BlockBuildingHelper, bob_builder::BobHandle, UnfinishedBlockBuildingSink,
 };
-
-const STATE_STREAMING_START_DELTA: time::Duration = time::Duration::milliseconds(-2000);
 
 #[derive(Debug)]
 pub struct UnfinishedBlockRouter {
+    bob_handle: Arc<Mutex<BobHandle>>,
     sink: Arc<dyn UnfinishedBlockBuildingSink>,
-    state_diff_server: broadcast::Sender<Value>,
     slot_timestamp: time::OffsetDateTime,
-    sender: mpsc::UnboundedSender<(Box<dyn BlockBuildingHelper>, Uuid)>
+    state_diff_server: broadcast::Sender<Value>,
+    stream_start_dur: Duration,
 }
 
 impl UnfinishedBlockRouter {
     pub fn new(
         sink: Arc<dyn UnfinishedBlockBuildingSink>,
         state_diff_server: broadcast::Sender<Value>,
-        slot_timestamp: time::OffsetDateTime
-    ) -> (Self, mpsc::UnboundedReceiver<(Box<dyn BlockBuildingHelper>, Uuid)>) {
-        let (sender, receiver) = mpsc::unbounded_channel();
-
-        (Self{
+        slot_timestamp: time::OffsetDateTime,
+        bob_handle: Arc<Mutex<BobHandle>>,
+        stream_start_dur: Duration,
+    ) -> Self {
+        Self {
+            bob_handle: bob_handle,
             sink: sink,
-            state_diff_server: state_diff_server,
             slot_timestamp: slot_timestamp,
-            sender: sender,
-        }, receiver)
+            state_diff_server: state_diff_server,
+            stream_start_dur,
+        }
     }
 
     fn should_start_streaming(&self) -> bool {
         let now = time::OffsetDateTime::now_utc();
-        let ms_into_slot = (now - self.slot_timestamp).whole_milliseconds();
-        let should_start = ms_into_slot >= STATE_STREAMING_START_DELTA.whole_milliseconds();
+        let time_into_slot = self.slot_timestamp - now;
+        let should_start = time_into_slot >= self.stream_start_dur;
 
+        let ms_into_slot = time_into_slot.whole_milliseconds();
         if ms_into_slot % 100 == 0 {
             tracing::info!(
                 slot_timestamp = ?self.slot_timestamp,
@@ -57,20 +58,10 @@ impl UnfinishedBlockRouter {
 
         should_start
     }
-
-    pub fn new_bob_block(
-        &self,
-        block: Box<dyn crate::building::builders::block_building_helper::BlockBuildingHelper>,
-    ) {
-        self.sink.new_block(block)
-    }
 }
 
 impl UnfinishedBlockBuildingSink for UnfinishedBlockRouter {
-    fn new_block(
-        &self,
-        block: Box<dyn crate::building::builders::block_building_helper::BlockBuildingHelper>,
-    ) {
+    fn new_block(&self, block: Box<dyn BlockBuildingHelper>) {
         if self.should_start_streaming() {
             let building_context = block.building_context();
             let bundle_state = block.get_bundle_state().state();
@@ -87,13 +78,12 @@ impl UnfinishedBlockBuildingSink for UnfinishedBlockRouter {
                     let key = B256::from(*storage_key);
                     let value = B256::from(storage_slot.present_value);
                     state_diff.insert(key, value);
-            }
+                }
 
                 if !state_diff.is_empty() {
                     account_override.state_diff = Some(state_diff);
                     pending_state.insert(*address, account_override);
                 }
-
             }
 
             let uuid = Uuid::new_v4();
@@ -118,7 +108,10 @@ impl UnfinishedBlockBuildingSink for UnfinishedBlockRouter {
                 "Sent block"
             );
 
-            let _ = self.sender.send((block.box_clone(), uuid));
+            self.bob_handle
+                .lock()
+                .unwrap()
+                .new_block(block.box_clone(), self.sink.clone(), uuid);
         }
 
         self.sink.new_block(block);

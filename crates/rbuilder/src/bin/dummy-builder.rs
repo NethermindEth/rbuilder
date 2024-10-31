@@ -48,19 +48,16 @@ use tokio_util::sync::CancellationToken;
 use tracing::{info, level_filters::LevelFilter};
 
 // state diff stream imports
+use alloy_primitives::B256;
+use alloy_rpc_types_eth::state::{AccountOverride, StateOverride};
 use futures::StreamExt;
-use jsonrpsee::core::{
-    id_providers::RandomStringIdProvider,
-    server::SubscriptionMessage,
-};
+use jsonrpsee::core::{id_providers::RandomStringIdProvider, server::SubscriptionMessage};
 use jsonrpsee::server::{RpcModule, Server};
 use jsonrpsee::PendingSubscriptionSink;
-use tokio_stream::wrappers::BroadcastStream;
 use serde_json::json;
-use tracing::warn;
-use alloy_primitives::{B256};
-use alloy_rpc_types_eth::state::{StateOverride, AccountOverride};
 use std::collections::HashMap;
+use tokio_stream::wrappers::BroadcastStream;
+use tracing::warn;
 use uuid::Uuid;
 
 const RETH_DB_PATH: &str = DEFAULT_RETH_DB_PATH;
@@ -129,6 +126,7 @@ async fn main() -> eyre::Result<()> {
         extra_rpc: RpcModule::new(()),
         sink_factory: Box::new(sink_factory), // pointer to sink factory
         builders: vec![Arc::new(DummyBuildingAlgorithm::new(10))],
+        bob_builder: None,
         run_sparse_trie_prefetcher: false,
         orderpool_sender,
         orderpool_receiver,
@@ -168,12 +166,17 @@ impl TraceBlockSinkFactory {
 
         // Register a subscription method named "eth_stateDiffSubscription"
         module
-            .register_subscription("eth_subscribe", "eth_subscription", "eth_unsubscribe", |_params, pending, ctx| async move {
-                let rx = ctx.subscribe();
-                let stream = BroadcastStream::new(rx);
-                Self::pipe_from_stream(pending, stream).await?;
-                Ok(())
-            })
+            .register_subscription(
+                "eth_subscribe",
+                "eth_subscription",
+                "eth_unsubscribe",
+                |_params, pending, ctx| async move {
+                    let rx = ctx.subscribe();
+                    let stream = BroadcastStream::new(rx);
+                    Self::pipe_from_stream(pending, stream).await?;
+                    Ok(())
+                },
+            )
             .unwrap();
 
         // Get the server's local address
@@ -241,7 +244,9 @@ impl UnfinishedBlockBuildingSinkFactory for TraceBlockSinkFactory {
         _slot_data: MevBoostSlotData,
         _cancel: CancellationToken,
     ) -> Arc<dyn rbuilder::building::builders::UnfinishedBlockBuildingSink> {
-        Arc::new(TracingBlockSink {tx: self.tx.clone()})
+        Arc::new(TracingBlockSink {
+            tx: self.tx.clone(),
+        })
     }
 }
 
@@ -275,7 +280,6 @@ impl UnfinishedBlockBuildingSink for TracingBlockSink {
                 account_override.state_diff = Some(state_diff);
                 pending_state.insert(*address, account_override);
             }
-
         }
 
         let block_data = json!({
@@ -370,7 +374,7 @@ impl DummyBuildingAlgorithm {
 
         for order in orders {
             // don't care about the result
-            let _ = block_building_helper.commit_order(&order)?;
+            let _ = block_building_helper.commit_sim_order(&order)?;
         }
         Ok(Box::new(block_building_helper))
     }

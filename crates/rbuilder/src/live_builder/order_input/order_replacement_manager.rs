@@ -2,11 +2,7 @@ use ahash::HashMap;
 
 use crate::primitives::{Order, OrderId, OrderReplacementKey};
 
-use super::{
-    order_sink::OrderSink,
-    replaceable_order_sink::ReplaceableOrderSink,
-    ReplaceableOrderPoolCommand,
-};
+use super::{order_sink::OrderSink, replaceable_order_sink::ReplaceableOrderSink};
 
 /// Handles all replacement and cancellation for bundles and sbundles by receiving
 /// low level orderflow data via ReplaceableOrderSink and forwarding to an OrderSink.
@@ -28,7 +24,9 @@ impl OrderReplacementManager {
             replacement_states: Default::default(),
         }
     }
+}
 
+impl ReplaceableOrderSink for OrderReplacementManager {
     fn insert_order(&mut self, order: Order) -> bool {
         if let Some((rep_key, sequence_number)) = order.replacement_key_and_sequence_number() {
             match self.replacement_states.entry(rep_key) {
@@ -60,22 +58,6 @@ impl OrderReplacementManager {
                 e.insert(BundleReplacementState::Cancelled);
                 true
             }
-        }
-    }
-}
-
-impl ReplaceableOrderSink for OrderReplacementManager {
-    fn process_command(&mut self, command: ReplaceableOrderPoolCommand) -> bool {
-        // TODO: does this need to be a clone?
-        match command.clone() {
-            ReplaceableOrderPoolCommand::Order(o) => self.insert_order(o),
-            ReplaceableOrderPoolCommand::BobOrder(_) => true,
-            ReplaceableOrderPoolCommand::CancelBundle(key) => {
-                self.remove_bundle(OrderReplacementKey::Bundle(key))
-            },
-            ReplaceableOrderPoolCommand::CancelShareBundle(cancel) => {
-                self.remove_bundle(OrderReplacementKey::ShareBundle(cancel.key))
-            },
         }
     }
 

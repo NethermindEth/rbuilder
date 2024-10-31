@@ -1,19 +1,19 @@
 use crate::{
     building::{
         BlockBuildingContext, BuiltBlockTrace, CriticalCommitOrderError, ExecutionError,
-        ExecutionResult
+        ExecutionResult,
     },
     primitives::{Order, SimulatedOrder},
 };
 use alloy_primitives::U256;
 use reth_payload_builder::database::CachedReads;
 use reth_primitives::SealedBlock;
-use time::OffsetDateTime;
 use revm::db::BundleState;
+use time::OffsetDateTime;
 
 use super::{
     block_building_helper::{BlockBuildingHelper, BlockBuildingHelperError, FinalizeBlockResult},
-    Block
+    Block,
 };
 
 /// Extremely dumb object for test. Adding orders (commit_order) is not allowed.
@@ -23,7 +23,7 @@ pub struct MockBlockBuildingHelper {
     built_block_trace: BuiltBlockTrace,
     block_building_context: BlockBuildingContext,
     can_add_payout_tx: bool,
-    bundle_state: BundleState
+    bundle_state: BundleState,
 }
 
 impl MockBlockBuildingHelper {
@@ -36,7 +36,7 @@ impl MockBlockBuildingHelper {
             built_block_trace,
             block_building_context: BlockBuildingContext::dummy_for_testing(),
             can_add_payout_tx,
-            bundle_state: BundleState::default()
+            bundle_state: BundleState::default(),
         }
     }
 }
@@ -46,14 +46,14 @@ impl BlockBuildingHelper for MockBlockBuildingHelper {
         Box::new(self.clone())
     }
 
-    fn commit_order(
+    fn commit_sim_order(
         &mut self,
         _order: &SimulatedOrder,
     ) -> Result<Result<&ExecutionResult, ExecutionError>, CriticalCommitOrderError> {
         unimplemented!()
     }
 
-    fn commit_raw_order(
+    fn commit_order(
         &mut self,
         _order: &Order,
     ) -> Result<Result<&ExecutionResult, ExecutionError>, CriticalCommitOrderError> {

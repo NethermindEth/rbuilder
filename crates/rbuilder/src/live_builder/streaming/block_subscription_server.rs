@@ -1,18 +1,23 @@
-use jsonrpsee::server::{RpcModule, Server};
-use tokio::sync::broadcast;
-use tracing::{info, warn};
-use jsonrpsee::{PendingSubscriptionSink, SubscriptionMessage};
-use tokio_stream::wrappers::BroadcastStream;
 use futures::StreamExt;
 use jsonrpsee::core::id_providers::RandomStringIdProvider;
+use jsonrpsee::server::{RpcModule, Server};
+use jsonrpsee::{PendingSubscriptionSink, SubscriptionMessage};
 use serde_json::Value;
+use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
+use tokio::sync::broadcast;
+use tokio_stream::wrappers::BroadcastStream;
+use tracing::{info, warn};
 
 // Function to create and start the JSON-RPC server
-pub async fn start_block_subscription_server() -> eyre::Result<broadcast::Sender<Value>> {
+pub async fn start_block_subscription_server(
+    ip: Ipv4Addr,
+    port: u16,
+) -> eyre::Result<broadcast::Sender<Value>> {
+    let addr = SocketAddr::V4(SocketAddrV4::new(ip, port));
     let server = Server::builder()
         .set_message_buffer_capacity(5)
         .set_id_provider(RandomStringIdProvider::new(34))
-        .build("127.0.0.1:8547")
+        .build(addr)
         .await?;
 
     let (tx, _rx) = broadcast::channel::<Value>(16);

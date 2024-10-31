@@ -3,15 +3,13 @@ use std::{marker::PhantomData, sync::Arc, time::Duration};
 use crate::{
     building::{
         builders::{
-            BlockBuildingAlgorithm, BlockBuildingAlgorithmInput, UnfinishedBlockBuildingSinkFactory,
-            UnfinishedBlockBuildingSink,
-            bob_builder::run_bob_builder,
+            bob_builder::BobBuilder, BlockBuildingAlgorithm, BlockBuildingAlgorithmInput,
+            UnfinishedBlockBuildingSink, UnfinishedBlockBuildingSinkFactory,
         },
         BlockBuildingContext,
     },
-    live_builder::{simulation::SlotOrderSimResults},
     live_builder::block_output::block_router::UnfinishedBlockRouter,
-    live_builder::streaming::block_subscription_server::start_block_subscription_server,
+    live_builder::simulation::SlotOrderSimResults,
     roothash::run_trie_prefetcher,
 };
 use reth_db::Database;
@@ -22,10 +20,7 @@ use tracing::{debug, trace};
 
 use super::{
     order_input::{
-        self,
-        bob_order_shim::BobOrderShim,
-        order_replacement_manager::OrderReplacementManager,
-        orderpool::OrdersForBlock,
+        self, order_replacement_manager::OrderReplacementManager, orderpool::OrdersForBlock,
     },
     payload_events,
     simulation::OrderSimulationPool,
@@ -35,12 +30,12 @@ use super::{
 pub struct BlockBuildingPool<P, DB> {
     provider: P,
     builders: Vec<Arc<dyn BlockBuildingAlgorithm<P, DB>>>,
+    bob_builder: Option<BobBuilder>,
     sink_factory: Box<dyn UnfinishedBlockBuildingSinkFactory>,
     orderpool_subscriber: order_input::OrderPoolSubscriber,
     order_simulation_pool: OrderSimulationPool<P>,
     run_sparse_trie_prefetcher: bool,
     phantom: PhantomData<DB>,
-    state_diff_server: broadcast::Sender<serde_json::Value>,
 }
 
 impl<P, DB> BlockBuildingPool<P, DB>
@@ -51,21 +46,21 @@ where
     pub async fn new(
         provider: P,
         builders: Vec<Arc<dyn BlockBuildingAlgorithm<P, DB>>>,
+        bob_builder: Option<BobBuilder>,
         sink_factory: Box<dyn UnfinishedBlockBuildingSinkFactory>,
         orderpool_subscriber: order_input::OrderPoolSubscriber,
         order_simulation_pool: OrderSimulationPool<P>,
         run_sparse_trie_prefetcher: bool,
     ) -> Self {
-        let state_diff_server = start_block_subscription_server().await.expect("Failed to start block subscription server");
         BlockBuildingPool {
             provider,
             builders,
+            bob_builder,
             sink_factory,
             orderpool_subscriber,
             order_simulation_pool,
             run_sparse_trie_prefetcher,
             phantom: PhantomData,
-            state_diff_server,
         }
     }
 
@@ -92,41 +87,34 @@ where
         let _block_sub = self.orderpool_subscriber.add_sink(
             block_ctx.block_env.number.to(),
             Box::new(order_replacement_manager),
-            true,
-        );
-
-        let (bob_order_shim, bob_order_receiver) = BobOrderShim::new();
-        self.orderpool_subscriber.add_sink(
-            block_ctx.block_env.number.to::<u64>(),
-            Box::new(bob_order_shim),
-            false,
         );
 
         let slot_timestamp = payload.timestamp();
-        let (block_router, block_receiver) = UnfinishedBlockRouter::new(
-            self.sink_factory.create_sink(payload, block_cancellation.clone()),
-            self.state_diff_server.clone(),
-            slot_timestamp,
-        );
-        let block_router = Arc::new(block_router);
-
         let simulations_for_block = self.order_simulation_pool.spawn_simulation_job(
             block_ctx.clone(),
             orders_for_block,
             block_cancellation.clone(),
         );
+
+        let sink = match self.bob_builder.clone() {
+            Some(builder) => Arc::new(UnfinishedBlockRouter::new(
+                self.sink_factory
+                    .create_sink(payload.clone(), block_cancellation.clone()),
+                builder.server(),
+                slot_timestamp,
+                builder.new_handle(block_cancellation.clone()),
+                builder.config.stream_start_dur,
+            )),
+            None => self
+                .sink_factory
+                .create_sink(payload.clone(), block_cancellation.clone()),
+        };
         self.start_building_job(
             block_ctx,
-            block_router.clone(),
+            sink,
             simulations_for_block,
             block_cancellation.clone(),
         );
-        tokio::spawn(run_bob_builder(
-            block_router,
-            bob_order_receiver,
-            block_receiver,
-            block_cancellation.clone(),
-        ));
     }
 
     /// Per each BlockBuildingAlgorithm creates BlockBuildingAlgorithmInput and Sinks and spawn a task to run it

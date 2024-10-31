@@ -468,7 +468,9 @@ impl<Tracer: SimulationTracer> PartialBlock<Tracer> {
         state: &mut BlockState,
         sim_value: Option<&SimValue>,
     ) -> Result<Result<ExecutionResult, ExecutionError>, CriticalCommitOrderError> {
-        if ctx.builder_signer.is_none() && sim_value.map_or(false, |sv| !sv.paid_kickbacks.is_empty()) {
+        if ctx.builder_signer.is_none()
+            && sim_value.map_or(false, |sv| !sv.paid_kickbacks.is_empty())
+        {
             // Return here to avoid wasting time on a call to fork.commit_order that 99% will fail
             return Ok(Err(ExecutionError::OrderError(OrderErr::Bundle(
                 BundleErr::NoSigner,
@@ -500,8 +502,7 @@ impl<Tracer: SimulationTracer> PartialBlock<Tracer> {
         );
         if let Some(enforce_sorting) = self.enforce_sorting {
             if let Some(sv) = sim_value {
-                match enforce_inplace_sim_result(enforce_sorting, sv, &inplace_sim_result)
-                {
+                match enforce_inplace_sim_result(enforce_sorting, sv, &inplace_sim_result) {
                     Ok(()) => {}
                     Err(err) => {
                         fork.rollback(rollback);

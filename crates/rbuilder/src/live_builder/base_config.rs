@@ -224,9 +224,10 @@ impl BaseConfig {
 
             global_cancellation: cancellation_token,
 
-            extra_rpc: RpcModule::new(()),
+            extra_rpc: RpcModule::new(()).into(),
             sink_factory,
             builders: Vec::new(),
+            bob_builder: None,
 
             run_sparse_trie_prefetcher: self.root_hash_use_sparse_trie,
 

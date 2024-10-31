@@ -6,12 +6,15 @@ pub mod config;
 pub mod order_input;
 pub mod payload_events;
 pub mod simulation;
-pub mod watchdog;
 pub mod streaming;
+pub mod watchdog;
 
 use crate::{
     building::{
-        builders::{BlockBuildingAlgorithm, UnfinishedBlockBuildingSinkFactory},
+        builders::{
+            bob_builder::{run_bob_builder, BobBuilder},
+            BlockBuildingAlgorithm, UnfinishedBlockBuildingSinkFactory,
+        },
         BlockBuildingContext,
     },
     live_builder::{
@@ -107,6 +110,7 @@ where
 
     pub sink_factory: Box<dyn UnfinishedBlockBuildingSinkFactory>,
     pub builders: Vec<Arc<dyn BlockBuildingAlgorithm<P, DB>>>,
+    pub bob_builder: Option<BobBuilder>,
     pub extra_rpc: RpcModule<()>,
 
     /// Notify rbuilder of new [`ReplaceableOrderPoolCommand`] flow via this channel.
@@ -128,6 +132,13 @@ where
         Self { builders, ..self }
     }
 
+    pub fn with_bob_builder(self, bob: BobBuilder) -> Self {
+        Self {
+            bob_builder: Some(bob),
+            ..self
+        }
+    }
+
     pub async fn run(self) -> eyre::Result<()> {
         info!("Builder block list size: {}", self.blocklist.len(),);
         info!(
@@ -145,11 +156,22 @@ where
         let mut inner_jobs_handles = Vec::new();
         let mut payload_events_channel = self.blocks_source.recv_slot_channel();
 
+        let mut module = RpcModule::new(());
+        // Must be before start_orderpool_job to register the rpc
+        if let Some(ref bob_builder) = self.bob_builder {
+            if let Ok((handle, bob_module)) =
+                run_bob_builder(bob_builder, self.global_cancellation.clone()).await
+            {
+                module.merge(bob_module)?;
+                inner_jobs_handles.push(handle);
+            }
+        }
+
         let orderpool_subscriber = {
             let (handle, sub) = start_orderpool_jobs(
                 self.order_input_config,
                 self.provider.clone(),
-                self.extra_rpc,
+                module,
                 self.global_cancellation.clone(),
                 self.orderpool_sender,
                 self.orderpool_receiver,
@@ -170,11 +192,13 @@ where
         let mut builder_pool = BlockBuildingPool::new(
             self.provider.clone(),
             self.builders,
+            self.bob_builder.clone(),
             self.sink_factory,
             orderpool_subscriber,
             order_simulation_pool,
             self.run_sparse_trie_prefetcher,
-        ).await;
+        )
+        .await;
 
         let watchdog_sender = spawn_watchdog_thread(self.watchdog_timeout)?;
 
