@@ -10,7 +10,9 @@ use crate::{
     },
 };
 use ahash::HashMap;
+use alloy_primitives::{Address, B256, U256};
 use jsonrpsee::RpcModule;
+use serde::Serialize;
 use std::{
     fmt,
     net::Ipv4Addr,
@@ -22,7 +24,7 @@ use tokio::{
     task::JoinHandle,
 };
 use tokio_util::sync::CancellationToken;
-use tracing::{trace, warn};
+use tracing::{error, info, trace, warn};
 use uuid::Uuid;
 
 #[derive(Clone, Debug)]
@@ -92,16 +94,26 @@ impl BobBuilder {
         return self.inner.state_diff_server.clone();
     }
 
-    pub fn new_handle(&self, cancel: CancellationToken) -> Arc<Mutex<BobHandle>> {
-        let handle = Arc::new(Mutex::new(BobHandle {
-            builder: self.clone(),
-            uuids: Box::new(Vec::new()),
-        }));
+    pub fn new_handle(
+        &self,
+        sink: Arc<dyn UnfinishedBlockBuildingSink>,
+        slot_timestamp: time::OffsetDateTime,
+        cancel: CancellationToken,
+    ) -> BobHandle {
+        let handle = BobHandle {
+            inner: Arc::new(Mutex::new(BobHandleInner {
+                builder: self.clone(),
+                canceled: false,
+                slot_timestamp: slot_timestamp,
+                sink: sink,
+                uuids: Box::new(Vec::new()),
+            })),
+        };
         let handle_clone = handle.clone();
         tokio::spawn(async move {
             tokio::select! {
                 _ = cancel.cancelled() => {
-                    handle_clone.lock().unwrap().remove_uuids();
+                    handle_clone.inner.lock().unwrap().cancel();
                 }
             }
         });
@@ -188,25 +200,158 @@ pub async fn run_bob_builder(
 
 #[derive(Clone, Debug)]
 pub struct BobHandle {
+    inner: Arc<Mutex<BobHandleInner>>,
+}
+
+impl UnfinishedBlockBuildingSink for BobHandle {
+    fn new_block(&self, block: Box<dyn BlockBuildingHelper>) {
+        self.inner.lock().unwrap().new_block(block);
+    }
+
+    fn can_use_suggested_fee_recipient_as_coinbase(&self) -> bool {
+        return self
+            .inner
+            .lock()
+            .unwrap()
+            .can_use_suggested_fee_recipient_as_coinbase();
+    }
+}
+
+#[derive(Clone, Debug)]
+struct BobHandleInner {
     builder: BobBuilder,
+    canceled: bool,
+    sink: Arc<dyn UnfinishedBlockBuildingSink>,
+    slot_timestamp: time::OffsetDateTime,
     uuids: Box<Vec<Uuid>>,
 }
 
-impl BobHandle {
-    pub fn new_block(
-        &mut self,
-        block: Box<dyn BlockBuildingHelper>,
-        sink: Arc<dyn UnfinishedBlockBuildingSink>,
-        uuid: Uuid,
-    ) {
-        self.uuids.push(uuid);
-        self.builder.new_block(block, sink, uuid);
+impl BobHandleInner {
+    fn new_block(&mut self, block: Box<dyn BlockBuildingHelper>) {
+        if self.canceled {
+            return;
+        }
+
+        self.sink.new_block(block.box_clone());
+
+        let now = time::OffsetDateTime::now_utc();
+        let streaming_start_time = self.slot_timestamp + self.builder.config.stream_start_dur;
+        let delta = self.slot_timestamp - now;
+        info!("Seconds into slot: {}", delta.as_seconds_f64());
+
+        // Check if this block has the highest value and should be streamed
+        let true_block_value = block.built_block_trace().bid_value;
+        let should_stream = {
+            info!("True block value: {}", true_block_value);
+            info!(
+                "Built block trace: {:?}",
+                block.built_block_trace().included_orders.len()
+            );
+            // let mut best_bid = self.best_bid.lock().unwrap();
+            // if true_block_value > *best_bid {
+            //     *best_bid = true_block_value;
+            //     true
+            // } else {
+            //     false
+            // }
+            true
+        };
+
+        // Stream block state if we're past the start time and it's the highest value block seen
+        if now < streaming_start_time || !should_stream {
+            return;
+        }
+        info!("STREAMING BLOCK STATE /n");
+
+        let block_uuid = Uuid::new_v4();
+        self.uuids.push(block_uuid);
+        self.stream_block_state(&block, block_uuid);
+        self.builder.new_block(block, self.sink.clone(), block_uuid);
     }
 
-    pub fn remove_uuids(&self) {
+    fn can_use_suggested_fee_recipient_as_coinbase(&self) -> bool {
+        return self.sink.can_use_suggested_fee_recipient_as_coinbase();
+    }
+
+    // Helper function to stream block state updates to subscribers
+    fn stream_block_state(&self, block: &Box<dyn BlockBuildingHelper>, block_uuid: Uuid) {
+        // Get block context and state
+        let building_context = block.building_context();
+        let bundle_state = block.get_bundle_state();
+
+        // Create state update object containing block info and state differences
+        let block_state_update = BlockStateUpdate {
+            block_number: building_context.block_env.number.into(),
+            block_timestamp: building_context.block_env.timestamp.into(),
+            block_uuid: block_uuid,
+            state_diff: bundle_state
+                .state
+                .iter()
+                .filter_map(|(address, account)| {
+                    // Skip accounts with empty code hash
+                    if account
+                        .info
+                        .as_ref()
+                        .map_or(true, |info| info.is_empty_code_hash())
+                    {
+                        return None;
+                    }
+                    Some((
+                        *address,
+                        AccountStateUpdate {
+                            storage_diff: Some(
+                                account
+                                    .storage
+                                    .iter()
+                                    .map(|(slot, storage_slot)| {
+                                        (B256::from(*slot), B256::from(storage_slot.present_value))
+                                    })
+                                    .collect(),
+                            ),
+                        },
+                    ))
+                })
+                .collect(),
+        };
+
+        match serde_json::to_value(&block_state_update) {
+            Ok(json_data) => {
+                if let Err(_e) = self.builder.inner.state_diff_server.send(json_data) {
+                    warn!("Failed to send block data");
+                } else {
+                    info!(
+                        "Sent BlockStateUpdate: uuid={}",
+                        block_state_update.block_uuid
+                    );
+                }
+            }
+            Err(e) => error!("Failed to serialize block state diff update: {:?}", e),
+        }
+    }
+
+    pub fn cancel(&mut self) {
         let mut cache = self.builder.inner.block_cache.lock().unwrap();
         self.uuids.iter().for_each(|uuid| {
             cache.remove(uuid);
-        })
+        });
+
+        self.canceled = true;
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct BlockStateUpdate {
+    block_number: U256,
+    block_timestamp: U256,
+    block_uuid: Uuid,
+    state_diff: HashMap<Address, AccountStateUpdate>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+
+struct AccountStateUpdate {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    storage_diff: Option<HashMap<B256, B256>>,
 }

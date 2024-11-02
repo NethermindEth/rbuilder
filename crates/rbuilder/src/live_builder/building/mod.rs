@@ -8,7 +8,6 @@ use crate::{
         },
         BlockBuildingContext,
     },
-    live_builder::block_output::block_router::UnfinishedBlockRouter,
     live_builder::simulation::SlotOrderSimResults,
     roothash::run_trie_prefetcher,
 };
@@ -96,18 +95,16 @@ where
             block_cancellation.clone(),
         );
 
+        let block_sealing_bidder = self
+            .sink_factory
+            .create_sink(payload.clone(), block_cancellation.clone());
         let sink = match self.bob_builder.clone() {
-            Some(builder) => Arc::new(UnfinishedBlockRouter::new(
-                self.sink_factory
-                    .create_sink(payload.clone(), block_cancellation.clone()),
-                builder.server(),
+            Some(builder) => Arc::new(builder.new_handle(
+                block_sealing_bidder,
                 slot_timestamp,
-                builder.new_handle(block_cancellation.clone()),
-                builder.config.stream_start_dur,
+                block_cancellation.clone(),
             )),
-            None => self
-                .sink_factory
-                .create_sink(payload.clone(), block_cancellation.clone()),
+            None => block_sealing_bidder,
         };
         self.start_building_job(
             block_ctx,
