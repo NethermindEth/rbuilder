@@ -120,7 +120,7 @@ impl BobBuilder {
         return handle;
     }
 
-    pub fn new_block(
+    pub fn insert_block(
         &self,
         block: Box<dyn BlockBuildingHelper>,
         sink: Arc<dyn UnfinishedBlockBuildingSink>,
@@ -182,10 +182,10 @@ pub async fn run_bob_builder(
                 Some((order, uuid)) = order_receiver.recv() => {
                     let cache = inner.block_cache.lock().unwrap();
                     if let Some(entry) =  cache.get(&uuid) {
-                        let mut new_block = entry.block.box_clone();
-                        match new_block.commit_order(&order) {
+                        let mut streamed_block = entry.block.box_clone();
+                        match streamed_block.commit_order(&order) {
                             Ok(_) => {
-                                entry.sink.new_block(new_block);
+                                entry.sink.new_block(streamed_block);
                             }
                             Err(_) => {}
                         }
@@ -205,7 +205,7 @@ pub struct BobHandle {
 
 impl UnfinishedBlockBuildingSink for BobHandle {
     fn new_block(&self, block: Box<dyn BlockBuildingHelper>) {
-        self.inner.lock().unwrap().new_block(block);
+        self.inner.lock().unwrap().pass_and_stream_block(block);
     }
 
     fn can_use_suggested_fee_recipient_as_coinbase(&self) -> bool {
@@ -227,7 +227,7 @@ struct BobHandleInner {
 }
 
 impl BobHandleInner {
-    fn new_block(&mut self, block: Box<dyn BlockBuildingHelper>) {
+    fn pass_and_stream_block(&mut self, block: Box<dyn BlockBuildingHelper>) {
         if self.canceled {
             return;
         }
@@ -266,7 +266,7 @@ impl BobHandleInner {
         let block_uuid = Uuid::new_v4();
         self.uuids.push(block_uuid);
         self.stream_block_state(&block, block_uuid);
-        self.builder.new_block(block, self.sink.clone(), block_uuid);
+        self.builder.insert_block(block, self.sink.clone(), block_uuid);
     }
 
     fn can_use_suggested_fee_recipient_as_coinbase(&self) -> bool {
