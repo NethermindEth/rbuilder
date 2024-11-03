@@ -232,14 +232,17 @@ impl BobHandleInner {
             return;
         }
 
+        // Always pass the block to blocksealingbidder's sink for relay submission
         self.sink.new_block(block.box_clone());
 
+        // Check if we've passed the streaming start time
         let now = time::OffsetDateTime::now_utc();
         let streaming_start_time = self.slot_timestamp + self.builder.config.stream_start_dur;
         let delta = self.slot_timestamp - now;
         info!("Seconds into slot: {}", delta.as_seconds_f64());
 
-        // Check if this block has the highest value and should be streamed
+        // Check if new block TBV > stored TBV
+        // If so, update stored TBV and stream
         let true_block_value = block.built_block_trace().bid_value;
         let should_stream = {
             info!("True block value: {}", true_block_value);
@@ -257,16 +260,16 @@ impl BobHandleInner {
             true
         };
 
-        // Stream block state if we're past the start time and it's the highest value block seen
-        if now < streaming_start_time || !should_stream {
-            return;
-        }
-        info!("STREAMING BLOCK STATE /n");
+        // if we're past the start time and it's the highest value block seen
+        // stream block state and insert into cache
+        if now >= streaming_start_time && should_stream {
+            info!("STREAMING BLOCK STATE /n");
 
-        let block_uuid = Uuid::new_v4();
-        self.uuids.push(block_uuid);
-        self.stream_block_state(&block, block_uuid);
-        self.builder.insert_block(block, self.sink.clone(), block_uuid);
+            let block_uuid = Uuid::new_v4();
+            self.uuids.push(block_uuid);
+            self.stream_block_state(&block, block_uuid);
+            self.builder.insert_block(block, self.sink.clone(), block_uuid);
+        }
     }
 
     fn can_use_suggested_fee_recipient_as_coinbase(&self) -> bool {
