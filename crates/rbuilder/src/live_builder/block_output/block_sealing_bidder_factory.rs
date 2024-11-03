@@ -2,7 +2,7 @@ use crate::{
     building::builders::{UnfinishedBlockBuildingSink, UnfinishedBlockBuildingSinkFactory},
     live_builder::payload_events::MevBoostSlotData,
 };
-use alloy_primitives::{U256};
+use alloy_primitives::U256;
 use reth_provider::{HeaderProvider, StateProviderFactory};
 use std::fmt::Debug;
 use std::sync::Arc;
