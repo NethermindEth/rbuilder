@@ -51,7 +51,7 @@ impl<P> Debug for BlockSealingBidderFactory<P> {
 }
 
 impl<P> BlockSealingBidderFactory<P> {
-    pub async fn new(
+    pub fn new(
         bidding_service: Box<dyn BiddingService>,
         block_sink_factory: Box<dyn BuilderSinkFactory>,
         competition_bid_value_source: Arc<dyn BidValueSource + Send + Sync>,
