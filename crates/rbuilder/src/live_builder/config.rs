@@ -27,8 +27,12 @@ use crate::{
         Sorting,
     },
     live_builder::{
-        base_config::EnvOrValue, block_output::relay_submit::BuilderSinkFactory,
-        cli::LiveBuilderConfig, payload_events::MevBoostSlotDataGenerator,
+        base_config::EnvOrValue,
+        block_output::{
+            null_builder_sink_factory::NullBuilderSinkFactory, relay_submit::BuilderSinkFactory,
+        },
+        cli::LiveBuilderConfig,
+        payload_events::MevBoostSlotDataGenerator,
     },
     mev_boost::BLSBlockSigner,
     primitives::mev_boost::{MevBoostRelay, RelayConfig},
@@ -131,6 +135,12 @@ pub struct L1Config {
 
     /// Genesis fork version for the chain. If not provided it will be fetched from the beacon client.
     pub genesis_fork_version: Option<String>,
+
+    /// @Pending: mix this with dry_run?
+    /// If disable_relay_submit the the whole final submition state is dropped.
+    ///     This way we can test knowing no bid is going to the relay and there is no need to configure dry_run_validation_url.
+    ///     Notice that at relays are still needed to get the final fee recipient for PBS.
+    pub disable_relay_submit: bool,
 }
 
 impl Default for L1Config {
@@ -147,6 +157,7 @@ impl Default for L1Config {
             cl_node_url: vec![EnvOrValue::from("http://127.0.0.1:3500")],
             max_concurrent_seals: DEFAULT_MAX_CONCURRENT_SEALS,
             genesis_fork_version: None,
+            disable_relay_submit: false,
         }
     }
 }
@@ -276,10 +287,14 @@ impl L1Config {
         );
 
         let relays = self.create_relays()?;
-        let sink_factory: Box<dyn BuilderSinkFactory> = Box::new(RelaySubmitSinkFactory::new(
-            submission_config,
-            relays.clone(),
-        ));
+        let sink_factory: Box<dyn BuilderSinkFactory> = if self.disable_relay_submit {
+            Box::new(NullBuilderSinkFactory {})
+        } else {
+            Box::new(RelaySubmitSinkFactory::new(
+                submission_config,
+                relays.clone(),
+            ))
+        };
         Ok((sink_factory, relays))
     }
 }

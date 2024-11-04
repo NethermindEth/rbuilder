@@ -20,6 +20,8 @@ jsonrpc_server_ip = "0.0.0.0"
 el_node_ipc_path = "/tmp/reth.ipc"
 extra_data = "⚡🤖"
 
+disable_relay_submit = false
+
 blocklist_file_path = "./blocklist.json"
 
 dry_run = true
