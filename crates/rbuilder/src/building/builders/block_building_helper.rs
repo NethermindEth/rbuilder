@@ -454,9 +454,8 @@ where
 
     fn gas_remaining(&self) -> u64 {
         if self.partial_block.gas_used > self.partial_block.gas_reserved {
-            0
-        } else {
-            self.partial_block.gas_reserved - self.partial_block.gas_used
+            return 0;
         }
+        return self.partial_block.gas_reserved - self.partial_block.gas_used
     }
 }

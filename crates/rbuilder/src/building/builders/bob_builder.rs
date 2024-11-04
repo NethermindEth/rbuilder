@@ -104,9 +104,10 @@ impl BobBuilder {
             inner: Arc::new(Mutex::new(BobHandleInner {
                 builder: self.clone(),
                 canceled: false,
+                highest_value: U256::from(0),
                 slot_timestamp: slot_timestamp,
                 sink: sink,
-                uuids: Box::new(Vec::new()),
+                uuids: Vec::new(),
             })),
         };
         let handle_clone = handle.clone();
@@ -180,15 +181,21 @@ pub async fn run_bob_builder(
                     break
                 }
                 Some((order, uuid)) = order_receiver.recv() => {
-                    let cache = inner.block_cache.lock().unwrap();
-                    if let Some(entry) =  cache.get(&uuid) {
-                        let mut streamed_block = entry.block.box_clone();
-                        match streamed_block.commit_order(&order) {
-                            Ok(_) => {
-                                entry.sink.new_block(streamed_block);
-                            }
-                            Err(_) => {}
+                    let (streamed_block, sink) = {
+                        let cache = inner.block_cache.lock().unwrap();
+                        if let Some(entry) = cache.get(&uuid) {
+                            (entry.block.box_clone(), entry.sink.clone())
+                        } else {
+                            continue;
                         }
+                    };
+
+                    let mut streamed_block = streamed_block;
+                    match streamed_block.commit_order(&order) {
+                        Ok(_) => {
+                            sink.new_block(streamed_block);
+                        }
+                        Err(_) => {}
                     }
                 }
             }
@@ -221,9 +228,10 @@ impl UnfinishedBlockBuildingSink for BobHandle {
 struct BobHandleInner {
     builder: BobBuilder,
     canceled: bool,
+    highest_value: U256,
     sink: Arc<dyn UnfinishedBlockBuildingSink>,
     slot_timestamp: time::OffsetDateTime,
-    uuids: Box<Vec<Uuid>>,
+    uuids: Vec<Uuid>,
 }
 
 impl BobHandleInner {
@@ -235,50 +243,17 @@ impl BobHandleInner {
         // Always pass the block to blocksealingbidder's sink for relay submission
         self.sink.new_block(block.box_clone());
 
-        // Check if we've passed the streaming start time
-        let now = time::OffsetDateTime::now_utc();
-        let streaming_start_time = self.slot_timestamp + self.builder.config.stream_start_dur;
-        let delta = self.slot_timestamp - now;
-        info!("Seconds into slot: {}", delta.as_seconds_f64());
-
-        // Check if new block TBV > stored TBV
-        // If so, update stored TBV and stream
-        let true_block_value = block.built_block_trace().bid_value;
-        let should_stream = {
-            info!("True block value: {}", true_block_value);
-            info!(
-                "Built block trace: {:?}",
-                block.built_block_trace().included_orders.len()
-            );
-            // let mut best_bid = self.best_bid.lock().unwrap();
-            // if true_block_value > *best_bid {
-            //     *best_bid = true_block_value;
-            //     true
-            // } else {
-            //     false
-            // }
-            true
-        };
-
-        // if we're past the start time and it's the highest value block seen
-        // stream block state and insert into cache
-        if now >= streaming_start_time && should_stream {
-            info!("STREAMING BLOCK STATE /n");
-
-            let block_uuid = Uuid::new_v4();
-            self.uuids.push(block_uuid);
-            self.stream_block_state(&block, block_uuid);
-            self.builder.insert_block(block, self.sink.clone(), block_uuid);
+        if !self.in_stream_window() {
+            return
         }
-    }
+        if !self.check_and_store_block_value(&block) {
+            return
+        }
+        info!("STREAMING BLOCK STATE /n");
 
-    fn can_use_suggested_fee_recipient_as_coinbase(&self) -> bool {
-        return self.sink.can_use_suggested_fee_recipient_as_coinbase();
-    }
+        let block_uuid = Uuid::new_v4();
+        self.uuids.push(block_uuid);
 
-    // Helper function to stream block state updates to subscribers
-    fn stream_block_state(&self, block: &Box<dyn BlockBuildingHelper>, block_uuid: Uuid) {
-        // Get block context and state
         let building_context = block.building_context();
         let bundle_state = block.get_bundle_state();
 
@@ -317,6 +292,9 @@ impl BobHandleInner {
                 .collect(),
         };
 
+        self.builder.insert_block(block, self.sink.clone(), block_uuid);
+
+        // Get block context and state
         match serde_json::to_value(&block_state_update) {
             Ok(json_data) => {
                 if let Err(_e) = self.builder.inner.state_diff_server.send(json_data) {
@@ -330,6 +308,34 @@ impl BobHandleInner {
             }
             Err(e) => error!("Failed to serialize block state diff update: {:?}", e),
         }
+    }
+
+    fn can_use_suggested_fee_recipient_as_coinbase(&self) -> bool {
+        return self.sink.can_use_suggested_fee_recipient_as_coinbase();
+    }
+
+    // Checks if we're in the streaming window
+    fn in_stream_window(&self) -> bool {
+        let now = time::OffsetDateTime::now_utc();
+        let delta = self.slot_timestamp - now;
+
+        return delta < self.builder.config.stream_start_dur;
+    }
+
+    fn check_and_store_block_value(&mut self, block: &Box<dyn BlockBuildingHelper>) -> bool {
+        match block.true_block_value() {
+            Ok(value) => {
+                if value > self.highest_value {
+                    self.highest_value = value;
+                    return true;
+                }
+                return false
+            }
+            Err(e) => {
+                info!("Error getting true block value: {:?}", e);
+                return false;
+            }
+        };
     }
 
     pub fn cancel(&mut self) {
