@@ -10,8 +10,11 @@ use crate::{
     },
 };
 use ahash::HashMap;
-use alloy_primitives::{Address, B256, U256};
+use alloy_primitives::{Bytes, B256, U256};
+use alloy_rpc_types_eth::state::{AccountOverride, StateOverride};
 use jsonrpsee::RpcModule;
+use reth_primitives::revm_primitives::AccountInfo;
+use revm::db::BundleState;
 use serde::Serialize;
 use std::{
     fmt,
@@ -244,10 +247,10 @@ impl BobHandleInner {
         self.sink.new_block(block.box_clone());
 
         if !self.in_stream_window() {
-            return
+            return;
         }
         if !self.check_and_store_block_value(&block) {
-            return
+            return;
         }
         info!("STREAMING BLOCK STATE /n");
 
@@ -262,37 +265,11 @@ impl BobHandleInner {
             block_number: building_context.block_env.number.into(),
             block_timestamp: building_context.block_env.timestamp.into(),
             block_uuid: block_uuid,
-            state_diff: bundle_state
-                .state
-                .iter()
-                .filter_map(|(address, account)| {
-                    // Skip accounts with empty code hash
-                    if account
-                        .info
-                        .as_ref()
-                        .map_or(true, |info| info.is_empty_code_hash())
-                    {
-                        return None;
-                    }
-                    Some((
-                        *address,
-                        AccountStateUpdate {
-                            storage_diff: Some(
-                                account
-                                    .storage
-                                    .iter()
-                                    .map(|(slot, storage_slot)| {
-                                        (B256::from(*slot), B256::from(storage_slot.present_value))
-                                    })
-                                    .collect(),
-                            ),
-                        },
-                    ))
-                })
-                .collect(),
+            state_overrides: bundle_state_to_state_overrides(&bundle_state),
         };
 
-        self.builder.insert_block(block, self.sink.clone(), block_uuid);
+        self.builder
+            .insert_block(block, self.sink.clone(), block_uuid);
 
         // Get block context and state
         match serde_json::to_value(&block_state_update) {
@@ -329,7 +306,7 @@ impl BobHandleInner {
                     self.highest_value = value;
                     return true;
                 }
-                return false
+                return false;
             }
             Err(e) => {
                 info!("Error getting true block value: {:?}", e);
@@ -354,13 +331,52 @@ struct BlockStateUpdate {
     block_number: U256,
     block_timestamp: U256,
     block_uuid: Uuid,
-    state_diff: HashMap<Address, AccountStateUpdate>,
+    state_overrides: StateOverride,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "camelCase")]
+fn bundle_state_to_state_overrides(bundle_state: &BundleState) -> StateOverride {
+    let account_overrides: StateOverride = bundle_state
+        .state
+        .iter()
+        .filter_map(|(address, bundle_account)| {
+            let info = bundle_account.info.as_ref()?;
+            let code = resolve_code(bundle_state, &info)?;
+            let account_override = AccountOverride {
+                balance: Some(info.balance),
+                nonce: Some(info.nonce),
+                code: Some(code),
+                state_diff: Some(
+                    bundle_account
+                        .storage
+                        .iter()
+                        .map(|(slot, storage_slot)| {
+                            (B256::from(*slot), B256::from(storage_slot.present_value))
+                        })
+                        .collect(),
+                ),
+                state: None,
+            };
 
-struct AccountStateUpdate {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    storage_diff: Option<HashMap<B256, B256>>,
+            Some((*address, account_override))
+        })
+        .collect();
+
+    return account_overrides;
+}
+
+fn resolve_code(bundle_state: &BundleState, info: &AccountInfo) -> Option<Bytes> {
+    if info.is_empty_code_hash() {
+        return None;
+    }
+
+    return info
+        .code
+        .as_ref()
+        .map(|code| code.bytes().clone())
+        .or_else(|| {
+            bundle_state
+                .contracts
+                .get(&info.code_hash)
+                .map(|code| code.bytes().clone())
+        });
 }
