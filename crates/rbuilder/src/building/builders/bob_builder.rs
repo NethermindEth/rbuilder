@@ -10,10 +10,9 @@ use crate::{
     },
 };
 use ahash::HashMap;
-use alloy_primitives::{Bytes, B256, U256};
+use alloy_primitives::{B256, U256};
 use alloy_rpc_types_eth::state::{AccountOverride, StateOverride};
 use jsonrpsee::RpcModule;
-use reth_primitives::revm_primitives::AccountInfo;
 use revm::db::BundleState;
 use serde::Serialize;
 use std::{
@@ -340,11 +339,17 @@ fn bundle_state_to_state_overrides(bundle_state: &BundleState) -> StateOverride 
         .iter()
         .filter_map(|(address, bundle_account)| {
             let info = bundle_account.info.as_ref()?;
-            let code = resolve_code(bundle_state, &info)?;
+            if info.is_empty_code_hash() {
+                return None;
+            }
+            let code = bundle_state
+                .contracts
+                .get(&info.code_hash)
+                .map(|code| code.bytes().clone());
             let account_override = AccountOverride {
                 balance: Some(info.balance),
                 nonce: Some(info.nonce),
-                code: Some(code),
+                code: code,
                 state_diff: Some(
                     bundle_account
                         .storage
@@ -362,21 +367,4 @@ fn bundle_state_to_state_overrides(bundle_state: &BundleState) -> StateOverride 
         .collect();
 
     return account_overrides;
-}
-
-fn resolve_code(bundle_state: &BundleState, info: &AccountInfo) -> Option<Bytes> {
-    if info.is_empty_code_hash() {
-        return None;
-    }
-
-    return info
-        .code
-        .as_ref()
-        .map(|code| code.bytes().clone())
-        .or_else(|| {
-            bundle_state
-                .contracts
-                .get(&info.code_hash)
-                .map(|code| code.bytes().clone())
-        });
 }
