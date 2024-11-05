@@ -346,19 +346,23 @@ fn bundle_state_to_state_overrides(bundle_state: &BundleState) -> StateOverride 
                 .contracts
                 .get(&info.code_hash)
                 .map(|code| code.bytes().clone());
+
+            let storage_diff: Vec<(B256, B256)> = bundle_account
+                .storage
+                .iter()
+                .map(|(slot, storage_slot)| {
+                    (B256::from(*slot), B256::from(storage_slot.present_value))
+                })
+                .collect();
             let account_override = AccountOverride {
                 balance: Some(info.balance),
                 nonce: Some(info.nonce),
                 code: code,
-                state_diff: Some(
-                    bundle_account
-                        .storage
-                        .iter()
-                        .map(|(slot, storage_slot)| {
-                            (B256::from(*slot), B256::from(storage_slot.present_value))
-                        })
-                        .collect(),
-                ),
+                state_diff: if storage_diff.is_empty() {
+                    None
+                } else {
+                    Some(storage_diff)
+                },
                 state: None,
             };
 
