@@ -264,6 +264,7 @@ impl BobHandleInner {
             block_number: building_context.block_env.number.into(),
             block_timestamp: building_context.block_env.timestamp.into(),
             block_uuid: block_uuid,
+            gas_remaining: block.gas_remaining(),
             state_overrides: bundle_state_to_state_overrides(&bundle_state),
         };
 
@@ -330,6 +331,7 @@ struct BlockStateUpdate {
     block_number: U256,
     block_timestamp: U256,
     block_uuid: Uuid,
+    gas_remaining: u64,
     state_overrides: StateOverride,
 }
 
@@ -347,7 +349,7 @@ fn bundle_state_to_state_overrides(bundle_state: &BundleState) -> StateOverride 
                 .get(&info.code_hash)
                 .map(|code| code.bytes().clone());
 
-            let storage_diff: Vec<(B256, B256)> = bundle_account
+            let storage_diff: std::collections::HashMap<B256, B256> = bundle_account
                 .storage
                 .iter()
                 .map(|(slot, storage_slot)| {
