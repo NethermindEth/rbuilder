@@ -42,7 +42,7 @@ where
     DB: Database + Clone + 'static,
     P: DatabaseProviderFactory<DB> + StateProviderFactory + Clone + 'static,
 {
-    pub async fn new(
+    pub fn new(
         provider: P,
         builders: Vec<Arc<dyn BlockBuildingAlgorithm<P, DB>>>,
         bob_builder: Option<BobBuilder>,
