@@ -126,6 +126,7 @@ where
         let mut payload_events_channel = self.blocks_source.recv_slot_channel();
 
         let mut module = RpcModule::new(());
+        module.merge(self.extra_rpc)?;
         // Must be before start_orderpool_job to register the rpc
         if let Some(ref bob_builder) = self.bob_builder {
             if let Ok((handle, bob_module)) =
