@@ -26,7 +26,7 @@ use tokio::{
     task::JoinHandle,
 };
 use tokio_util::sync::CancellationToken;
-use tracing::{error, info, trace, warn};
+use tracing::{debug, error, info, trace, warn};
 use uuid::Uuid;
 
 #[derive(Clone, Debug)]
@@ -53,10 +53,15 @@ impl BobBuilderConfig {
     }
 }
 
+// There is a single bob instance for the entire builder process
+// It server as a cache for our event handler loop to store partial blocks
+// by uuid, and to store the rpc server responsible for streaming these blocks
+// to bob searchers. The bob does not distinguish between partial blocks associated
+// between different slots - it should be accessed through a handler which contains
+// this association and logic.
 #[derive(Clone, Debug)]
 pub struct BobBuilder {
-    pub config: BobBuilderConfig,
-    pub extra_rpc: RpcModule<()>,
+    config: BobBuilderConfig,
     inner: Arc<BobBuilderInner>,
 }
 
@@ -84,7 +89,6 @@ impl BobBuilder {
         let block_cache = HashMap::<Uuid, BlockCacheEntry>::default();
         Ok(Self {
             config,
-            extra_rpc: RpcModule::new(()),
             inner: Arc::new(BobBuilderInner {
                 state_diff_server: server,
                 block_cache: Mutex::new(block_cache),
@@ -96,6 +100,12 @@ impl BobBuilder {
         return self.inner.state_diff_server.clone();
     }
 
+    // BobBuilder should be accessed through a handler. This
+    // handler will be associated with a particular slot, and
+    // contains the relevants data fields for it. We spawn
+    // a separate process that will wait for the cancellation token
+    // associated with the slot, and then perform the necessary tear down.
+    // Critically, this includes removing now stale partial blocks by uuid.
     pub fn new_handle(
         &self,
         sink: Arc<dyn UnfinishedBlockBuildingSink>,
@@ -138,6 +148,11 @@ impl BobBuilder {
     }
 }
 
+// Run bob builder is called once at startup of the builder.
+// It attached an rpc method to receive bob orders from clients
+// then enters and event handler loop that handles incoming orders
+// until global cancellation. Blocks are looked up via uuid in cache,
+// bob orders applied, and then forwards onto the final sink.
 pub async fn run_bob_builder(
     bob_builder: &BobBuilder,
     cancel: CancellationToken,
@@ -183,6 +198,7 @@ pub async fn run_bob_builder(
                     break
                 }
                 Some((order, uuid)) = order_receiver.recv() => {
+                    debug!("Received bob order for uuid: {:?} {:?}", order, uuid);
                     let (streamed_block, sink) = {
                         let cache = inner.block_cache.lock().unwrap();
                         if let Some(entry) = cache.get(&uuid) {
@@ -194,10 +210,15 @@ pub async fn run_bob_builder(
 
                     let mut streamed_block = streamed_block;
                     match streamed_block.commit_order(&order) {
-                        Ok(_) => {
+                        Ok(Ok(_)) => {
                             sink.new_block(streamed_block);
                         }
-                        Err(_) => {}
+                        Ok(Err(e)) => {
+                            debug!("Reverted or failed bob order: {:?}", e);
+                        }
+                        Err(e) => {
+                            debug!("Error commiting bob order: {:?}", e);
+                        }
                     }
                 }
             }
@@ -207,6 +228,13 @@ pub async fn run_bob_builder(
     Ok((handle, module))
 }
 
+// BobHandle associate a particular slot to the BobBuilder,
+// and store relevant information about the slot, the uuid of partial blocks
+// generated for that slot, highest value observed, and final sealer / bidding sink
+// The BobBuilder is not accessed directly, it should be only be accessed through the handle.
+//
+// It implemented the UnfinishedBlockBuilderSink interface so it can act be directly
+// used as a sink for other building algorithms.
 #[derive(Clone, Debug)]
 pub struct BobHandle {
     inner: Arc<Mutex<BobHandleInner>>,
@@ -238,6 +266,7 @@ struct BobHandleInner {
 
 impl BobHandleInner {
     fn pass_and_stream_block(&mut self, block: Box<dyn BlockBuildingHelper>) {
+        // If we've processed a cancellation for this slot, bail.
         if self.canceled {
             return;
         }
@@ -245,13 +274,16 @@ impl BobHandleInner {
         // Always pass the block to blocksealingbidder's sink for relay submission
         self.sink.new_block(block.box_clone());
 
+        // We only stream new partial blocks to searchers in a default 2 second window
+        // before the slot end. We don't need to store partial blocks not streamed so bail.
         if !self.in_stream_window() {
             return;
         }
+        // Only stream new partial blocks whose non-bob value is an increase.
         if !self.check_and_store_block_value(&block) {
             return;
         }
-        info!("STREAMING BLOCK STATE /n");
+        trace!("Streaming bob partial block");
 
         let block_uuid = Uuid::new_v4();
         self.uuids.push(block_uuid);
@@ -268,6 +300,12 @@ impl BobHandleInner {
             state_overrides: bundle_state_to_state_overrides(&bundle_state),
         };
 
+        // Insert the block in the builder cache before streaming to searchers
+        // in order to avoid a potential race condition where a searcher could respond
+        // to the streamed value before it's been inserted and made known to the BobBuilder
+        //
+        // The actual rpc message is constructed above to avoid creating an uncessary clone
+        // due to ownership rules.
         self.builder
             .insert_block(block, self.sink.clone(), block_uuid);
 
@@ -309,12 +347,19 @@ impl BobHandleInner {
                 return false;
             }
             Err(e) => {
-                info!("Error getting true block value: {:?}", e);
+                debug!("Error getting true block value: {:?}", e);
                 return false;
             }
         };
     }
 
+    // Performs teardown for the handle, triggered above when the slot cancellation
+    // token is triggered. Removes uuids we've seen from the builder cache.
+    //
+    // Note that we store that the cancellation has occured - otherwise there could
+    // be stale blocks inserted after cancellation due to race conditions in when upstream
+    // processed receive / handle cancellation. E.G. our teardown occurs before an upstream builder
+    // has handle the cancellation.
     pub fn cancel(&mut self) {
         let mut cache = self.builder.inner.block_cache.lock().unwrap();
         self.uuids.iter().for_each(|uuid| {
@@ -335,6 +380,12 @@ struct BlockStateUpdate {
     state_overrides: StateOverride,
 }
 
+// BundleState is the object used to track the accumulated state changes from
+// sequential transaction.
+//
+// We convert this into a StateOverride object, which is a more standard format
+// used in other contexts to specifies state overrides, such as in eth_call and
+// other simulation methods.
 fn bundle_state_to_state_overrides(bundle_state: &BundleState) -> StateOverride {
     let account_overrides: StateOverride = bundle_state
         .state
