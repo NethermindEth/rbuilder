@@ -6,7 +6,7 @@ use super::{
 };
 use alloy_primitives::Address;
 use reth_primitives::{Bytes, B256, U64};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use serde_with::serde_as;
 use thiserror::Error;
 use tracing::error;
@@ -37,6 +37,15 @@ impl TxEncoding {
     }
 }
 
+fn deserialize_vec_b256_from_null_or_string<'de, D>(deserializer: D) -> Result<Vec<B256>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    // Option::deserialize handles null.S
+    let opt = Option::deserialize(deserializer)?;
+    Ok(opt.unwrap_or_default())
+}
+
 /// Struct to de/serialize json Bundles from bundles APIs and from/db.
 /// Does not assume a particular format on txs.
 #[serde_as]
@@ -45,7 +54,7 @@ impl TxEncoding {
 pub struct RawBundle {
     pub block_number: U64,
     pub txs: Vec<Bytes>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_vec_b256_from_null_or_string")]
     pub reverting_tx_hashes: Vec<B256>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub replacement_uuid: Option<Uuid>,
@@ -665,7 +674,7 @@ mod tests {
     }
 
     #[test]
-    fn test_correct_bundle_uuid_null_reverting_hashes() {
+    fn test_correct_bundle_uuid_missing_reverting_hashes() {
         // raw json string
         let bundle_json = r#"
         {
@@ -685,6 +694,36 @@ mod tests {
             fixed_bytes!("cf3c567aede099e5455207ed81c4884f72a4c0c24ddca331163a335525cd22cc")
         );
         assert_eq!(bundle.uuid, uuid!("5d5bf52c-ac3f-57eb-a3e9-fc01b18ca516"));
+    }
+
+    ///Real life case
+    #[test]
+    fn test_correct_bundle_uuid_null_reverting_hashes() {
+        // raw json string
+        let bundle_json ="{\"txs\":[\"0x02f901c00182123184cd0a3c00850d8c3ac83483186a00949f51040aec194a89cb6a7e852e79ea07cc0bf6488203abb9014e524f05aadf99a0839818b3f120ebac9b73f82b617dc6a5550000000000000004aa7fdb4059a9fc0400000000000000000000000000000000000000000000000000000000000000000000000000540101d99034942c4a883ff3ed6cda6c91fe505a58eb2e0000000000000001270250af8569d4ff712aaebc2f5971a824249fa7000000000000030015153da0e9e13cfc167b3d417d3721bf545479bb000bb800003c00540101d99034942c4a883ff3ed6cda6c91fe505a58eb2e00000000000000015533b61d314f7faf87df530de362f457a342ec1e00000000000003008107fca5494375fc743a9fc4d4844353a1af3d94000bb800003c00540101d99034942c4a883ff3ed6cda6c91fe505a58eb2e0000000000000001b81ab4b74522a25525e583f94dba73521cc4d56b0000000000000100308c6fbd6a14881af333649f17f2fde9cd75e2a6000000000000c080a061a306a26e0a66973364614912553f32c7915e899b188164bf2e99b97e08d0e8a00c76b844dc4b72c2040f14e69f0f9c3fa290a2db7c4a245d045155090ec7d746\"],\"replacementUuid\":null,\"signingAddress\":\"0x564d55a3a73f6efb907afe92b1706602b2d54018\",\"blockNumber\":\"0x142dd19\",\"minTimestamp\":null,\"maxTimestamp\":null,\"revertingTxHashes\":null}";
+
+        let bundle_request: RawBundle =
+            serde_json::from_str(bundle_json).expect("failed to decode bundle");
+
+        let bundle = bundle_request
+            .clone()
+            .decode(TxEncoding::WithBlobData)
+            .expect("failed to convert bundle request to bundle");
+
+        let bundle_roundtrip = RawBundle::encode_no_blobs(bundle.clone());
+        assert_eq!(bundle_request, bundle_roundtrip);
+
+        assert_eq!(
+            bundle.hash,
+            fixed_bytes!("08b57aa2df6e4729c55b809d1110f16aba30956cfc17f7ad771441d6d418f991")
+        );
+        assert_eq!(bundle.uuid, uuid!("0cc09d2b-6538-5d0e-a627-22c400845783"));
+
+        assert!(bundle.reverting_tx_hashes.is_empty());
+        assert_eq!(bundle.txs.len(), 1);
+
+        assert_eq!(bundle.min_timestamp, None);
+        assert_eq!(bundle.max_timestamp, None);
     }
 
     #[test]
