@@ -18,8 +18,8 @@ reth-tracing.workspace = true
 reth-provider.workspace = true
 reth-transaction-pool.workspace = true
 reth-evm.workspace = true
-reth-evm-optimism.workspace = true
-reth-node-optimism = { workspace = true }
+reth-optimism-evm.workspace = true
+reth-optimism-node = { workspace = true }
 
 # async
 tracing.workspace = true
@@ -30,11 +30,11 @@ eyre.workspace = true
 
 [features]
 optimism = [
-	"reth-node-optimism/optimism",
-	"reth-chainspec/optimism",
-	"reth-provider/optimism",
-	"reth-evm-optimism/optimism",
-	"op-rbuilder-payload-builder/optimism",
+#	"reth-optimism-node/optimism",
+#	"reth-chainspec/optimism",
+#	"reth-provider/optimism",
+#	"reth-optimism-evm/optimism",
+#	"op-rbuilder-payload-builder/optimism",
 	"rbuilder-bundle-pool-operations/optimism",
-	"reth-primitives/optimism"
+#	"reth-primitives/optimism"
 ]

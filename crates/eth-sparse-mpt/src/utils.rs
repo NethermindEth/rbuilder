@@ -2,7 +2,7 @@ use alloy_primitives::{keccak256, Bytes, B256};
 use alloy_rlp::{length_of_length, BufMut, Encodable, Header, EMPTY_STRING_CODE};
 use alloy_trie::nodes::{ExtensionNodeRef, LeafNodeRef};
 use alloy_trie::Nibbles;
-use reth_trie::word_rlp;
+use reth_trie::RlpNode;
 use rustc_hash::{FxBuildHasher, FxHasher};
 use serde::{Deserialize, Serialize};
 
@@ -21,14 +21,14 @@ pub fn rlp_pointer(rlp_encode: Bytes) -> Bytes {
     if rlp_encode.len() < 32 {
         rlp_encode
     } else {
-        word_rlp(&keccak256(&rlp_encode)).into()
+        Bytes::copy_from_slice(RlpNode::word_rlp(&keccak256(&rlp_encode)).as_ref())
     }
 }
 
 pub fn concat_path(p1: &Nibbles, p2: &[u8]) -> Nibbles {
     let mut result = Nibbles::with_capacity(p1.len() + p2.len());
-    result.extend_from_slice_unchecked(p1);
-    result.extend_from_slice_unchecked(p2);
+    result.extend_from_slice_unchecked(&p1);
+    result.extend_from_slice_unchecked(&p2);
     result
 }
 
