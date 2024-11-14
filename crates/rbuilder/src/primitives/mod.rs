@@ -8,7 +8,7 @@ mod test_data_generator;
 
 use crate::building::evm_inspector::UsedStateTrace;
 use alloy_consensus::Transaction as _;
-use alloy_eips::eip2718::Encodable2718;
+use alloy_eips::eip2718::{Decodable2718, Eip2718Error, Encodable2718};
 use alloy_eips::eip4844::{Blob, Bytes48};
 use alloy_primitives::{keccak256, Address, Bytes, TxHash, B256, U256};
 use derivative::Derivative;
@@ -429,7 +429,7 @@ impl std::fmt::Debug for TransactionSignedEcRecoveredWithBlobs {
 #[derive(Error, Debug)]
 pub enum RawTxWithBlobsConvertError {
     #[error("Failed to decode transaction, error: {0}")]
-    FailedToDecodeTransaction(alloy_rlp::Error),
+    FailedToDecodeTransaction(Eip2718Error),
     #[error("Invalid transaction signature")]
     InvalidTransactionSignature,
     #[error("Invalid transaction signature")]
@@ -470,6 +470,10 @@ impl TransactionSignedEcRecoveredWithBlobs {
         self.tx.as_signed().nonce()
     }
 
+    pub fn value(&self) -> U256 {
+        self.tx.as_signed().value()
+    }
+
     /// USE CAREFULLY since this exposes the signed tx.
     pub fn internal_tx_unsecure(&self) -> &TransactionSignedEcRecovered {
         &self.tx
@@ -495,7 +499,7 @@ impl TransactionSignedEcRecoveredWithBlobs {
     ) -> Result<TransactionSignedEcRecoveredWithBlobs, RawTxWithBlobsConvertError> {
         let raw_tx = &mut raw_tx.as_ref();
         let pooled_tx: PooledTransactionsElement =
-            PooledTransactionsElement::decode_enveloped(raw_tx)
+            PooledTransactionsElement::decode_2718(raw_tx)
                 .map_err(RawTxWithBlobsConvertError::FailedToDecodeTransaction)?;
         let signer = pooled_tx
             .recover_signer()
@@ -547,7 +551,7 @@ impl TransactionSignedEcRecoveredWithBlobs {
     pub fn decode_enveloped_with_fake_blobs(
         raw_tx: Bytes,
     ) -> Result<TransactionSignedEcRecoveredWithBlobs, RawTxWithBlobsConvertError> {
-        let decoded = TransactionSigned::decode_enveloped(&mut raw_tx.as_ref())
+        let decoded = TransactionSigned::decode_2718(&mut raw_tx.as_ref())
             .map_err(RawTxWithBlobsConvertError::FailedToDecodeTransaction)?;
         let tx = decoded
             .into_ecrecovered()
@@ -930,8 +934,9 @@ fn can_execute_with_block_base_fee<Transaction: AsRef<TransactionSigned>>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use alloy_consensus::TxLegacy;
     use alloy_primitives::fixed_bytes;
-    use reth_primitives::{Transaction, TransactionSigned, TxLegacy};
+    use reth_primitives::{Transaction, TransactionSigned};
     use uuid::uuid;
 
     #[test]

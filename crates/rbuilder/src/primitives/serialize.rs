@@ -4,8 +4,7 @@ use super::{
     ShareBundleInner, ShareBundleReplacementData, ShareBundleReplacementKey, ShareBundleTx,
     TransactionSignedEcRecoveredWithBlobs, TxRevertBehavior,
 };
-use alloy_primitives::Address;
-use reth_primitives::{Bytes, B256, U64};
+use alloy_primitives::{Address, Bytes, B256, U64};
 use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, DefaultOnNull};
 use thiserror::Error;
@@ -544,6 +543,8 @@ impl From<Order> for RawOrder {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use alloy_consensus::Transaction;
+    use alloy_eips::eip2718::Encodable2718;
     use alloy_primitives::{address, fixed_bytes, keccak256, U256};
     use uuid::uuid;
 
@@ -682,7 +683,11 @@ mod tests {
             .tx;
 
         let raw_tx_roundtrip = RawTx {
-            tx: tx.envelope_encoded(),
+            tx: {
+                let mut buf = Vec::new();
+                tx.as_signed().encode_2718(&mut buf);
+                buf.into()
+            },
         };
         assert_eq!(raw_tx_request, raw_tx_roundtrip);
 
