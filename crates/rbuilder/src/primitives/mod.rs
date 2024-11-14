@@ -7,17 +7,17 @@ pub mod serialize;
 mod test_data_generator;
 
 use crate::building::evm_inspector::UsedStateTrace;
+use alloy_consensus::Transaction as _;
+use alloy_eips::eip2718::Encodable2718;
 use alloy_eips::eip4844::{Blob, Bytes48};
-use alloy_primitives::{Bytes, TxHash};
+use alloy_primitives::{keccak256, Address, Bytes, TxHash, B256, U256};
 use derivative::Derivative;
 use integer_encoding::VarInt;
 use reth_primitives::{
-    keccak256,
     kzg::{BYTES_PER_BLOB, BYTES_PER_COMMITMENT, BYTES_PER_PROOF},
-    Address, BlobTransactionSidecar, PooledTransactionsElement, TransactionSigned,
-    TransactionSignedEcRecovered, B256,
+    BlobTransactionSidecar, PooledTransactionsElement, TransactionSigned,
+    TransactionSignedEcRecovered,
 };
-use revm_primitives::U256;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{cmp::Ordering, collections::HashMap, fmt::Display, str::FromStr, sync::Arc};
@@ -467,7 +467,7 @@ impl TransactionSignedEcRecoveredWithBlobs {
     }
 
     pub fn nonce(&self) -> u64 {
-        self.tx.nonce()
+        self.tx.as_signed().nonce()
     }
 
     /// USE CAREFULLY since this exposes the signed tx.
@@ -484,7 +484,9 @@ impl TransactionSignedEcRecoveredWithBlobs {
     /// I intensionally omitted the version with blob data since we don't use it and may lead to confusions/bugs.
     /// USE CAREFULLY since this exposes the signed tx.
     pub fn envelope_encoded_no_blobs(&self) -> Bytes {
-        self.tx.envelope_encoded()
+        let mut buf = Vec::new();
+        self.tx.as_signed().encode_2718(&mut buf);
+        buf.into()
     }
 
     /// Decodes the "raw" format of transaction (e.g. `eth_sendRawTransaction`) with the blob data (network format)
