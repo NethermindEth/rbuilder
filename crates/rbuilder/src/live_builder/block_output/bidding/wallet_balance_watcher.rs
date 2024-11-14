@@ -1,10 +1,7 @@
 use std::time::Duration;
 
-use alloy_primitives::{Address, BlockNumber, U256};
-use reth::{
-    primitives::format_ether,
-    providers::{HeaderProvider, ProviderError},
-};
+use alloy_primitives::{utils::format_ether, Address, BlockNumber, U256};
+use reth::providers::{HeaderProvider, ProviderError};
 use reth_provider::StateProviderFactory;
 use time::{error, OffsetDateTime};
 use tracing::{error, info};
