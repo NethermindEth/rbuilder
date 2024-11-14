@@ -1,8 +1,8 @@
 use std::path::PathBuf;
 
 use clap::Parser;
+use reth::revm::cached::CachedReads;
 use reth_db::Database;
-use reth_payload_builder::database::CachedReads;
 use reth_provider::{DatabaseProviderFactory, HeaderProvider, StateProviderFactory};
 use serde::de::DeserializeOwned;
 use std::fmt::Debug;
@@ -53,7 +53,11 @@ pub trait LiveBuilderConfig: Debug + DeserializeOwned + Sync {
            + Send
     where
         DB: Database + Clone + 'static,
-        P: DatabaseProviderFactory<DB> + StateProviderFactory + HeaderProvider + Clone + 'static;
+        P: DatabaseProviderFactory<DB = DB>
+            + StateProviderFactory
+            + HeaderProvider
+            + Clone
+            + 'static;
 
     /// Patch until we have a unified way of backtesting using the exact algorithms we use on the LiveBuilder.
     /// building_algorithm_name will come from the specific configuration.
@@ -64,7 +68,7 @@ pub trait LiveBuilderConfig: Debug + DeserializeOwned + Sync {
     ) -> eyre::Result<(Block, CachedReads)>
     where
         DB: Database + Clone + 'static,
-        P: DatabaseProviderFactory<DB> + StateProviderFactory + Clone + 'static;
+        P: DatabaseProviderFactory<DB = DB> + StateProviderFactory + Clone + 'static;
 }
 
 /// print_version_info func that will be called on command Cli::Version

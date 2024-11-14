@@ -117,7 +117,7 @@ fn process_redisribution<P, DB, ConfigType>(
 ) -> eyre::Result<()>
 where
     DB: Database + Clone + 'static,
-    P: DatabaseProviderFactory<DB> + StateProviderFactory + HeaderProvider + Clone + 'static,
+    P: DatabaseProviderFactory<DB = DB> + StateProviderFactory + HeaderProvider + Clone + 'static,
     ConfigType: LiveBuilderConfig,
 {
     let block_number = block_data.block_number;

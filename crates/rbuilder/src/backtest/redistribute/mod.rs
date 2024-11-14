@@ -125,7 +125,7 @@ pub fn calc_redistributions<P, DB, ConfigType>(
 ) -> eyre::Result<RedistributionBlockOutput>
 where
     DB: Database + Clone + 'static,
-    P: DatabaseProviderFactory<DB> + StateProviderFactory + HeaderProvider + Clone + 'static,
+    P: DatabaseProviderFactory<DB = DB> + StateProviderFactory + HeaderProvider + Clone + 'static,
     ConfigType: LiveBuilderConfig,
 {
     let _block_span = info_span!("block", block = block_data.block_number).entered();
@@ -483,7 +483,7 @@ fn calculate_backtest_without_exclusion<P, DB, ConfigType>(
 ) -> eyre::Result<ResultsWithoutExclusion>
 where
     DB: Database + Clone + 'static,
-    P: DatabaseProviderFactory<DB> + StateProviderFactory + HeaderProvider + Clone + 'static,
+    P: DatabaseProviderFactory<DB = DB> + StateProviderFactory + HeaderProvider + Clone + 'static,
     ConfigType: LiveBuilderConfig,
 {
     let ExclusionResult {
@@ -549,7 +549,7 @@ fn calculate_backtest_identity_and_order_exclusion<P, DB, ConfigType>(
 ) -> eyre::Result<ExclusionResults>
 where
     DB: Database + Clone + 'static,
-    P: DatabaseProviderFactory<DB> + StateProviderFactory + HeaderProvider + Clone + 'static,
+    P: DatabaseProviderFactory<DB = DB> + StateProviderFactory + HeaderProvider + Clone + 'static,
     ConfigType: LiveBuilderConfig,
 {
     let included_orders_exclusion = {
@@ -620,7 +620,7 @@ fn calc_joint_exclusion_results<P, DB, ConfigType>(
 ) -> eyre::Result<ExclusionResults>
 where
     DB: Database + Clone + 'static,
-    P: DatabaseProviderFactory<DB> + StateProviderFactory + HeaderProvider + Clone + 'static,
+    P: DatabaseProviderFactory<DB = DB> + StateProviderFactory + HeaderProvider + Clone + 'static,
     ConfigType: LiveBuilderConfig,
 {
     // calculate identities that are possibly connected
@@ -954,7 +954,7 @@ fn calc_profit_after_exclusion<P, DB, ConfigType>(
 ) -> eyre::Result<ExclusionResult>
 where
     DB: Database + Clone + 'static,
-    P: DatabaseProviderFactory<DB> + StateProviderFactory + HeaderProvider + Clone + 'static,
+    P: DatabaseProviderFactory<DB = DB> + StateProviderFactory + HeaderProvider + Clone + 'static,
     ConfigType: LiveBuilderConfig,
 {
     let block_data_with_excluded = {

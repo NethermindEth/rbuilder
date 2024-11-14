@@ -12,10 +12,11 @@ use alloy_primitives::{Address, B256};
 use eyre::{eyre, Context};
 use jsonrpsee::RpcModule;
 use lazy_static::lazy_static;
-use reth::tasks::pool::BlockingTaskPool;
+use reth::{chainspec::chain_value_parser, tasks::pool::BlockingTaskPool};
 use reth_chainspec::ChainSpec;
 use reth_db::{Database, DatabaseEnv};
-use reth_node_core::args::utils::chain_value_parser;
+use reth_node_api::NodeTypesWithDBAdapter;
+use reth_node_ethereum::EthereumNode;
 use reth_primitives::StaticFileSegment;
 use reth_provider::{
     DatabaseProviderFactory, HeaderProvider, StateProviderFactory, StaticFileProviderFactory,
@@ -175,7 +176,7 @@ impl BaseConfig {
         slot_source: SlotSourceType,
     ) -> eyre::Result<
         super::LiveBuilder<
-            ProviderFactoryReopener<Arc<DatabaseEnv>>,
+            ProviderFactoryReopener<NodeTypesWithDBAdapter<EthereumNode, Arc<DatabaseEnv>>>,
             Arc<DatabaseEnv>,
             SlotSourceType,
         >,
@@ -184,7 +185,7 @@ impl BaseConfig {
         SlotSourceType: SlotSource,
     {
         let provider_factory = self.create_provider_factory()?;
-        self.create_builder_with_provider_factory::<ProviderFactoryReopener<Arc<DatabaseEnv>>, Arc<DatabaseEnv>, SlotSourceType>(
+        self.create_builder_with_provider_factory::<ProviderFactoryReopener<NodeTypesWithDBAdapter<EthereumNode, Arc<DatabaseEnv>>>, Arc<DatabaseEnv>, SlotSourceType>(
             cancellation_token,
             sink_factory,
             slot_source,
@@ -203,7 +204,7 @@ impl BaseConfig {
     ) -> eyre::Result<super::LiveBuilder<P, DB, SlotSourceType>>
     where
         DB: Database + Clone + 'static,
-        P: DatabaseProviderFactory<DB> + StateProviderFactory + HeaderProvider + Clone,
+        P: DatabaseProviderFactory<DB = DB> + StateProviderFactory + HeaderProvider + Clone,
         SlotSourceType: SlotSource,
     {
         let order_input_config = OrderInputConfig::from_config(self)?;
@@ -262,7 +263,8 @@ impl BaseConfig {
     /// Open reth db and DB should be opened once per process but it can be cloned and moved to different threads.
     pub fn create_provider_factory(
         &self,
-    ) -> eyre::Result<ProviderFactoryReopener<Arc<DatabaseEnv>>> {
+    ) -> eyre::Result<ProviderFactoryReopener<NodeTypesWithDBAdapter<EthereumNode, Arc<DatabaseEnv>>>>
+    {
         create_provider_factory(
             self.reth_datadir.as_deref(),
             self.reth_db_path.as_deref(),
@@ -469,7 +471,7 @@ pub fn create_provider_factory(
     reth_static_files_path: Option<&Path>,
     chain_spec: Arc<ChainSpec>,
     rw: bool,
-) -> eyre::Result<ProviderFactoryReopener<Arc<DatabaseEnv>>> {
+) -> eyre::Result<ProviderFactoryReopener<NodeTypesWithDBAdapter<EthereumNode, Arc<DatabaseEnv>>>> {
     // shellexpand the reth datadir
     let reth_datadir = if let Some(reth_datadir) = reth_datadir {
         let reth_datadir = reth_datadir
@@ -566,7 +568,7 @@ mod test {
             SEPOLIA.clone(),
             StaticFileProvider::read_write(data_dir.static_files().as_path()).unwrap(),
         );
-        init_genesis(provider_factory).unwrap();
+        init_genesis(&provider_factory).unwrap();
 
         // Create longer-lived PathBuf values
         let data_dir_path = data_dir.data_dir();
