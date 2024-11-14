@@ -8,9 +8,8 @@ use eth_sparse_mpt::{
     ChangedAccountData,
 };
 use reth::providers::providers::ConsistentDbView;
-use reth_db::database::Database;
 use reth_errors::ProviderError;
-use reth_provider::DatabaseProviderFactory;
+use reth_provider::{BlockReader, DatabaseProviderFactory};
 use tokio::sync::broadcast::{
     self,
     error::{RecvError, TryRecvError},
@@ -34,8 +33,7 @@ pub fn run_trie_prefetcher<P, DB>(
     mut simulated_orders: broadcast::Receiver<SimulatedOrderCommand>,
     cancel: CancellationToken,
 ) where
-    P: DatabaseProviderFactory<DB> + Clone + Send + Sync,
-    DB: Database + Clone + 'static,
+    P: DatabaseProviderFactory<Provider: BlockReader> + Send + Sync + Clone,
 {
     let consistent_db_view = ConsistentDbView::new(provider, Some(parent_hash));
 
