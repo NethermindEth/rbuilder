@@ -26,7 +26,7 @@ const CONSUME_SIM_ORDERS_BATCH: usize = 128;
 
 /// Runs a process that prefetches pieces of the trie based on the slots used by the order in simulation
 /// Its a blocking call so it should be spawned on the separate thread.
-pub fn run_trie_prefetcher<P, DB>(
+pub fn run_trie_prefetcher<P>(
     parent_hash: B256,
     shared_sparse_mpt_cache: SparseTrieSharedCache,
     provider: P,
