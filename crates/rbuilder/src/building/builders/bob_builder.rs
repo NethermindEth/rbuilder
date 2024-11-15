@@ -436,13 +436,14 @@ impl BobHandleInner {
             if let Some(bundle_account) = bundle_state.state.get(&read_slot_key.address) {
                 // If address exists, check if the specific storage slot read still has the same value
                 if let Some(storage_slot) = bundle_account.storage.get(&U256::try_from(read_slot_key.key).unwrap()) {
-                    if storage_slot.present_value != U256::from_be_bytes(value.0) {
+                    let original_value = U256::from_be_bytes(value.0);
+                    if storage_slot.present_value != original_value {
                         info!(
                             address = ?read_slot_key.address,
                             slot = ?read_slot_key.key,
-                            original = ?value,
-                            current = ?storage_slot.present_value,
-                            "Storage value changed - skipping order simulation"
+                            read_value = ?original_value,
+                            current_value = ?storage_slot.present_value,
+                            "Storage value changed"
                         );
                         return false;
                     }
@@ -468,16 +469,17 @@ impl BobHandleInner {
                 // Add validation check before attempting to commit
                 if let Some(ref used_state_trace) = order.used_state_trace {
                     if !Self::validate_storage_reads(block.get_bundle_state(), used_state_trace) {
-                        info!(
-                            order_id = ?order.order.id(),
-                            "Skipping order due to storage state changes"
-                        );
                         continue;
                     }
                 }
 
                 match block.commit_sim_order(order) {
-                    Ok(Ok(_execution_result)) => {}
+                    Ok(Ok(_)) => {
+                        info!(
+                            order_id = ?order.order.id(),
+                            "No storage changes - committed order!"
+                        );
+                    }
                     Ok(Err(_err)) => {}
                     Err(err) => {
                         info!(
