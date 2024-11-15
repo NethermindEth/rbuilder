@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use clap::Parser;
 use reth::revm::cached::CachedReads;
 use reth_db::Database;
-use reth_provider::{DatabaseProviderFactory, HeaderProvider, StateProviderFactory};
+use reth_provider::{BlockReader, DatabaseProviderFactory, HeaderProvider, StateProviderFactory};
 use serde::de::DeserializeOwned;
 use std::fmt::Debug;
 use tokio::signal::ctrl_c;
@@ -53,7 +53,7 @@ pub trait LiveBuilderConfig: Debug + DeserializeOwned + Sync {
            + Send
     where
         DB: Database + Clone + 'static,
-        P: DatabaseProviderFactory<DB = DB>
+        P: DatabaseProviderFactory<DB = DB, Provider: BlockReader>
             + StateProviderFactory
             + HeaderProvider
             + Clone

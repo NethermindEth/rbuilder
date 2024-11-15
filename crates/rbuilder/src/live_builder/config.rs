@@ -53,7 +53,8 @@ use reth_node_api::NodeTypesWithDBAdapter;
 use reth_node_ethereum::EthereumNode;
 use reth_primitives::StaticFileSegment;
 use reth_provider::{
-    DatabaseProviderFactory, HeaderProvider, StateProviderFactory, StaticFileProviderFactory,
+    BlockReader, DatabaseProviderFactory, HeaderProvider, StateProviderFactory,
+    StaticFileProviderFactory,
 };
 use serde::Deserialize;
 use serde_with::{serde_as, OneOrMany};
@@ -296,7 +297,7 @@ impl LiveBuilderConfig for Config {
     ) -> eyre::Result<super::LiveBuilder<P, DB, MevBoostSlotDataGenerator>>
     where
         DB: Database + Clone + 'static,
-        P: DatabaseProviderFactory<DB = DB>
+        P: DatabaseProviderFactory<DB = DB, Provider: BlockReader>
             + StateProviderFactory
             + HeaderProvider
             + Clone

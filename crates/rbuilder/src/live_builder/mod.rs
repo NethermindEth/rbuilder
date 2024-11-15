@@ -31,7 +31,7 @@ use payload_events::MevBoostSlotData;
 use reth::{primitives::Header, providers::HeaderProvider};
 use reth_chainspec::ChainSpec;
 use reth_db::Database;
-use reth_provider::{DatabaseProviderFactory, StateProviderFactory};
+use reth_provider::{BlockReader, DatabaseProviderFactory, StateProviderFactory};
 use std::fmt::Debug;
 use std::{cmp::min, path::PathBuf, sync::Arc, time::Duration};
 use time::OffsetDateTime;
@@ -116,7 +116,11 @@ where
 impl<P, DB, BlocksSourceType: SlotSource> LiveBuilder<P, DB, BlocksSourceType>
 where
     DB: Database + Clone + 'static,
-    P: DatabaseProviderFactory<DB = DB> + StateProviderFactory + HeaderProvider + Clone + 'static,
+    P: DatabaseProviderFactory<DB = DB, Provider: BlockReader>
+        + StateProviderFactory
+        + HeaderProvider
+        + Clone
+        + 'static,
     BlocksSourceType: SlotSource,
 {
     pub fn with_extra_rpc(self, extra_rpc: RpcModule<()>) -> Self {
