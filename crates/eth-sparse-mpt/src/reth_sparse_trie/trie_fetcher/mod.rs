@@ -38,8 +38,8 @@ impl MultiProof {
         self.account_subtree.len()
             + self
                 .storages
-                .iter()
-                .map(|(_, v)| v.subtree.len())
+                .values()
+                .map(|v| v.subtree.len())
                 .sum::<usize>()
     }
 }
@@ -131,7 +131,7 @@ fn get_proof_targets(
     loop {
         let mut split_target = AlloyHashMap::<B256, AlloyHashSet<B256>>::default();
         let mut count = 0;
-        while let Some((target_key, target_value)) = iter.next() {
+        for (target_key, target_value) in iter.by_ref() {
             split_target.insert(target_key, target_value);
             count += 1;
             if count > account_per_fetch {
@@ -171,7 +171,7 @@ fn merge_results(
         result
             .storages
             .entry(account)
-            .or_insert_with(|| StorageMultiProof::default());
+            .or_insert_with(StorageMultiProof::default);
     }
     result
 }

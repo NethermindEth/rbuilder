@@ -27,8 +27,8 @@ pub fn rlp_pointer(rlp_encode: Bytes) -> Bytes {
 
 pub fn concat_path(p1: &Nibbles, p2: &[u8]) -> Nibbles {
     let mut result = Nibbles::with_capacity(p1.len() + p2.len());
-    result.extend_from_slice_unchecked(&p1);
-    result.extend_from_slice_unchecked(&p2);
+    result.extend_from_slice_unchecked(p1);
+    result.extend_from_slice_unchecked(p2);
     result
 }
 

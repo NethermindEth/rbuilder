@@ -381,7 +381,7 @@ impl FixedTrie {
                         if c.path_left.starts_with(extension.key()) {
                             extension.child.ptr = *child_ptr;
                             // go deeper
-                            c.step_into_extension(&extension);
+                            c.step_into_extension(extension);
                             continue;
                         }
                         break;
@@ -408,7 +408,7 @@ impl FixedTrie {
                                 ptr: fixed_child_ptr,
                             },
                         );
-                        c.step_into_branch(&branch);
+                        c.step_into_branch(branch);
                         if delete {
                             branch.aux_bits &= !(1 << nibble);
                             if branch.aux_bits.count_ones() == 1 {
@@ -475,8 +475,7 @@ mod tests {
             let multiproof = get_test_mutliproofs();
             let mut account_proof: Vec<_> = multiproof
                 .into_iter()
-                .map(|mp| mp.account_subtree.into_iter().collect::<Vec<_>>())
-                .flatten()
+                .flat_map(|mp| mp.account_subtree.into_iter().collect::<Vec<_>>())
                 .collect();
             account_proof.sort_by_key(|(p, _)| p.clone());
             account_proof.dedup_by_key(|(p, _)| p.clone());

@@ -170,7 +170,7 @@ impl DiffTrie {
                         // pass insertion deeper
                         extension.child.mark_dirty();
                         node.rlp_pointer = None;
-                        c.step_into_extension(&extension);
+                        c.step_into_extension(extension);
                         continue;
                     }
 
@@ -229,7 +229,7 @@ impl DiffTrie {
                         "inserting value into a branch node (key lengths must be constant)"
                     );
                     node.rlp_pointer = None;
-                    let n = c.step_into_branch(&branch);
+                    let n = c.step_into_branch(branch);
 
                     if branch.has_child(n) {
                         let child =
@@ -266,7 +266,7 @@ impl DiffTrie {
 
         loop {
             let node = try_get_node_mut(&mut self.nodes, c.current_node, &c.current_path)
-                .map_err(|e| DeletionError::NodeNotFound(e))?;
+                .map_err(DeletionError::NodeNotFound)?;
 
             match &mut node.kind {
                 DiffTrieNodeKind::Null => {
@@ -281,11 +281,11 @@ impl DiffTrie {
                     }
                 }
                 DiffTrieNodeKind::Extension(extension) => {
-                    if !c.path_left.starts_with(&extension.key()) {
+                    if !c.path_left.starts_with(extension.key()) {
                         return Err(DeletionError::KeyNotFound);
                     }
                     walk_path.push((c.current_node, 0));
-                    c.step_into_extension(&extension);
+                    c.step_into_extension(extension);
 
                     // pass deletion deeper
                     extension.child.mark_dirty();
@@ -299,7 +299,7 @@ impl DiffTrie {
                     }
 
                     let branch_node_path = c.current_node;
-                    let n = c.step_into_branch(&branch);
+                    let n = c.step_into_branch(branch);
 
                     walk_path.push((branch_node_path, n));
 
@@ -327,10 +327,9 @@ impl DiffTrie {
                             .expect("other child must exist");
                         if branch.get_diff_child(other_child_nibble).is_none() {
                             let mut other_child_path = c.current_path.clone();
-                            other_child_path
-                                .as_mut_vec_unchecked()
-                                .last_mut()
-                                .map(|l| *l = other_child_nibble);
+                            if let Some(l) = other_child_path.as_mut_vec_unchecked().last_mut() {
+                                *l = other_child_nibble;
+                            }
                             return Err(DeletionError::NodeNotFound(ErrSparseNodeNotFound {
                                 path: other_child_path,
                                 ptr: u64::MAX,
@@ -411,7 +410,7 @@ impl DiffTrie {
                 } => {
                     let child_below = self
                         .nodes
-                        .remove(&child_ptr)
+                        .remove(child_ptr)
                         .expect("orphaned child existance is checked when walking down");
                     let node_above =
                         try_get_node_mut(&mut self.nodes, current_node, &Nibbles::new())
@@ -510,7 +509,7 @@ impl DiffTrie {
                             // we leave branch in the trie but create extension node instead of the remove one child node
                             let new_ext_ptr = get_new_ptr(&mut self.ptrs);
                             let new_ext_node = DiffTrieNode::new_ext(
-                                Nibbles::from_nibbles_unchecked(&[*child_nibble]),
+                                Nibbles::from_nibbles_unchecked([*child_nibble]),
                                 DiffChildPtr::new(reinsert_branch_ptr),
                             );
                             branch_above.insert_diff_child(
@@ -573,7 +572,7 @@ impl DiffTrie {
                         reinsert_nodes.push((reinsert_branch_ptr, child_below.clone()));
                         child_below.kind = DiffTrieNodeKind::Extension(DiffExtensionNode {
                             fixed: None,
-                            changed_key: Some(Nibbles::from_nibbles_unchecked(&[child_nibble])),
+                            changed_key: Some(Nibbles::from_nibbles_unchecked([child_nibble])),
                             child: DiffChildPtr::new(reinsert_branch_ptr),
                         });
                         child_below.rlp_pointer = None;
@@ -652,20 +651,14 @@ impl DiffTrie {
                     }
                 }
             }
-
-            loop {
-                let wait = if let Some(w) = wait_stack.last() {
-                    if result_stack.len() < w.need_elements + w.stack_before {
-                        break;
-                    }
-                    wait_stack.pop().unwrap()
-                } else {
+            while let Some(w) = wait_stack.last() {
+                if result_stack.len() < w.need_elements + w.stack_before {
                     break;
-                };
+                }
+                let wait = wait_stack.pop().unwrap();
                 let node = try_get_node_mut(&mut self.nodes, wait.node, &empty_path)?;
                 let idx = result_stack.len() - wait.need_elements;
                 update_node_with_calculated_dirty_children(node, result_stack.drain(idx..).rev());
-
                 result_stack.push(node.rlp_pointer_slow());
             }
         }
@@ -675,7 +668,7 @@ impl DiffTrie {
         assert_eq!(result_stack.len(), 1);
 
         let head = try_get_node_mut(&mut self.nodes, self.head, &empty_path)?;
-        Ok(keccak256(&head.rlp_encode(&[])))
+        Ok(keccak256(head.rlp_encode(&[])))
     }
 
     fn root_hash_parallel_nodes(&self, node_ptr: u64) -> Bytes {
@@ -704,7 +697,7 @@ impl DiffTrie {
                         }
                     }
 
-                    if need_elements.len() == 0 {
+                    if need_elements.is_empty() {
                         node.rlp_encode(&[])
                     } else {
                         let results = if need_elements.len() <= 2 {
