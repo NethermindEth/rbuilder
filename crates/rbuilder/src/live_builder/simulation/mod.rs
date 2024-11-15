@@ -167,7 +167,7 @@ mod tests {
         primitives::{MempoolTx, Order, TransactionSignedEcRecoveredWithBlobs},
         utils::ProviderFactoryReopener,
     };
-    use reth_primitives::U256;
+    use alloy_primitives::U256;
 
     #[tokio::test]
     async fn test_simulate_order_to_coinbase() {
