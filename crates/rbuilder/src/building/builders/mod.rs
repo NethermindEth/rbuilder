@@ -14,12 +14,12 @@ use crate::{
 use ahash::HashSet;
 use alloy_primitives::{Address, B256};
 use block_building_helper::BlockBuildingHelper;
+use reth::revm::cached::CachedReads;
 use reth::{
     primitives::{BlobTransactionSidecar, SealedBlock},
     tasks::pool::BlockingTaskPool,
 };
 use reth_db::Database;
-use reth_payload_builder::database::CachedReads;
 use reth_provider::{DatabaseProviderFactory, StateProviderFactory};
 use std::{fmt::Debug, marker::PhantomData, sync::Arc};
 use tokio::sync::{broadcast, broadcast::error::TryRecvError};
@@ -215,7 +215,7 @@ pub struct BlockBuildingAlgorithmInput<P> {
 pub trait BlockBuildingAlgorithm<P, DB>: Debug + Send + Sync
 where
     DB: Database + Clone + 'static,
-    P: DatabaseProviderFactory<DB> + StateProviderFactory + Clone + 'static,
+    P: DatabaseProviderFactory<DB = DB> + StateProviderFactory + Clone + 'static,
 {
     fn name(&self) -> String;
     fn build_blocks(&self, input: BlockBuildingAlgorithmInput<P>);

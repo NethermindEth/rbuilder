@@ -7,7 +7,7 @@ use crate::{
     telemetry,
     telemetry::add_sim_thread_utilisation_timings,
 };
-use reth_payload_builder::database::CachedReads;
+use reth::revm::cached::CachedReads;
 use reth_provider::StateProviderFactory;
 use std::{
     sync::{Arc, Mutex},

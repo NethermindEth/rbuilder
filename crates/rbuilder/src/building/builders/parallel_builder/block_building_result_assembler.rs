@@ -4,9 +4,9 @@ use super::{
 };
 use ahash::HashMap;
 use alloy_primitives::utils::format_ether;
+use reth::revm::cached::CachedReads;
 use reth::tasks::pool::BlockingTaskPool;
 use reth_db::Database;
-use reth_payload_builder::database::CachedReads;
 use reth_provider::{DatabaseProviderFactory, StateProviderFactory};
 use std::{marker::PhantomData, sync::Arc, time::Instant};
 use time::OffsetDateTime;
@@ -46,7 +46,7 @@ pub struct BlockBuildingResultAssembler<P, DB> {
 impl<P, DB> BlockBuildingResultAssembler<P, DB>
 where
     DB: Database + Clone + 'static,
-    P: DatabaseProviderFactory<DB> + StateProviderFactory + Clone + 'static,
+    P: DatabaseProviderFactory<DB = DB> + StateProviderFactory + Clone + 'static,
 {
     /// Creates a new `BlockBuildingResultAssembler`.
     ///

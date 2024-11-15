@@ -36,9 +36,9 @@ use crate::{
     roothash::RootHashConfig,
 };
 use alloy_primitives::Address;
+use reth::revm::cached::CachedReads;
 use reth::tasks::pool::BlockingTaskPool;
 use reth_db::database::Database;
-use reth_payload_builder::database::CachedReads;
 use reth_provider::{DatabaseProviderFactory, StateProviderFactory};
 
 use self::{
@@ -86,7 +86,7 @@ struct ParallelBuilder<P, DB> {
 impl<P, DB> ParallelBuilder<P, DB>
 where
     DB: Database + Clone + 'static,
-    P: DatabaseProviderFactory<DB> + StateProviderFactory + Clone + 'static,
+    P: DatabaseProviderFactory<DB = DB> + StateProviderFactory + Clone + 'static,
 {
     /// Creates a ParallelBuilder.
     /// Sets up the various components and communication channels.
@@ -185,7 +185,7 @@ where
 pub fn run_parallel_builder<P, DB>(input: LiveBuilderInput<P, DB>, config: &ParallelBuilderConfig)
 where
     DB: Database + Clone + 'static,
-    P: DatabaseProviderFactory<DB> + StateProviderFactory + Clone + 'static,
+    P: DatabaseProviderFactory<DB = DB> + StateProviderFactory + Clone + 'static,
 {
     let cancel_for_results_aggregator = input.cancel.clone();
     let cancel_for_block_building_result_assembler = input.cancel.clone();
@@ -272,7 +272,7 @@ pub fn parallel_build_backtest<P, DB>(
 ) -> Result<(Block, CachedReads)>
 where
     DB: Database + Clone + 'static,
-    P: DatabaseProviderFactory<DB> + StateProviderFactory + Clone + 'static,
+    P: DatabaseProviderFactory<DB = DB> + StateProviderFactory + Clone + 'static,
 {
     let start_time = Instant::now();
 
@@ -405,7 +405,7 @@ impl ParallelBuildingAlgorithm {
 impl<P, DB> BlockBuildingAlgorithm<P, DB> for ParallelBuildingAlgorithm
 where
     DB: Database + Clone + 'static,
-    P: DatabaseProviderFactory<DB> + StateProviderFactory + Clone + 'static,
+    P: DatabaseProviderFactory<DB = DB> + StateProviderFactory + Clone + 'static,
 {
     fn name(&self) -> String {
         self.name.clone()

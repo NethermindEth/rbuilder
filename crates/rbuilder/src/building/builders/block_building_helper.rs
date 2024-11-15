@@ -4,11 +4,11 @@ use std::{
     time::{Duration, Instant},
 };
 
+use alloy_primitives::utils::format_ether;
 use alloy_primitives::U256;
+use reth::revm::cached::CachedReads;
 use reth::tasks::pool::BlockingTaskPool;
 use reth_db::Database;
-use reth_payload_builder::database::CachedReads;
-use reth_primitives::format_ether;
 use reth_provider::{DatabaseProviderFactory, StateProviderFactory};
 use time::OffsetDateTime;
 use tokio_util::sync::CancellationToken;
@@ -85,7 +85,7 @@ pub trait BlockBuildingHelper: Send + Sync {
 pub struct BlockBuildingHelperFromProvider<P, DB>
 where
     DB: Database + Clone + 'static,
-    P: DatabaseProviderFactory<DB> + StateProviderFactory + Clone + 'static,
+    P: DatabaseProviderFactory<DB = DB> + StateProviderFactory + Clone + 'static,
 {
     /// Balance of fee recipient before we stared building.
     _fee_recipient_balance_start: U256,
@@ -151,7 +151,7 @@ pub struct FinalizeBlockResult {
 impl<P, DB> BlockBuildingHelperFromProvider<P, DB>
 where
     DB: Database + Clone + 'static,
-    P: DatabaseProviderFactory<DB> + StateProviderFactory + Clone + 'static,
+    P: DatabaseProviderFactory<DB = DB> + StateProviderFactory + Clone + 'static,
 {
     /// allow_tx_skip: see [`PartialBlockFork`]
     /// Performs initialization:
@@ -218,7 +218,7 @@ where
         built_block_trace: &BuiltBlockTrace,
         sim_gas_used: u64,
     ) {
-        let txs = finalized_block.sealed_block.body.len();
+        let txs = finalized_block.sealed_block.body.transactions.len();
         let gas_used = finalized_block.sealed_block.gas_used;
         let blobs = finalized_block.txs_blob_sidecars.len();
 
@@ -290,7 +290,7 @@ where
 impl<P, DB> BlockBuildingHelper for BlockBuildingHelperFromProvider<P, DB>
 where
     DB: Database + Clone + 'static,
-    P: DatabaseProviderFactory<DB> + StateProviderFactory + Clone + 'static,
+    P: DatabaseProviderFactory<DB = DB> + StateProviderFactory + Clone + 'static,
 {
     /// Forwards to partial_block and updates trace.
     fn commit_order(

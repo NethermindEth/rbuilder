@@ -234,10 +234,9 @@ impl Default for ConflictFinder {
 
 #[cfg(test)]
 mod tests {
+    use alloy_consensus::TxLegacy;
     use alloy_primitives::{Address, TxHash, B256, U256};
-    use reth::primitives::{
-        Transaction, TransactionSigned, TransactionSignedEcRecovered, TxLegacy,
-    };
+    use reth::primitives::{Transaction, TransactionSigned, TransactionSignedEcRecovered};
 
     use crate::{
         building::evm_inspector::{SlotKey, UsedStateTrace},

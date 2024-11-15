@@ -7713,6 +7713,7 @@ dependencies = [
  "eyre",
  "flate2",
  "flume",
+ "foldhash",
  "futures",
  "governor",
  "humantime",

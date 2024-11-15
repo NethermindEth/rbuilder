@@ -18,9 +18,9 @@ use crate::{
 };
 use ahash::{HashMap, HashSet};
 use alloy_primitives::Address;
+use reth::revm::cached::CachedReads;
 use reth::tasks::pool::BlockingTaskPool;
 use reth_db::database::Database;
-use reth_payload_builder::database::CachedReads;
 use reth_provider::{DatabaseProviderFactory, StateProviderFactory};
 use serde::Deserialize;
 use std::{
@@ -66,7 +66,7 @@ impl OrderingBuilderConfig {
 pub fn run_ordering_builder<P, DB>(input: LiveBuilderInput<P, DB>, config: &OrderingBuilderConfig)
 where
     DB: Database + Clone + 'static,
-    P: DatabaseProviderFactory<DB> + StateProviderFactory + Clone + 'static,
+    P: DatabaseProviderFactory<DB = DB> + StateProviderFactory + Clone + 'static,
 {
     let mut order_intake_consumer = OrderIntakeConsumer::new(
         input.provider.clone(),
@@ -137,7 +137,7 @@ pub fn backtest_simulate_block<P, DB>(
 ) -> eyre::Result<(Block, CachedReads)>
 where
     DB: Database + Clone + 'static,
-    P: DatabaseProviderFactory<DB> + StateProviderFactory + Clone + 'static,
+    P: DatabaseProviderFactory<DB = DB> + StateProviderFactory + Clone + 'static,
 {
     let use_suggested_fee_recipient_as_coinbase = ordering_config.coinbase_payment;
     let state_provider = input
@@ -198,7 +198,7 @@ pub struct OrderingBuilderContext<P, DB> {
 impl<P, DB> OrderingBuilderContext<P, DB>
 where
     DB: Database + Clone + 'static,
-    P: DatabaseProviderFactory<DB> + StateProviderFactory + Clone + 'static,
+    P: DatabaseProviderFactory<DB = DB> + StateProviderFactory + Clone + 'static,
 {
     pub fn new(
         provider: P,
@@ -371,7 +371,7 @@ impl OrderingBuildingAlgorithm {
 impl<P, DB> BlockBuildingAlgorithm<P, DB> for OrderingBuildingAlgorithm
 where
     DB: Database + Clone + 'static,
-    P: DatabaseProviderFactory<DB> + StateProviderFactory + Clone + 'static,
+    P: DatabaseProviderFactory<DB = DB> + StateProviderFactory + Clone + 'static,
 {
     fn name(&self) -> String {
         self.name.clone()
