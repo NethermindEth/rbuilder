@@ -562,8 +562,8 @@ mod test {
         let data_dir = MaybePlatformPath::<DataDirPath>::from(tempdir.into_path());
         let data_dir = data_dir.unwrap_or_chain_default(Chain::mainnet(), DatadirArgs::default());
 
-        let db = init_db(data_dir.data_dir(), Default::default()).unwrap();
-        let provider_factory = ProviderFactory::new(
+        let db = Arc::new(init_db(data_dir.data_dir(), Default::default()).unwrap());
+        let provider_factory = ProviderFactory::<NodeTypesWithDBAdapter<EthereumNode, _>>::new(
             db,
             SEPOLIA.clone(),
             StaticFileProvider::read_write(data_dir.static_files().as_path()).unwrap(),
