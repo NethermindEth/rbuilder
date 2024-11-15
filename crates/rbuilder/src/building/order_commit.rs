@@ -12,14 +12,12 @@ use crate::{
 
 use alloy_primitives::{Address, B256, U256};
 
+use alloy_consensus::{constants::KECCAK_EMPTY, Transaction};
+use alloy_eips::eip4844::{DATA_GAS_PER_BLOB, MAX_DATA_GAS_PER_BLOCK};
+use reth::revm::cached::CachedReads;
 use reth::revm::database::StateProviderDatabase;
 use reth_errors::ProviderError;
-use reth_payload_builder::database::CachedReads;
-use reth_primitives::{
-    constants::eip4844::{DATA_GAS_PER_BLOB, MAX_DATA_GAS_PER_BLOCK},
-    transaction::FillTxEnv,
-    Receipt, KECCAK_EMPTY,
-};
+use reth_primitives::{transaction::FillTxEnv, Receipt};
 use reth_provider::{StateProvider, StateProviderBox};
 use revm::{
     db::{states::bundle_state::BundleRetention, BundleState},
@@ -412,7 +410,7 @@ impl<'a, 'b, Tracer: SimulationTracer> PartialBlockFork<'a, 'b, Tracer> {
             .checked_sub(U256::from(cumulative_gas_used + gas_reserved))
         {
             Some(gas_left) => {
-                if tx.gas_limit() > gas_left.to::<u64>() {
+                if tx.as_signed().gas_limit() > gas_left.to::<u64>() {
                     return Ok(Err(TransactionErr::GasLeft));
                 }
             }
@@ -497,7 +495,7 @@ impl<'a, 'b, Tracer: SimulationTracer> PartialBlockFork<'a, 'b, Tracer> {
             cumulative_blob_gas_used,
             cumulative_gas_used,
             tx: tx_with_blobs.clone(),
-            nonce_updated: (tx.signer(), tx.nonce() + 1),
+            nonce_updated: (tx.signer(), tx.as_signed().nonce() + 1),
             receipt,
         }))
     }

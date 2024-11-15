@@ -10,6 +10,7 @@ pub mod payout_tx;
 pub mod sim;
 pub mod testing;
 pub mod tracers;
+use alloy_primitives::{Address, U256};
 pub use block_orders::BlockOrders;
 use eth_sparse_mpt::SparseTrieSharedCache;
 use reth_db::Database;
@@ -27,8 +28,8 @@ use reth::{
     payload::PayloadId,
     primitives::{
         constants::BEACON_NONCE, eip4844::calculate_excess_blob_gas, proofs,
-        revm_primitives::InvalidTransaction, Address, BlobTransactionSidecar, Block, Head, Header,
-        Receipt, Receipts, SealedBlock, Withdrawals, EMPTY_OMMER_ROOT_HASH, U256,
+        revm_primitives::InvalidTransaction, BlobTransactionSidecar, Block, Head, Header, Receipt,
+        Receipts, SealedBlock, Withdrawals, EMPTY_OMMER_ROOT_HASH,
     },
     providers::ExecutionOutcome,
     rpc::types::beacon::events::PayloadAttributesEvent,
