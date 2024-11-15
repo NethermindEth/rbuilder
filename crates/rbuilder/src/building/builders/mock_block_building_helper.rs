@@ -60,6 +60,13 @@ impl BlockBuildingHelper for MockBlockBuildingHelper {
         unimplemented!()
     }
 
+    fn commit_order_with_trace(
+        &mut self,
+        _order: &Order,
+    ) -> Result<Result<&ExecutionResult, ExecutionError>, CriticalCommitOrderError> {
+        unimplemented!()
+    }
+
     fn set_trace_fill_time(&mut self, time: std::time::Duration) {
         self.built_block_trace.fill_time = time;
     }

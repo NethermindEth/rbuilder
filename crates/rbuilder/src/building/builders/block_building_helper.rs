@@ -89,6 +89,11 @@ pub trait BlockBuildingHelper: Send + Sync {
     fn get_bundle_state(&self) -> &BundleState;
 
     fn gas_remaining(&self) -> u64;
+
+    fn commit_order_with_trace(
+        &mut self,
+        order: &Order,
+    ) -> Result<Result<&ExecutionResult, ExecutionError>, CriticalCommitOrderError>;
 }
 
 /// Implementation of BlockBuildingHelper based on a generic Provider
@@ -453,9 +458,36 @@ where
     }
 
     fn gas_remaining(&self) -> u64 {
+
         if self.partial_block.gas_used > self.partial_block.gas_reserved {
             return 0;
         }
         return self.partial_block.gas_reserved - self.partial_block.gas_used;
+    }
+
+    fn commit_order_with_trace(
+        &mut self,
+        order: &Order,
+    ) -> Result<Result<&ExecutionResult, ExecutionError>, CriticalCommitOrderError> {
+        let result = self.partial_block.commit_order_with_trace(
+            order,
+            &self.building_ctx,
+            &mut self.block_state
+        );
+
+        match result {
+            Ok(ok_result) => match ok_result {
+                Ok(res) => {
+                    self.built_block_trace.add_included_order(res);
+                    Ok(Ok(self.built_block_trace.included_orders.last().unwrap()))
+                }
+                Err(err) => {
+                    self.built_block_trace
+                        .modify_payment_when_no_signer_error(&err);
+                    Ok(Err(err))
+                }
+            },
+            Err(e) => Err(e),
+        }
     }
 }
