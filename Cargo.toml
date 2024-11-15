@@ -89,8 +89,8 @@ revm-primitives = { version = "13.0.0", features = [
     "std",
 ], default-features = false }
 
-ethereum_ssz_derive = "0.7"
-ethereum_ssz = "0.7"
+ethereum_ssz_derive = "0.8"
+ethereum_ssz = "0.8"
 
 alloy-primitives = { version = "0.8.9", default-features = false }
 alloy-rlp = "0.3.4"

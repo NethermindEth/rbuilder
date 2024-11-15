@@ -9,7 +9,7 @@ use alloy_rpc_types_beacon::{
     BlsPublicKey,
 };
 use alloy_rpc_types_engine::{
-    BlobsBundleV1, ExecutionPayloadV1, ExecutionPayloadV2, ExecutionPayloadV3, ExecutionPayloadV4,
+    BlobsBundleV1, ExecutionPayloadV1, ExecutionPayloadV2, ExecutionPayloadV3,
 };
 use alloy_rpc_types_eth::Withdrawal;
 use ethereum_consensus::{
@@ -148,11 +148,17 @@ pub fn sign_block_for_relay(
             block_hash: sealed_block.hash(),
             transactions: sealed_block
                 .body
+                .transactions
                 .iter()
-                .map(|tx| tx.envelope_encoded().to_vec().into())
+                .map(|tx| {
+                    let mut buf = Vec::new();
+                    tx.encode_2718(&mut buf);
+                    buf.into()
+                })
                 .collect(),
         },
         withdrawals: sealed_block
+            .body
             .withdrawals
             .clone()
             .map(|w| {

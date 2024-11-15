@@ -189,8 +189,8 @@ dependencies = [
  "arbitrary",
  "c-kzg",
  "derive_more 1.0.0",
- "ethereum_ssz 0.8.0",
- "ethereum_ssz_derive 0.8.0",
+ "ethereum_ssz",
+ "ethereum_ssz_derive",
  "once_cell",
  "serde",
  "sha2 0.10.8",
@@ -490,8 +490,8 @@ dependencies = [
  "alloy-eips",
  "alloy-primitives 0.8.12",
  "alloy-rpc-types-engine",
- "ethereum_ssz 0.8.0",
- "ethereum_ssz_derive 0.8.0",
+ "ethereum_ssz",
+ "ethereum_ssz_derive",
  "serde",
  "serde_with",
  "thiserror 1.0.69",
@@ -519,8 +519,8 @@ dependencies = [
  "alloy-rlp",
  "alloy-serde",
  "derive_more 1.0.0",
- "ethereum_ssz 0.8.0",
- "ethereum_ssz_derive 0.8.0",
+ "ethereum_ssz",
+ "ethereum_ssz_derive",
  "jsonrpsee-types 0.24.7",
  "jsonwebtoken",
  "rand 0.8.5",
@@ -3173,17 +3173,6 @@ dependencies = [
 
 [[package]]
 name = "ethereum_ssz"
-version = "0.7.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1e999563461faea0ab9bc0024e5e66adcee35881f3d5062f52f31a4070fe1522"
-dependencies = [
- "alloy-primitives 0.8.12",
- "itertools 0.13.0",
- "smallvec",
-]
-
-[[package]]
-name = "ethereum_ssz"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bfbba28f4f3f32d92c06a64f5bf6c4537b5d4e21f28c689bd2bbaecfea4e0d3e"
@@ -3196,18 +3185,6 @@ dependencies = [
  "serde_derive",
  "smallvec",
  "typenum",
-]
-
-[[package]]
-name = "ethereum_ssz_derive"
-version = "0.7.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f3deae99c8e74829a00ba7a92d49055732b3c1f093f2ccfa3cbc621679b6fa91"
-dependencies = [
- "darling",
- "proc-macro2",
- "quote",
- "syn 2.0.87",
 ]
 
 [[package]]
@@ -6386,7 +6363,7 @@ dependencies = [
  "alloy-rpc-types-engine",
  "alloy-serde",
  "derive_more 1.0.0",
- "ethereum_ssz 0.8.0",
+ "ethereum_ssz",
  "op-alloy-protocol",
  "serde",
  "snap",
@@ -7730,8 +7707,8 @@ dependencies = [
  "derivative",
  "eth-sparse-mpt",
  "ethereum-consensus",
- "ethereum_ssz 0.7.1",
- "ethereum_ssz_derive 0.7.1",
+ "ethereum_ssz",
+ "ethereum_ssz_derive",
  "exponential-backoff",
  "eyre",
  "flate2",
