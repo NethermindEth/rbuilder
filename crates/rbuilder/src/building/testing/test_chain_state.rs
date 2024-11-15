@@ -1,7 +1,8 @@
 use ahash::HashSet;
 use alloy_consensus::TxEip1559;
 use alloy_primitives::{
-    keccak256, utils::parse_ether, Address, BlockHash, Bytes, TxKind as TransactionKind, B256, U256,
+    keccak256, utils::parse_ether, Address, BlockHash, Bytes, TxKind as TransactionKind, B256, B64,
+    U256,
 };
 use alloy_rpc_types_beacon::events::{PayloadAttributesData, PayloadAttributesEvent};
 use lazy_static::lazy_static;
@@ -300,7 +301,7 @@ impl TestBlockContextBuilder {
                 gas_used: self.parent_gas_used,
                 timestamp: self.parent_timestamp,
                 mix_hash: Default::default(),
-                nonce: 0.into(),
+                nonce: B64::ZERO,
                 base_fee_per_gas: Some(self.parent_base_fee_per_gas),
                 blob_gas_used: None,
                 excess_blob_gas: None,
@@ -314,7 +315,8 @@ impl TestBlockContextBuilder {
             self.prefer_gas_limit,
             vec![],
             Some(SpecId::SHANGHAI),
-        );
+        )
+        .unwrap();
         if self.use_suggested_fee_recipient_as_coinbase {
             res.modify_use_suggested_fee_recipient_as_coinbase();
         }

@@ -231,7 +231,7 @@ where
 
             inc_active_slots();
 
-            let block_ctx = BlockBuildingContext::from_attributes(
+            if let Some(block_ctx) = BlockBuildingContext::from_attributes(
                 payload.payload_attributes_event.clone(),
                 &parent_header,
                 self.coinbase_signer.clone(),
@@ -240,16 +240,16 @@ where
                 Some(payload.suggested_gas_limit),
                 self.extra_data.clone(),
                 None,
-            );
+            ) {
+                builder_pool.start_block_building(
+                    payload,
+                    block_ctx,
+                    self.global_cancellation.clone(),
+                    time_until_slot_end.try_into().unwrap_or_default(),
+                );
 
-            builder_pool.start_block_building(
-                payload,
-                block_ctx,
-                self.global_cancellation.clone(),
-                time_until_slot_end.try_into().unwrap_or_default(),
-            );
-
-            watchdog_sender.try_send(()).unwrap_or_default();
+                watchdog_sender.try_send(()).unwrap_or_default();
+            }
         }
 
         info!("Builder shutting down");
