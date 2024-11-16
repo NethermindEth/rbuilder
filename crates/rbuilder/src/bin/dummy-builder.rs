@@ -74,6 +74,18 @@ async fn main() -> eyre::Result<()> {
         cancel.clone(),
     );
 
+    let order_input_config = OrderInputConfig::new(
+        false,
+        true,
+        DEFAULT_EL_NODE_IPC_PATH.parse().unwrap(),
+        DEFAULT_INCOMING_BUNDLES_PORT,
+        *DEFAULT_IP,
+        DEFAULT_SERVE_MAX_CONNECTIONS,
+        DEFAULT_RESULTS_CHANNEL_TIMEOUT,
+        DEFAULT_INPUT_CHANNEL_BUFFER_SIZE,
+    );
+    let (orderpool_sender, orderpool_receiver) =
+        mpsc::channel(order_input_config.input_channel_buffer_size);
     let builder = LiveBuilder::<
         ProviderFactoryReopener<Arc<DatabaseEnv>>,
         Arc<DatabaseEnv>,

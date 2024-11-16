@@ -169,7 +169,7 @@ pub async fn run_bob_builder(
             let raw_bundle: RawBundle = seq.next().unwrap();
             let uuid: Uuid = seq.next().unwrap();
 
-            let bundle: Bundle = match raw_bundle.decode(TxEncoding::WithBlobData) {
+            let bundle: Bundle = match raw_bundle.try_into(TxEncoding::WithBlobData) {
                 Ok(bundle) => bundle,
                 Err(err) => {
                     warn!(?err, "Failed to parse bundle");
