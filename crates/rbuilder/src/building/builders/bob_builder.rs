@@ -395,6 +395,11 @@ fn bundle_state_to_state_overrides(bundle_state: &BundleState) -> StateOverride 
             if info.is_empty_code_hash() {
                 return None;
             }
+
+            let (balance, nonce) = match bundle_account.is_info_changed() {
+                true => { (Some(info.balance), Some(info.nonce)) }
+                false => { (None, None) }
+            };
             let code = bundle_state
                 .contracts
                 .get(&info.code_hash)
@@ -408,13 +413,12 @@ fn bundle_state_to_state_overrides(bundle_state: &BundleState) -> StateOverride 
                 })
                 .collect();
             let account_override = AccountOverride {
-                balance: Some(info.balance),
-                nonce: Some(info.nonce),
+                balance: balance,
                 code: code,
-                state_diff: if storage_diff.is_empty() {
-                    None
-                } else {
-                    Some(storage_diff)
+                nonce: nonce,
+                state_diff: match storage_diff.is_empty() {
+                    false => Some(storage_diff),
+                    true => None
                 },
                 state: None,
             };
