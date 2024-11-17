@@ -12,7 +12,7 @@ use crate::{
 use ahash::HashMap;
 use alloy_primitives::{B256, U256};
 use alloy_rpc_types_eth::state::{AccountOverride, StateOverride};
-use jsonrpsee::RpcModule;
+use jsonrpsee::{types::ErrorObject, RpcModule};
 use revm::db::BundleState;
 use serde::Serialize;
 use std::{
@@ -158,27 +158,45 @@ pub async fn run_bob_builder(
         async move {
             let start = Instant::now();
             let mut seq = params.sequence();
-            let raw_bundle: RawBundle = seq.next().unwrap();
-            let uuid: Uuid = seq.next().unwrap();
+            let raw_bundle: RawBundle = match seq.next() {
+                Ok(bundle) => bundle,
+                Err(err) => {
+                    debug!(?err, "Failed to parse request: no parameters sent");
+                    return Err(ErrorObject::owned(-32601, "Expected 2 parameters", None::<()>));
+                }
+            };
+            let uuid: Uuid = match seq.next() {
+                Ok(bundle) => bundle,
+                Err(err) => {
+                    debug!(?err, "Failed to parse request: 1 of 2 paramters sent");
+                    return Err(ErrorObject::owned(-32601, "Expected 2 parameters", None::<()>));
+                }
+            };
 
             let bundle: Bundle = match raw_bundle.try_into(TxEncoding::WithBlobData) {
                 Ok(bundle) => bundle,
                 Err(err) => {
-                    warn!(?err, "Failed to parse bundle");
-                    // @Metric
-                    return;
+                    debug!(?err, "Failed to parse bundle");
+                    return Err(ErrorObject::owned(-32601, "Failed to parse bundle parameter", None::<()>));
                 }
             };
 
+            let hash = bundle.hash;
             let order = Order::Bundle(bundle);
             let parse_duration = start.elapsed();
             let target_block = order.target_block().unwrap_or_default();
             trace!(order = ?order.id(), parse_duration_mus = parse_duration.as_micros(), target_block, "Received bundle");
             match sender.send_timeout((order, uuid), timeout).await {
-                Ok(()) => {}
-                Err(mpsc::error::SendTimeoutError::Timeout(_)) => {}
-                Err(mpsc::error::SendTimeoutError::Closed(_)) => {}
-            };
+                Ok(()) => { Ok(hash)}
+                Err(mpsc::error::SendTimeoutError::Timeout(err)) => {
+                    warn!(?err, "Bundle send channel timeout");
+                    Err(ErrorObject::owned(-32603, "Internal error: timed out", None::<()>))
+                }
+                Err(mpsc::error::SendTimeoutError::Closed(err)) => {
+                    warn!(?err, "Bundle send channel closed");
+                    Err(ErrorObject::owned(-32603, "Internal error: timed out", None::<()>))
+                }
+            }
         }
     })?;
 
@@ -389,8 +407,8 @@ fn bundle_state_to_state_overrides(bundle_state: &BundleState) -> StateOverride 
             }
 
             let (balance, nonce) = match bundle_account.is_info_changed() {
-                true => { (Some(info.balance), Some(info.nonce)) }
-                false => { (None, None) }
+                true => (Some(info.balance), Some(info.nonce)),
+                false => (None, None),
             };
             let code = bundle_state
                 .contracts
@@ -410,7 +428,7 @@ fn bundle_state_to_state_overrides(bundle_state: &BundleState) -> StateOverride 
                 nonce: nonce,
                 state_diff: match storage_diff.is_empty() {
                     false => Some(storage_diff),
-                    true => None
+                    true => None,
                 },
                 state: None,
             };
