@@ -98,7 +98,7 @@ where
         let block_sealing_bidder = self
             .sink_factory
             .create_sink(payload.clone(), block_cancellation.clone());
-        let sink = match self.bob_builder.clone() {
+        let sink = match &self.bob_builder {
             Some(builder) => Arc::new(builder.new_handle(
                 block_sealing_bidder,
                 slot_timestamp,

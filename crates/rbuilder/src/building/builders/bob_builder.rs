@@ -115,21 +115,13 @@ impl BobBuilder {
         let handle = BobHandle {
             inner: Arc::new(Mutex::new(BobHandleInner {
                 builder: self.clone(),
-                canceled: false,
+                cancel: cancel.clone(),
                 highest_value: U256::from(0),
                 slot_timestamp: slot_timestamp,
                 sink: sink,
                 uuids: Vec::new(),
             })),
         };
-        let handle_clone = handle.clone();
-        tokio::spawn(async move {
-            tokio::select! {
-                _ = cancel.cancelled() => {
-                    handle_clone.inner.lock().unwrap().cancel();
-                }
-            }
-        });
         return handle;
     }
 
@@ -257,7 +249,7 @@ impl UnfinishedBlockBuildingSink for BobHandle {
 #[derive(Clone, Debug)]
 struct BobHandleInner {
     builder: BobBuilder,
-    canceled: bool,
+    cancel: CancellationToken,
     highest_value: U256,
     sink: Arc<dyn UnfinishedBlockBuildingSink>,
     slot_timestamp: time::OffsetDateTime,
@@ -267,7 +259,7 @@ struct BobHandleInner {
 impl BobHandleInner {
     fn pass_and_stream_block(&mut self, block: Box<dyn BlockBuildingHelper>) {
         // If we've processed a cancellation for this slot, bail.
-        if self.canceled {
+        if self.cancel.is_cancelled() {
             return;
         }
 
@@ -352,7 +344,9 @@ impl BobHandleInner {
             }
         };
     }
+}
 
+impl Drop for BobHandleInner {
     // Performs teardown for the handle, triggered above when the slot cancellation
     // token is triggered. Removes uuids we've seen from the builder cache.
     //
@@ -360,13 +354,11 @@ impl BobHandleInner {
     // be stale blocks inserted after cancellation due to race conditions in when upstream
     // processed receive / handle cancellation. E.G. our teardown occurs before an upstream builder
     // has handle the cancellation.
-    pub fn cancel(&mut self) {
+    fn drop(&mut self) {
         let mut cache = self.builder.inner.block_cache.lock().unwrap();
         self.uuids.iter().for_each(|uuid| {
             cache.remove(uuid);
         });
-
-        self.canceled = true;
     }
 }
 
