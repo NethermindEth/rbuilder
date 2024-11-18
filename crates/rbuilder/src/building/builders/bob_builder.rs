@@ -1,9 +1,6 @@
 use crate::{
     building::builders::{BlockBuildingHelper, UnfinishedBlockBuildingSink},
-    live_builder::{
-        config::BobConfig, order_input::OrderInputConfig,
-        streaming::block_subscription_server::start_block_subscription_server,
-    },
+    live_builder::streaming::block_subscription_server::start_block_subscription_server,
     primitives::{
         serialize::{RawBundle, TxEncoding},
         Bundle, Order,
@@ -14,7 +11,7 @@ use alloy_primitives::{B256, U256};
 use alloy_rpc_types_eth::state::{AccountOverride, StateOverride};
 use jsonrpsee::{types::ErrorObject, RpcModule};
 use revm::db::BundleState;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::{
     fmt,
     net::Ipv4Addr,
@@ -29,27 +26,23 @@ use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, trace, warn};
 use uuid::Uuid;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq)]
+#[serde(default, deny_unknown_fields)]
 pub struct BobBuilderConfig {
-    pub port: u16,
-    pub ip: Ipv4Addr,
-    pub stream_start_dur: Duration,
-    pub channel_timeout: Duration,
-    pub channel_buffer_size: usize,
+    port: u16,
+    stream_start_dur: u64,
+    channel_timeout: u64,
+    channel_buffer_size: usize,
 }
 
-impl BobBuilderConfig {
-    pub fn from_configs(
-        bob_config: &BobConfig,
-        input_config: &OrderInputConfig,
-    ) -> BobBuilderConfig {
-        BobBuilderConfig {
-            port: bob_config.diff_server_port,
-            stream_start_dur: Duration::from_millis(bob_config.stream_start_ms),
-            ip: input_config.server_ip,
-            channel_timeout: input_config.results_channel_timeout,
-            channel_buffer_size: input_config.input_channel_buffer_size,
-        }
+impl Default for BobBuilderConfig {
+    fn default() -> Self {
+        return Self {
+            port: 8547,
+            stream_start_dur: 2000,
+            channel_timeout: 50,
+            channel_buffer_size: 100,
+        };
     }
 }
 
@@ -61,7 +54,9 @@ impl BobBuilderConfig {
 // this association and logic.
 #[derive(Clone, Debug)]
 pub struct BobBuilder {
-    config: BobBuilderConfig,
+    stream_start_dur: Duration,
+    channel_timeout: Duration,
+    channel_buffer_size: usize,
     inner: Arc<BobBuilderInner>,
 }
 
@@ -82,13 +77,15 @@ impl fmt::Debug for BobBuilderInner {
 }
 
 impl BobBuilder {
-    pub async fn new(config: BobBuilderConfig) -> eyre::Result<BobBuilder> {
-        let server = start_block_subscription_server(config.ip, config.port)
+    pub async fn new(config: &BobBuilderConfig, ip: Ipv4Addr) -> eyre::Result<BobBuilder> {
+        let server = start_block_subscription_server(ip, config.port)
             .await
             .expect("Failed to start block subscription server");
         let block_cache = HashMap::<Uuid, BlockCacheEntry>::default();
         Ok(Self {
-            config,
+            stream_start_dur: Duration::from_millis(config.stream_start_dur),
+            channel_timeout: Duration::from_millis(config.channel_timeout),
+            channel_buffer_size: config.channel_buffer_size,
             inner: Arc::new(BobBuilderInner {
                 state_diff_server: server,
                 block_cache: Mutex::new(block_cache),
@@ -149,9 +146,9 @@ pub async fn run_bob_builder(
     bob_builder: &BobBuilder,
     cancel: CancellationToken,
 ) -> eyre::Result<(JoinHandle<()>, RpcModule<()>)> {
-    let (order_sender, mut order_receiver) = mpsc::channel(bob_builder.config.channel_buffer_size);
+    let (order_sender, mut order_receiver) = mpsc::channel(bob_builder.channel_buffer_size);
 
-    let timeout = bob_builder.config.channel_timeout;
+    let timeout = bob_builder.channel_timeout;
     let mut module = RpcModule::new(());
     module.register_async_method("eth_sendBobBundle", move |params, _| {
         let sender = order_sender.clone();
@@ -344,7 +341,7 @@ impl BobHandleInner {
         let now = time::OffsetDateTime::now_utc();
         let delta = self.slot_timestamp - now;
 
-        return delta < self.builder.config.stream_start_dur;
+        return delta < self.builder.stream_start_dur;
     }
 
     fn check_and_store_block_value(&mut self, block: &Box<dyn BlockBuildingHelper>) -> bool {

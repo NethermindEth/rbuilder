@@ -18,7 +18,7 @@ use crate::{
     beacon_api_client::Client,
     building::{
         builders::{
-            bob_builder::{BobBuilder, BobBuilderConfig},
+            bob_builder::BobBuilder,
             ordering_builder::{OrderingBuilderConfig, OrderingBuildingAlgorithm},
             parallel_builder::{
                 parallel_build_backtest, ParallelBuilderConfig, ParallelBuildingAlgorithm,
@@ -96,8 +96,6 @@ pub struct Config {
 
     #[serde(flatten)]
     pub l1_config: L1Config,
-
-    pub bob_config: Option<BobConfig>,
 
     /// selected builder configurations
     pub builders: Vec<BuilderConfig>,
@@ -287,23 +285,6 @@ impl L1Config {
     }
 }
 
-#[serde_as]
-#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
-#[serde(default, deny_unknown_fields)]
-pub struct BobConfig {
-    pub diff_server_port: u16,
-    pub stream_start_ms: u64,
-}
-
-impl Default for BobConfig {
-    fn default() -> Self {
-        Self {
-            diff_server_port: 8547,
-            stream_start_ms: 2000,
-        }
-    }
-}
-
 impl LiveBuilderConfig for Config {
     fn base_config(&self) -> &BaseConfig {
         &self.base_config
@@ -330,15 +311,13 @@ impl LiveBuilderConfig for Config {
         let bidding_service: Box<dyn BiddingService> =
             Box::new(TrueBlockValueBiddingService::new(&wallet_history));
 
-        let sink_factory = Box::new(
-            BlockSealingBidderFactory::new(
-                bidding_service,
-                sink_sealed_factory,
-                Arc::new(NullBidValueSource {}),
-                wallet_balance_watcher,
-                self.l1_config.max_concurrent_seals as usize,
-            ),
-        );
+        let sink_factory = Box::new(BlockSealingBidderFactory::new(
+            bidding_service,
+            sink_sealed_factory,
+            Arc::new(NullBidValueSource {}),
+            wallet_balance_watcher,
+            self.l1_config.max_concurrent_seals as usize,
+        ));
 
         let payload_event = MevBoostSlotDataGenerator::new(
             self.l1_config.beacon_clients()?,
@@ -356,11 +335,10 @@ impl LiveBuilderConfig for Config {
                 provider,
             )
             .await?;
-        let live_builder = match &self.bob_config {
+        let live_builder = match &self.base_config.bob_config {
             Some(config) => {
-                let config =
-                    BobBuilderConfig::from_configs(config, &live_builder.order_input_config);
-                let bob_builder = BobBuilder::new(config).await?;
+                let bob_builder =
+                    BobBuilder::new(config, self.base_config.jsonrpc_server_ip()).await?;
                 live_builder.with_bob_builder(bob_builder)
             }
             None => live_builder,
@@ -424,7 +402,6 @@ impl Default for Config {
         Self {
             base_config: Default::default(),
             l1_config: Default::default(),
-            bob_config: None,
             builders: vec![
                 BuilderConfig {
                     name: "mgp-ordering".to_string(),

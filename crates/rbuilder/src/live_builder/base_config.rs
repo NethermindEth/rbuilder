@@ -1,7 +1,7 @@
 //! Config should always be deserializable, default values should be used
 //!
 use crate::{
-    building::builders::UnfinishedBlockBuildingSinkFactory,
+    building::builders::{bob_builder::BobBuilderConfig, UnfinishedBlockBuildingSinkFactory},
     live_builder::{order_input::OrderInputConfig, LiveBuilder},
     roothash::RootHashConfig,
     telemetry::{setup_reloadable_tracing_subscriber, LoggerConfig},
@@ -94,6 +94,8 @@ pub struct BaseConfig {
 
     /// List of `builders` to be used for live building
     pub live_builders: Vec<String>,
+
+    pub bob_config: Option<BobBuilderConfig>,
 
     // backtest config
     backtest_fetch_mempool_data_dir: EnvOrValue<String>,
@@ -457,6 +459,7 @@ impl Default for BaseConfig {
             backtest_protect_bundle_signers: vec![],
             backtest_builders: Vec::new(),
             live_builders: vec!["mgp-ordering".to_string(), "mp-ordering".to_string()],
+            bob_config: None,
             simulation_threads: 1,
             sbundle_mergeabe_signers: None,
         }
