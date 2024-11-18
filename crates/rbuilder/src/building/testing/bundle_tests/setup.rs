@@ -218,7 +218,7 @@ impl TestSetup {
             used_state_trace: Default::default(),
         };
 
-        let result = self.partial_block.commit_order(
+        let result = self.partial_block.commit_sim_order(
             &sim_order,
             self.test_chain.block_building_context(),
             &mut block_state,
