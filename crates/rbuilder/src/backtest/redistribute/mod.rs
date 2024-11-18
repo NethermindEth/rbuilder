@@ -376,6 +376,29 @@ impl AvailableOrders {
         }
         result
     }
+
+    // landed_order_address returns identity for the landed orders and None otherwise
+    fn landed_order_address(&self, id: &OrderId) -> Option<Address> {
+        let address = if let Some(address) = self.orders_id_to_address.get(id) {
+            address
+        } else {
+            return None;
+        };
+        let landed_ids_by_address = if let Some((_, landed)) = self
+            .included_orders_by_address
+            .iter()
+            .find(|(a, _)| a == address)
+        {
+            landed
+        } else {
+            return None;
+        };
+        if landed_ids_by_address.contains(id) {
+            Some(*address)
+        } else {
+            None
+        }
+    }
 }
 
 fn split_orders_by_identities(
@@ -624,47 +647,59 @@ where
     ConfigType: LiveBuilderConfig,
 {
     // calculate identities that are possibly connected
-    let mut joint_contribution_todo: Vec<(Address, Address)> = Vec::new();
-    // here we link identities if excluding order by one identity
-    // leads to exclusion of order from another identitiy
-    for (order, exclusion_result) in &exclusion_results.landed_orders {
-        let address1 = *available_orders
-            .orders_id_to_address
-            .get(order)
+    // we find connected identities by excluding individual landed orders of one identity and seeing if it causes other landed order to:
+    // * fail
+    // * change inclusion profit
+    let mut pairwise_dependent_identities: Vec<(Address, Address)> = Vec::new();
+    // NOTE: this is O(n^2) for number of landed orders
+    for (landed_order, landed_order_exclusion_result) in &exclusion_results.landed_orders {
+        let landed_order_identity = available_orders
+            .landed_order_address(landed_order)
             .expect("order address not found");
-        let candidate_conflicting_bundles = exclusion_result
+        let conflicting_orders = landed_order_exclusion_result
             .new_orders_failed
-            .iter()
+            .iter().map(|o| (o, InclusionChange::Excluded))
             .chain(
-                exclusion_result
+                landed_order_exclusion_result
                     .orders_profit_changed
                     .iter()
-                    .map(|(o, _)| o),
+                    .map(|(o, _)| (o, InclusionChange::ProfitChanged)),
             )
-            .filter(|o| distribute_to_mempool_txs || !matches!(o, OrderId::Tx(_)));
-        for new_failed_order in candidate_conflicting_bundles {
-            // we only consider landed <-> landed order conflicts
-            if !available_orders
-                .included_orders_available
-                .iter()
-                .any(|o| o.order.id() == *new_failed_order)
-            {
-                continue;
-            }
-            let address2 = *available_orders
-                .orders_id_to_address
-                .get(new_failed_order)
-                .expect("order address not found");
-            if address1 != address2 {
-                joint_contribution_todo.push((min(address1, address2), max(address1, address2)));
-                warn!(address1 = ?address1, order1 = ?order, address2 = ?address2, order2 = ?new_failed_order, "Possible identity conflict");
-            }
+	    // if we don't consider mempool txs for redistribution we don't count conflict with them
+            .filter(|(o, _)| distribute_to_mempool_txs || !matches!(o, OrderId::Tx(_)))
+	    .filter_map(|(other_order, other_order_inclusion_change)| -> Option<(Address, &OrderId, InclusionChange)> {
+		// this will return if other order is not landed order
+		// we only consider landed <-> landed order conflicts
+		let other_order_identity = available_orders.landed_order_address(other_order)?;
+		// we are interested in conflicts between different identities
+		if other_order_identity == landed_order_identity {
+		    return None
+		}
+		Some((other_order_identity, other_order, other_order_inclusion_change))
+	    });
+
+        for (other_order_identity, other_order, other_order_inclusion_change) in conflicting_orders
+        {
+            warn!(
+		address1 = ?landed_order_identity, order1 = ?landed_order,
+		address2 = ?other_order_identity, order2 = ?other_order,
+		order2_inclusion_change = ?other_order_inclusion_change, "Possible identity conflict"
+	    );
+            let min_address = min(landed_order_identity, other_order_identity);
+            let max_address = max(landed_order_identity, other_order_identity);
+            pairwise_dependent_identities.push((min_address, max_address));
         }
     }
-    joint_contribution_todo.sort();
-    joint_contribution_todo.dedup();
+    pairwise_dependent_identities.sort();
+    pairwise_dependent_identities.dedup();
+    if !pairwise_dependent_identities.is_empty() {
+        warn!(
+            number_of_pairs = pairwise_dependent_identities.len(),
+            "Found conflicting identities"
+        )
+    }
 
-    exclusion_results.joint_exclusion_result = joint_contribution_todo
+    exclusion_results.joint_exclusion_result = pairwise_dependent_identities
         .into_par_iter()
         .map(|(address1, address2)| {
             let orders1 = available_orders
