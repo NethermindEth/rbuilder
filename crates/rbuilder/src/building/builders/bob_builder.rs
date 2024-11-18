@@ -9,6 +9,7 @@ use crate::{
 use ahash::HashMap;
 use alloy_primitives::{B256, U256};
 use alloy_rpc_types_eth::state::{AccountOverride, StateOverride};
+use futures::FutureExt;
 use jsonrpsee::{types::ErrorObject, RpcModule};
 use revm::db::BundleState;
 use serde::{Deserialize, Serialize};
@@ -60,13 +61,9 @@ pub struct BobBuilder {
     inner: Arc<BobBuilderInner>,
 }
 
-struct BlockCacheEntry {
-    block: Box<dyn BlockBuildingHelper>,
-    sink: Arc<dyn UnfinishedBlockBuildingSink>,
-}
-
 struct BobBuilderInner {
-    block_cache: Mutex<HashMap<Uuid, BlockCacheEntry>>,
+    block_handles: Mutex<HashMap<Uuid, Uuid>>,
+    handles: Mutex<HashMap<Uuid, BobHandle>>,
     state_diff_server: broadcast::Sender<serde_json::Value>,
 }
 
@@ -81,14 +78,16 @@ impl BobBuilder {
         let server = start_block_subscription_server(ip, config.port)
             .await
             .expect("Failed to start block subscription server");
-        let block_cache = HashMap::<Uuid, BlockCacheEntry>::default();
+        let block_handles = HashMap::<Uuid, Uuid>::default();
+        let handles = HashMap::<Uuid, BobHandle>::default();
         Ok(Self {
             stream_start_dur: Duration::from_millis(config.stream_start_dur),
             channel_timeout: Duration::from_millis(config.channel_timeout),
             channel_buffer_size: config.channel_buffer_size,
             inner: Arc::new(BobBuilderInner {
+                block_handles: Mutex::new(block_handles),
+                handles: Mutex::new(handles),
                 state_diff_server: server,
-                block_cache: Mutex::new(block_cache),
             }),
         })
     }
@@ -109,31 +108,40 @@ impl BobBuilder {
         slot_timestamp: time::OffsetDateTime,
         cancel: CancellationToken,
     ) -> BobHandle {
+        let key = Uuid::new_v4();
         let handle = BobHandle {
-            inner: Arc::new(Mutex::new(BobHandleInner {
+            inner: Arc::new(BobHandleInner {
+                block_cache: Mutex::new(HashMap::<Uuid, Box<dyn BlockBuildingHelper>>::default()),
                 builder: self.clone(),
                 cancel: cancel.clone(),
-                highest_value: U256::from(0),
+                highest_value: Mutex::new(U256::from(0)),
+                key: key,
                 slot_timestamp: slot_timestamp,
                 sink: sink,
-                uuids: Vec::new(),
-            })),
+                uuids: Mutex::new(Vec::new()),
+            }),
         };
+        self.inner
+            .handles
+            .lock()
+            .unwrap()
+            .insert(key, handle.clone());
+
+        // Must remove reference to the handle from the builder when the slot is cancelled.
+        let inner = self.inner.clone();
+        let _ = cancel.cancelled().map(move |_| {
+            let mut handles = inner.handles.lock().unwrap();
+            handles.remove(&key)
+        });
         return handle;
     }
 
-    pub fn insert_block(
-        &self,
-        block: Box<dyn BlockBuildingHelper>,
-        sink: Arc<dyn UnfinishedBlockBuildingSink>,
-        uuid: Uuid,
-    ) {
-        let cache_entry = BlockCacheEntry { block, sink };
+    pub fn register_block(&self, handle_uuid: Uuid, block_uuid: Uuid) {
         self.inner
-            .block_cache
+            .block_handles
             .lock()
             .unwrap()
-            .insert(uuid, cache_entry);
+            .insert(block_uuid, handle_uuid);
     }
 }
 
@@ -204,29 +212,21 @@ pub async fn run_bob_builder(
                 _ = cancel.cancelled() => {
                     break
                 }
-                Some((order, uuid)) = order_receiver.recv() => {
-                    debug!("Received bob order for uuid: {:?} {:?}", order, uuid);
-                    let (streamed_block, sink) = {
-                        let cache = inner.block_cache.lock().unwrap();
-                        if let Some(entry) = cache.get(&uuid) {
-                            (entry.block.box_clone(), entry.sink.clone())
-                        } else {
-                            continue;
+                Some((order, block_uuid)) = order_receiver.recv() => {
+                    debug!("Received bob order for uuid: {:?} {:?}", order, block_uuid);
+                    let handle_uuid = {
+                        let block_handles = inner.block_handles.lock().unwrap();
+                        block_handles.get(&block_uuid).cloned()
+                    };
+                    if let Some(handle_uuid) = handle_uuid {
+                        let handle = {
+                            let handles = inner.handles.lock().unwrap();
+                            handles.get(&handle_uuid).cloned()
+                        };
+                        if let Some(handle) = handle {
+                            handle.new_order(order, block_uuid);
                         }
                     };
-
-                    let mut streamed_block = streamed_block;
-                    match streamed_block.commit_order(&order) {
-                        Ok(Ok(_)) => {
-                            sink.new_block(streamed_block);
-                        }
-                        Ok(Err(e)) => {
-                            debug!("Reverted or failed bob order: {:?}", e);
-                        }
-                        Err(e) => {
-                            debug!("Error commiting bob order: {:?}", e);
-                        }
-                    }
                 }
             }
         }
@@ -244,35 +244,62 @@ pub async fn run_bob_builder(
 // used as a sink for other building algorithms.
 #[derive(Clone, Debug)]
 pub struct BobHandle {
-    inner: Arc<Mutex<BobHandleInner>>,
+    inner: Arc<BobHandleInner>,
+}
+
+impl BobHandle {
+    fn new_order(&self, order: Order, uuid: Uuid) {
+        let mut block = {
+            let block_cache = self.inner.block_cache.lock().unwrap();
+            if let Some(block) = block_cache.get(&uuid) {
+                block.box_clone()
+            } else {
+                return;
+            }
+        };
+        match block.commit_order(&order) {
+            Ok(Ok(_)) => {
+                self.inner.sink.new_block(block);
+            }
+            Ok(Err(e)) => {
+                debug!("Reverted or failed bob order: {:?}", e);
+            }
+            Err(e) => {
+                debug!("Error commiting bob order: {:?}", e);
+            }
+        }
+    }
 }
 
 impl UnfinishedBlockBuildingSink for BobHandle {
     fn new_block(&self, block: Box<dyn BlockBuildingHelper>) {
-        self.inner.lock().unwrap().pass_and_stream_block(block);
+        self.inner.pass_and_stream_block(block);
     }
 
     fn can_use_suggested_fee_recipient_as_coinbase(&self) -> bool {
-        return self
-            .inner
-            .lock()
-            .unwrap()
-            .can_use_suggested_fee_recipient_as_coinbase();
+        return self.inner.can_use_suggested_fee_recipient_as_coinbase();
     }
 }
 
-#[derive(Clone, Debug)]
 struct BobHandleInner {
+    block_cache: Mutex<HashMap<Uuid, Box<dyn BlockBuildingHelper>>>,
     builder: BobBuilder,
     cancel: CancellationToken,
-    highest_value: U256,
+    highest_value: Mutex<U256>,
+    key: Uuid,
     sink: Arc<dyn UnfinishedBlockBuildingSink>,
     slot_timestamp: time::OffsetDateTime,
-    uuids: Vec<Uuid>,
+    uuids: Mutex<Vec<Uuid>>,
+}
+
+impl fmt::Debug for BobHandleInner {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("BobHandleInner").finish()
+    }
 }
 
 impl BobHandleInner {
-    fn pass_and_stream_block(&mut self, block: Box<dyn BlockBuildingHelper>) {
+    fn pass_and_stream_block(&self, block: Box<dyn BlockBuildingHelper>) {
         // If we've processed a cancellation for this slot, bail.
         if self.cancel.is_cancelled() {
             return;
@@ -293,7 +320,7 @@ impl BobHandleInner {
         trace!("Streaming bob partial block");
 
         let block_uuid = Uuid::new_v4();
-        self.uuids.push(block_uuid);
+        self.uuids.lock().unwrap().push(block_uuid);
 
         let building_context = block.building_context();
         let bundle_state = block.get_bundle_state();
@@ -313,8 +340,8 @@ impl BobHandleInner {
         //
         // The actual rpc message is constructed above to avoid creating an uncessary clone
         // due to ownership rules.
-        self.builder
-            .insert_block(block, self.sink.clone(), block_uuid);
+        self.block_cache.lock().unwrap().insert(block_uuid, block);
+        self.builder.register_block(self.key, block_uuid);
 
         // Get block context and state
         match serde_json::to_value(&block_state_update) {
@@ -344,11 +371,12 @@ impl BobHandleInner {
         return delta < self.builder.stream_start_dur;
     }
 
-    fn check_and_store_block_value(&mut self, block: &Box<dyn BlockBuildingHelper>) -> bool {
+    fn check_and_store_block_value(&self, block: &Box<dyn BlockBuildingHelper>) -> bool {
         match block.true_block_value() {
             Ok(value) => {
-                if value > self.highest_value {
-                    self.highest_value = value;
+                let mut highest_value = self.highest_value.lock().unwrap();
+                if value > *highest_value {
+                    *highest_value = value;
                     return true;
                 }
                 return false;
@@ -370,10 +398,13 @@ impl Drop for BobHandleInner {
     // processed receive / handle cancellation. E.G. our teardown occurs before an upstream builder
     // has handle the cancellation.
     fn drop(&mut self) {
-        let mut cache = self.builder.inner.block_cache.lock().unwrap();
-        self.uuids.iter().for_each(|uuid| {
-            cache.remove(uuid);
+        let mut block_handles = self.builder.inner.block_handles.lock().unwrap();
+        self.uuids.lock().unwrap().iter().for_each(|uuid| {
+            block_handles.remove(uuid);
         });
+
+        let mut handles = self.builder.inner.handles.lock().unwrap();
+        handles.remove(&self.key);
     }
 }
 
