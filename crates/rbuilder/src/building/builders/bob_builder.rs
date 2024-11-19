@@ -122,7 +122,6 @@ impl BobBuilder {
                 key: key,
                 slot_timestamp: slot_timestamp,
                 sink: sink,
-                uuids: Mutex::new(Vec::new()),
                 bundle_store: Mutex::new(PriorityQueue::new()),
             }),
         };
@@ -364,7 +363,6 @@ struct BobHandleInner {
     key: Uuid,
     sink: Arc<dyn UnfinishedBlockBuildingSink>,
     slot_timestamp: time::OffsetDateTime,
-    uuids: Mutex<Vec<Uuid>>,
     bundle_store: Mutex<PriorityQueue<OrderId, PrioritizedOrder>>,
 }
 
@@ -393,7 +391,6 @@ impl BobHandleInner {
         trace!("Streaming bob partial block");
 
         let block_uuid = Uuid::new_v4();
-        self.uuids.lock().unwrap().push(block_uuid);
 
         let building_context = block.building_context();
         let bundle_state = block.get_bundle_state();
@@ -493,7 +490,7 @@ impl BobHandleInner {
             // If address doesn't exist in bundle_state, it means no changes were made
             // so we can continue checking other slots
         }
-        
+
         // All read slots either match or weren't modified
         true
     }
@@ -503,7 +500,7 @@ impl BobHandleInner {
     /// Returns after first successful commit_order since subsequent bundles likely to fail
     fn fill_bob_orders(&self, block: &mut Box<dyn BlockBuildingHelper>) {
         let bundle_store = self.bundle_store.lock().unwrap();
-    
+
         // Try each order in priority order while we have enough gas
         for (_order_id, prioritized_order) in bundle_store.iter() {
             if let Some(ref used_state_trace) = prioritized_order.order.used_state_trace {
@@ -515,7 +512,7 @@ impl BobHandleInner {
                     continue;
                 }
             }
-            
+
             match block.commit_sim_order(&prioritized_order.order) {
                 Ok(Ok(_execution_result)) => {
                     info!(
@@ -547,7 +544,7 @@ impl Drop for BobHandleInner {
     // has handle the cancellation.
     fn drop(&mut self) {
         let mut block_handles = self.builder.inner.block_handles.lock().unwrap();
-        self.uuids.lock().unwrap().iter().for_each(|uuid| {
+        self.block_cache.lock().unwrap().keys().for_each(|uuid| {
             block_handles.remove(uuid);
         });
 
