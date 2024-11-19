@@ -183,7 +183,7 @@ impl BlockBuildingContext {
         let blob_excess_gas_and_price =
             if chain_spec.is_cancun_active_at_timestamp(onchain_block.header.timestamp) {
                 Some(BlobExcessGasAndPrice::new(
-                    onchain_block.header.excess_blob_gas.unwrap_or_default() as u64,
+                    onchain_block.header.excess_blob_gas.unwrap_or_default(),
                 ))
             } else {
                 None
@@ -245,7 +245,7 @@ impl BlockBuildingContext {
             builder_signer,
             blocklist,
             extra_data: Vec::new(),
-            excess_blob_gas: onchain_block.header.excess_blob_gas.map(|b| b as u64),
+            excess_blob_gas: onchain_block.header.excess_blob_gas,
             spec_id,
             shared_sparse_mpt_cache: Default::default(),
         }

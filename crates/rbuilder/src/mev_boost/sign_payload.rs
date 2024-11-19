@@ -113,7 +113,7 @@ pub fn sign_block_for_relay(
     signer: &BLSBlockSigner,
     sealed_block: &SealedBlock,
     blobs_bundle: &[Arc<BlobTransactionSidecar>],
-    execution_requests: &Vec<Bytes>, // The Pectra execution requests for this bid.
+    execution_requests: &[Bytes], // The Pectra execution requests for this bid.
     chain_spec: &ChainSpec,
     attrs: &PayloadAttributesData,
     pubkey: H384,
@@ -196,7 +196,7 @@ pub fn sign_block_for_relay(
                 execution_payload,
                 blobs_bundle,
                 signature,
-                execution_requests: execution_requests.clone(),
+                execution_requests: execution_requests.to_vec(),
             }))
         } else {
             SubmitBlockRequest::Deneb(DenebSubmitBlockRequest(SignedBidSubmissionV3 {
