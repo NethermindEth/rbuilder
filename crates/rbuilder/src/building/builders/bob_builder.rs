@@ -500,6 +500,7 @@ impl BobHandleInner {
 
     /// Iterates through the bob bundle store and attempts to commit each order
     /// Skips commit_order on orders where storage read values have changed
+    /// Returns after first successful commit_order since subsequent bundles likely to fail
     fn fill_bob_orders(&self, block: &mut Box<dyn BlockBuildingHelper>) {
         let bundle_store = self.bundle_store.lock().unwrap();
     
@@ -521,6 +522,7 @@ impl BobHandleInner {
                         order_id = ?prioritized_order.order.id(),
                         "No storage changes - committed order!"
                     );
+                    return;
                 }
                 Ok(Err(_err)) => {}
                 Err(err) => {
