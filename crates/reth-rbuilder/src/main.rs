@@ -12,7 +12,8 @@ use rbuilder::{
 };
 use reth_db_api::Database;
 use reth_provider::{
-    providers::BlockchainProvider, DatabaseProviderFactory, HeaderProvider, StateProviderFactory,
+    providers::BlockchainProvider, BlockReader, DatabaseProviderFactory, HeaderProvider,
+    StateProviderFactory,
 };
 use std::{path::PathBuf, process};
 use tokio::task;
@@ -90,7 +91,11 @@ fn main() {
 fn spawn_rbuilder<P, DB>(provider: P, config_path: PathBuf)
 where
     DB: Database + Clone + 'static,
-    P: DatabaseProviderFactory<DB> + StateProviderFactory + HeaderProvider + Clone + 'static,
+    P: DatabaseProviderFactory<DB = DB, Provider: BlockReader>
+        + StateProviderFactory
+        + HeaderProvider
+        + Clone
+        + 'static,
 {
     let _handle = task::spawn(async move {
         let result = async {
