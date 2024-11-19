@@ -7787,6 +7787,8 @@ dependencies = [
 name = "rbuilder-bundle-pool-operations"
 version = "0.1.0"
 dependencies = [
+ "alloy-primitives 0.8.12",
+ "alloy-rpc-types-beacon",
  "derive_more 1.0.0",
  "eyre",
  "rbuilder",
