@@ -29,7 +29,6 @@ use uuid::Uuid;
 
 use priority_queue::PriorityQueue;
 use crate::primitives::{OrderId, SimulatedOrder};
-use crate::building::block_orders::prioritized_order_store::OrderPriority;
 use crate::building::evm_inspector::UsedStateTrace;
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq)]
@@ -124,8 +123,7 @@ impl BobBuilder {
                 slot_timestamp: slot_timestamp,
                 sink: sink,
                 uuids: Mutex::new(Vec::new()),
-                bundle_queue: Mutex::new(PriorityQueue::new()),
-                bundle_orders: Mutex::new(HashMap::default()),
+                bundle_store: Mutex::new(PriorityQueue::new()),
             }),
         };
         self.inner
@@ -277,13 +275,7 @@ impl BobHandle {
                 );
 
                 // Insert the order into our bundle cache with appropriate priority
-                let order_id = order.id();
-                let priority = OrderPriority {
-                    order_id,
-                    priority: execution_result.inplace_sim.coinbase_profit.to::<u128>(),
-                };
-                
-                // Create SimulatedOrder from the successful commit
+                let profit = execution_result.inplace_sim.coinbase_profit.to::<u128>();
                 let sim_order = SimulatedOrder {
                     order: execution_result.order.clone(),
                     sim_value: execution_result.inplace_sim.clone(),
@@ -293,11 +285,11 @@ impl BobHandle {
                 info!(?sim_order.used_state_trace, "Used state trace");
                 // Insert into both cache structures under mutex protection
                 {
-                    let mut bundle_queue = self.inner.bundle_queue.lock().unwrap();
-                    let mut bundle_orders = self.inner.bundle_orders.lock().unwrap();
-                    
-                    bundle_queue.push(order_id, priority);
-                    bundle_orders.insert(order_id, sim_order);
+                    let mut bundle_store = self.inner.bundle_store.lock().unwrap();
+                    bundle_store.push(execution_result.order.id(), PrioritizedOrder {
+                        order: sim_order,
+                        profit,
+                    });
                 }
                 self.inner.sink.new_block(block);
                 info!(?uuid, order_id=?order.id(), "STEP 7: ORDER FULLY PROCESSED AND CACHED");
@@ -327,6 +319,35 @@ impl UnfinishedBlockBuildingSink for BobHandle {
     }
 }
 
+
+/// PrioritizedOrder combines a SimulatedOrder with its profit value
+/// Used for ordering orders in a priority queue based on profit
+#[derive(Debug, Eq, PartialEq)]
+struct PrioritizedOrder {
+    order: SimulatedOrder,
+    profit: u128,
+}
+
+/// Implementation of Ord trait to enable comparison/sorting of PrioritizedOrder
+/// First compares by profit, then by order ID as a tiebreaker
+/// Priorityqueue maintains highest profit first by default
+impl Ord for PrioritizedOrder {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.profit
+            .cmp(&other.profit)
+            .then_with(|| self.order.id().cmp(&other.order.id()))
+    }
+}
+
+/// PartialOrd implementation is required alongside Ord
+/// Since our Ord implementation handles all cases,
+/// we can simply wrap the cmp result in Some()
+impl PartialOrd for PrioritizedOrder {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
 struct BobHandleInner {
     block_cache: Mutex<HashMap<Uuid, Box<dyn BlockBuildingHelper>>>,
     builder: BobBuilder,
@@ -336,8 +357,7 @@ struct BobHandleInner {
     sink: Arc<dyn UnfinishedBlockBuildingSink>,
     slot_timestamp: time::OffsetDateTime,
     uuids: Mutex<Vec<Uuid>>,
-    bundle_queue: Mutex<PriorityQueue<OrderId, OrderPriority>>,
-    bundle_orders: Mutex<HashMap<OrderId, SimulatedOrder>>,
+    bundle_store: Mutex<PriorityQueue<OrderId, PrioritizedOrder>>,
 }
 
 impl fmt::Debug for BobHandleInner {
@@ -467,37 +487,34 @@ impl BobHandleInner {
     }
 
     fn fill_bob_orders(&self, block: &mut Box<dyn BlockBuildingHelper>) {
-        let bundle_queue = self.bundle_queue.lock().unwrap();
-        let bundle_orders = self.bundle_orders.lock().unwrap();
+        let bundle_store = self.bundle_store.lock().unwrap();
     
         // Try each order in priority order while we have enough gas
-        for (order_id, _) in bundle_queue.iter() {
-            if let Some(order) = bundle_orders.get(order_id) {
-                // Add validation check before attempting to commit
-                if let Some(ref used_state_trace) = order.used_state_trace {
-                    if !Self::validate_storage_reads(block.get_bundle_state(), used_state_trace) {
-                        info!(
-                            order_id = ?order.order.id(),
-                            "Skipping order due to storage state changes"
-                        );
-                        continue;
-                    }
+        for (_order_id, prioritized_order) in bundle_store.iter() {
+            if let Some(ref used_state_trace) = prioritized_order.order.used_state_trace {
+                if !Self::validate_storage_reads(block.get_bundle_state(), used_state_trace) {
+                    info!(
+                        order_id = ?prioritized_order.order.id(),
+                        "Skipping order due to storage state changes"
+                    );
+                    continue;
                 }
-                match block.commit_sim_order(order) {
-                    Ok(Ok(_execution_result)) => {
-                        info!(
-                            order_id = ?order.order.id(),
-                            "No storage changes - committed order!"
-                        );
-                    }
-                    Ok(Err(_err)) => {}
-                    Err(err) => {
-                        info!(
-                            ?err,
-                            order_id = ?order.order.id(),
-                            "Critical error committing cached order"
-                        );
-                    }
+            }
+            
+            match block.commit_sim_order(&prioritized_order.order) {
+                Ok(Ok(_execution_result)) => {
+                    info!(
+                        order_id = ?prioritized_order.order.id(),
+                        "No storage changes - committed order!"
+                    );
+                }
+                Ok(Err(_err)) => {}
+                Err(err) => {
+                    info!(
+                        ?err,
+                        order_id = ?prioritized_order.order.id(),
+                        "Critical error committing cached order"
+                    );
                 }
             }
         }
