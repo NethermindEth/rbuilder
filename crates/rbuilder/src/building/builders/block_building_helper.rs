@@ -396,6 +396,7 @@ where
             sealed_block: finalized_block.sealed_block,
             txs_blobs_sidecars: finalized_block.txs_blob_sidecars,
             builder_name: self.builder_name.clone(),
+            execution_requests: finalized_block.execution_requests,
         };
         Ok(FinalizeBlockResult {
             block,

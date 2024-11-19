@@ -11,7 +11,7 @@ pub mod sim;
 pub mod testing;
 pub mod tracers;
 use alloy_consensus::EMPTY_OMMER_ROOT_HASH;
-use alloy_primitives::{Address, Sealable, U256};
+use alloy_primitives::{Address, Bytes, Sealable, U256};
 pub use block_orders::BlockOrders;
 use eth_sparse_mpt::SparseTrieSharedCache;
 use reth_db::Database;
@@ -425,6 +425,9 @@ pub struct FinalizeResult {
     pub cached_reads: CachedReads,
     // sidecars for all txs in SealedBlock
     pub txs_blob_sidecars: Vec<Arc<BlobTransactionSidecar>>,
+    /// The Pectra execution requests for this bid.
+    pub execution_requests: Vec<Bytes>,
+
     pub root_hash_time: Duration,
 }
 
@@ -770,6 +773,7 @@ impl<Tracer: SimulationTracer> PartialBlock<Tracer> {
             cached_reads,
             txs_blob_sidecars,
             root_hash_time,
+            execution_requests: requests.map(|er| er.take()).unwrap_or_default(),
         })
     }
 

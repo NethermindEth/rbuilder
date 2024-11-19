@@ -12,7 +12,7 @@ use crate::{
     utils::{is_provider_factory_health_error, NonceCache},
 };
 use ahash::HashSet;
-use alloy_primitives::{Address, B256};
+use alloy_primitives::{Address, Bytes, B256};
 use block_building_helper::BlockBuildingHelper;
 use reth::primitives::{BlobTransactionSidecar, SealedBlock};
 use reth::revm::cached::CachedReads;
@@ -30,6 +30,8 @@ pub struct Block {
     pub sealed_block: SealedBlock,
     /// Sidecars for the txs included in SealedBlock
     pub txs_blobs_sidecars: Vec<Arc<BlobTransactionSidecar>>,
+    /// The Pectra execution requests for this bid.
+    pub execution_requests: Vec<Bytes>,
     pub builder_name: String,
 }
 

@@ -3,7 +3,9 @@ use super::{
     SubmitBlockRequest,
 };
 use crate::utils::u256decimal_serde_helper;
-use alloy_primitives::{Address, BlockHash, FixedBytes, B256, U256};
+use alloy_eips::eip2718::Encodable2718;
+use alloy_primitives::{Address, BlockHash, Bytes, FixedBytes, B256, U256};
+use alloy_rpc_types_beacon::events::PayloadAttributesData;
 use alloy_rpc_types_beacon::{
     relay::{BidTrace, SignedBidSubmissionV2, SignedBidSubmissionV3, SignedBidSubmissionV4},
     BlsPublicKey,
@@ -19,7 +21,6 @@ use ethereum_consensus::{
     ssz::prelude::*,
 };
 use primitive_types::H384;
-use reth::rpc::types::beacon::events::PayloadAttributesData;
 use reth_chainspec::{ChainSpec, EthereumHardforks};
 use reth_primitives::{BlobTransactionSidecar, SealedBlock};
 use serde_with::{serde_as, DisplayFromStr};
@@ -107,10 +108,12 @@ fn a2e_address(a: &Address) -> ExecutionAddress {
     ExecutionAddress::try_from(a.as_slice()).unwrap()
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn sign_block_for_relay(
     signer: &BLSBlockSigner,
     sealed_block: &SealedBlock,
     blobs_bundle: &[Arc<BlobTransactionSidecar>],
+    execution_requests: &Vec<Bytes>, // The Pectra execution requests for this bid.
     chain_spec: &ChainSpec,
     attrs: &PayloadAttributesData,
     pubkey: H384,
@@ -188,35 +191,12 @@ pub fn sign_block_for_relay(
         let blobs_bundle = marshal_txs_blobs_sidecars(blobs_bundle);
 
         if chain_spec.is_prague_active_at_timestamp(sealed_block.timestamp) {
-            let mut deposit_requests = Vec::new();
-            let mut withdrawal_requests = Vec::new();
-            let mut consolidation_requests = Vec::new();
-            for request in sealed_block.requests.iter().flat_map(|r| &r.0) {
-                match request {
-                    alloy_consensus::Request::DepositRequest(r) => {
-                        deposit_requests.push(*r);
-                    }
-                    alloy_consensus::Request::WithdrawalRequest(r) => {
-                        withdrawal_requests.push(*r);
-                    }
-                    alloy_consensus::Request::ConsolidationRequest(r) => {
-                        consolidation_requests.push(*r);
-                    }
-                    _ => {}
-                };
-            }
-
-            let execution_payload = ExecutionPayloadV4 {
-                payload_inner: execution_payload,
-                deposit_requests,
-                withdrawal_requests,
-                consolidation_requests,
-            };
             SubmitBlockRequest::Electra(ElectraSubmitBlockRequest(SignedBidSubmissionV4 {
                 message,
                 execution_payload,
                 blobs_bundle,
                 signature,
+                execution_requests: execution_requests.clone(),
             }))
         } else {
             SubmitBlockRequest::Deneb(DenebSubmitBlockRequest(SignedBidSubmissionV3 {

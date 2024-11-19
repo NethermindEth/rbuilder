@@ -81,6 +81,7 @@ impl BlockBuildingHelper for MockBlockBuildingHelper {
             sealed_block: SealedBlock::default(),
             txs_blobs_sidecars: Vec::new(),
             builder_name: "BlockBuildingHelper".to_string(),
+            execution_requests: Default::default(),
         };
 
         Ok(FinalizeBlockResult {
