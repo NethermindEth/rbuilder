@@ -178,7 +178,7 @@ pub async fn run_bob_builder(
             let uuid: Uuid = match seq.next() {
                 Ok(bundle) => bundle,
                 Err(err) => {
-                    debug!(?err, "Failed to parse request: 1 of 2 paramters sent");
+                    debug!(?err, "Failed to parse request: 1 of 2 parameters sent");
                     return Err(ErrorObject::owned(-32601, "Expected 2 parameters", None::<()>));
                 }
             };
@@ -253,6 +253,9 @@ pub struct BobHandle {
 }
 
 impl BobHandle {
+    /// When a new order is received, we fetch the UUID associated with the partial block and call commit_order_with_trace
+    /// Commit_order_with_trace is commit_order but adds a tracer to populate used_state_trace
+    /// We store the execution result in our bundle store and pass the block to the sink
     fn new_order(&self, order: Order, uuid: Uuid) {
         let mut block = {
             let block_cache = self.inner.block_cache.lock().unwrap();
@@ -271,10 +274,10 @@ impl BobHandle {
                     profit=?execution_result.inplace_sim.coinbase_profit,
                     gas_used=execution_result.gas_used,
                     used_state_trace=?execution_result.used_state_trace,
-                    "SUCCESSFULLY COMMITTED ORDER"
+                    "Successfully committed order"
                 );
 
-                // Insert the order into our bundle cache with appropriate priority
+                // Prepare simulatedOrder fields from execution result
                 let profit = execution_result.inplace_sim.coinbase_profit.to::<u128>();
                 let sim_order = SimulatedOrder {
                     order: execution_result.order.clone(),
@@ -282,17 +285,16 @@ impl BobHandle {
                     prev_order: None,
                     used_state_trace: execution_result.used_state_trace.clone(),
                 };
-                info!(?sim_order.used_state_trace, "Used state trace");
-                // Insert into both cache structures under mutex protection
-                {
-                    let mut bundle_store = self.inner.bundle_store.lock().unwrap();
-                    bundle_store.push(execution_result.order.id(), PrioritizedOrder {
+
+                // Insert into bundle store under mutex protection
+                let mut bundle_store = self.inner.bundle_store.lock().unwrap();
+                bundle_store.push(execution_result.order.id(), PrioritizedOrder {
                         order: sim_order,
                         profit,
-                    });
-                }
+                });
+
+                // Pass stored partial block with bob order to sink
                 self.inner.sink.new_block(block);
-                info!(?uuid, order_id=?order.id(), "STEP 7: ORDER FULLY PROCESSED AND CACHED");
             }
             Ok(Err(e)) => {
                 debug!("Reverted or failed bob order: {:?}", e);
@@ -305,6 +307,12 @@ impl BobHandle {
 }
 
 impl UnfinishedBlockBuildingSink for BobHandle {
+
+    /// BobHandle is passed as the sink for all other algorithms
+    /// When a new block is received, we:
+    /// 1. Stream the block to searchers
+    /// 2. Attempt to commit_sim_order bob bundles
+    /// 3. Pass the block to BlockSealingBidder
     fn new_block(&self, mut block: Box<dyn BlockBuildingHelper>) {
         // Stream the block to searchers
         self.inner.stream_block(block.box_clone());
@@ -414,10 +422,10 @@ impl BobHandleInner {
                 if let Err(_e) = self.builder.inner.state_diff_server.send(json_data) {
                     warn!("Failed to send block data");
                 } else {
-                    // info!(
-                    //     "Sent BlockStateUpdate: uuid={}",
-                    //     block_state_update.block_uuid
-                    // );
+                    info!(
+                        "Sent BlockStateUpdate: uuid={}",
+                        block_state_update.block_uuid
+                    );
                 }
             }
             Err(e) => error!("Failed to serialize block state diff update: {:?}", e),
@@ -436,6 +444,8 @@ impl BobHandleInner {
         return delta < self.builder.stream_start_dur;
     }
 
+    /// Checks if the block's true value is greater than the current highest value
+    /// Updates the highest value if it is, and returns true if it is a new highest value
     fn check_and_store_block_value(&self, block: &Box<dyn BlockBuildingHelper>) -> bool {
         match block.true_block_value() {
             Ok(value) => {
@@ -453,6 +463,8 @@ impl BobHandleInner {
         };
     }
 
+    /// Validates that the storage reads in the used_state_trace match the storage values in the bundle_state
+    /// Returns true if all storage reads match, false otherwise
     fn validate_storage_reads(
         bundle_state: &BundleState,
         used_state_trace: &UsedStateTrace,
@@ -486,6 +498,8 @@ impl BobHandleInner {
         true
     }
 
+    /// Iterates through the bob bundle store and attempts to commit each order
+    /// Skips commit_order on orders where storage read values have changed
     fn fill_bob_orders(&self, block: &mut Box<dyn BlockBuildingHelper>) {
         let bundle_store = self.bundle_store.lock().unwrap();
     
