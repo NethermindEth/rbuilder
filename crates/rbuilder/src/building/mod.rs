@@ -68,6 +68,9 @@ pub use order_commit::*;
 pub use payout_tx::*;
 pub use sim::simulate_order;
 
+use crate::building::evm_inspector::UsedStateTrace;
+
+
 #[derive(Debug, Clone)]
 pub struct BlockBuildingContext {
     pub block_env: BlockEnv,
@@ -353,6 +356,7 @@ pub struct ExecutionResult {
     pub receipts: Vec<Receipt>,
     pub nonces_updated: Vec<(Address, u64)>,
     pub paid_kickbacks: Vec<(Address, U256)>,
+    pub used_state_trace: Option<UsedStateTrace>,
 }
 
 #[derive(Error, Debug)]
@@ -527,6 +531,59 @@ impl<Tracer: SimulationTracer> PartialBlock<Tracer> {
             receipts: ok_result.receipts,
             nonces_updated: ok_result.nonces_updated,
             paid_kickbacks: ok_result.paid_kickbacks,
+            used_state_trace: ok_result.used_state_trace,
+        }))
+    }
+    
+    /// Similar to commit_order but captures state trace during execution
+    pub fn commit_order_with_trace(
+        &mut self,
+        order: &Order,
+        ctx: &BlockBuildingContext,
+        state: &mut BlockState,
+    ) -> Result<Result<ExecutionResult, ExecutionError>, CriticalCommitOrderError> {
+        // Create fresh tracer for this execution
+        let mut tracer = crate::building::tracers::AccumulatorSimulationTracer::new();
+        let mut fork = PartialBlockFork::new(state).with_tracer(&mut tracer);
+        let exec_result = fork.commit_order(
+            order,
+            ctx,
+            self.gas_used,
+            self.gas_reserved,
+            self.blob_gas_used,
+            self.discard_txs,
+        )?;
+        let ok_result = match exec_result {
+            Ok(ok) => ok,
+            Err(err) => {
+                return Ok(Err(err.into()));
+            }
+        };
+        // Capture trace before updating block state
+        let used_state_trace = tracer.get_used_state_tracer().cloned();
+        // Update block state
+        self.gas_used += ok_result.gas_used;
+        self.blob_gas_used += ok_result.blob_gas_used;
+        self.coinbase_profit += ok_result.coinbase_profit;
+        self.executed_tx.extend(ok_result.txs.clone());
+        self.receipts.extend(ok_result.receipts.clone());
+        let inplace_sim_result = SimValue::new(
+            ok_result.coinbase_profit,
+            ok_result.gas_used,
+            ok_result.blob_gas_used,
+            ok_result.paid_kickbacks.clone(),
+        );
+        Ok(Ok(ExecutionResult {
+            coinbase_profit: ok_result.coinbase_profit,
+            inplace_sim: inplace_sim_result,
+            gas_used: ok_result.gas_used,
+            order: order.clone(),
+            txs: ok_result.txs,
+            original_order_ids: ok_result.original_order_ids,
+            receipts: ok_result.receipts,
+            nonces_updated: ok_result.nonces_updated,
+            paid_kickbacks: ok_result.paid_kickbacks,
+            used_state_trace,
         }))
     }
 

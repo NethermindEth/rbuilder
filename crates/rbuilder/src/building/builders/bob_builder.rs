@@ -27,6 +27,11 @@ use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, trace, warn};
 use uuid::Uuid;
 
+use priority_queue::PriorityQueue;
+use crate::primitives::{OrderId, SimulatedOrder};
+use crate::building::block_orders::prioritized_order_store::OrderPriority;
+use crate::building::evm_inspector::UsedStateTrace;
+
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq)]
 #[serde(default, deny_unknown_fields)]
 pub struct BobBuilderConfig {
@@ -119,6 +124,8 @@ impl BobBuilder {
                 slot_timestamp: slot_timestamp,
                 sink: sink,
                 uuids: Mutex::new(Vec::new()),
+                bundle_queue: Mutex::new(PriorityQueue::new()),
+                bundle_orders: Mutex::new(HashMap::default()),
             }),
         };
         self.inner
@@ -257,9 +264,43 @@ impl BobHandle {
                 return;
             }
         };
-        match block.commit_order(&order) {
-            Ok(Ok(_)) => {
+
+        match block.commit_order_with_trace(&order) {
+            Ok(Ok(execution_result)) => {
+                info!(
+                    ?uuid,
+                    order_id=?order.id(),
+                    profit=?execution_result.inplace_sim.coinbase_profit,
+                    gas_used=execution_result.gas_used,
+                    used_state_trace=?execution_result.used_state_trace,
+                    "SUCCESSFULLY COMMITTED ORDER"
+                );
+
+                // Insert the order into our bundle cache with appropriate priority
+                let order_id = order.id();
+                let priority = OrderPriority {
+                    order_id,
+                    priority: execution_result.inplace_sim.coinbase_profit.to::<u128>(),
+                };
+                
+                // Create SimulatedOrder from the successful commit
+                let sim_order = SimulatedOrder {
+                    order: execution_result.order.clone(),
+                    sim_value: execution_result.inplace_sim.clone(),
+                    prev_order: None,
+                    used_state_trace: execution_result.used_state_trace.clone(),
+                };
+                info!(?sim_order.used_state_trace, "Used state trace");
+                // Insert into both cache structures under mutex protection
+                {
+                    let mut bundle_queue = self.inner.bundle_queue.lock().unwrap();
+                    let mut bundle_orders = self.inner.bundle_orders.lock().unwrap();
+                    
+                    bundle_queue.push(order_id, priority);
+                    bundle_orders.insert(order_id, sim_order);
+                }
                 self.inner.sink.new_block(block);
+                info!(?uuid, order_id=?order.id(), "STEP 7: ORDER FULLY PROCESSED AND CACHED");
             }
             Ok(Err(e)) => {
                 debug!("Reverted or failed bob order: {:?}", e);
@@ -272,8 +313,13 @@ impl BobHandle {
 }
 
 impl UnfinishedBlockBuildingSink for BobHandle {
-    fn new_block(&self, block: Box<dyn BlockBuildingHelper>) {
-        self.inner.pass_and_stream_block(block);
+    fn new_block(&self, mut block: Box<dyn BlockBuildingHelper>) {
+        // Stream the block to searchers
+        self.inner.stream_block(block.box_clone());
+        // Try to fill with cached bundle orders
+        self.inner.fill_bob_orders(&mut block);
+        // Pass filled block to sink
+        self.inner.sink.new_block(block);
     }
 
     fn can_use_suggested_fee_recipient_as_coinbase(&self) -> bool {
@@ -290,6 +336,8 @@ struct BobHandleInner {
     sink: Arc<dyn UnfinishedBlockBuildingSink>,
     slot_timestamp: time::OffsetDateTime,
     uuids: Mutex<Vec<Uuid>>,
+    bundle_queue: Mutex<PriorityQueue<OrderId, OrderPriority>>,
+    bundle_orders: Mutex<HashMap<OrderId, SimulatedOrder>>,
 }
 
 impl fmt::Debug for BobHandleInner {
@@ -299,14 +347,11 @@ impl fmt::Debug for BobHandleInner {
 }
 
 impl BobHandleInner {
-    fn pass_and_stream_block(&self, block: Box<dyn BlockBuildingHelper>) {
+    fn stream_block(&self, block: Box<dyn BlockBuildingHelper>) {
         // If we've processed a cancellation for this slot, bail.
         if self.cancel.is_cancelled() {
             return;
         }
-
-        // Always pass the block to blocksealingbidder's sink for relay submission
-        self.sink.new_block(block.box_clone());
 
         // We only stream new partial blocks to searchers in a default 2 second window
         // before the slot end. We don't need to store partial blocks not streamed so bail.
@@ -349,10 +394,10 @@ impl BobHandleInner {
                 if let Err(_e) = self.builder.inner.state_diff_server.send(json_data) {
                     warn!("Failed to send block data");
                 } else {
-                    info!(
-                        "Sent BlockStateUpdate: uuid={}",
-                        block_state_update.block_uuid
-                    );
+                    // info!(
+                    //     "Sent BlockStateUpdate: uuid={}",
+                    //     block_state_update.block_uuid
+                    // );
                 }
             }
             Err(e) => error!("Failed to serialize block state diff update: {:?}", e),
@@ -386,6 +431,76 @@ impl BobHandleInner {
                 return false;
             }
         };
+    }
+
+    fn validate_storage_reads(
+        bundle_state: &BundleState,
+        used_state_trace: &UsedStateTrace,
+    ) -> bool {
+        // Iterate through all read slot values from the simulated order
+        for (read_slot_key, value) in &used_state_trace.read_slot_values {
+            // Check if the address exists in bundle_state
+            if let Some(bundle_account) = bundle_state.state.get(&read_slot_key.address) {
+                // If address exists, check if the specific storage slot read still has the same value
+                if let Some(storage_slot) = bundle_account.storage.get(&U256::try_from(read_slot_key.key).unwrap()) {
+                    let original_value = U256::from_be_bytes(value.0);
+                    if storage_slot.present_value != original_value {
+                        info!(
+                            address = ?read_slot_key.address,
+                            slot = ?read_slot_key.key,
+                            read_value = ?original_value,
+                            current_value = ?storage_slot.present_value,
+                            "Storage value changed"
+                        );
+                        return false;
+                    }
+                }
+                // If storage slot doesn't exist in bundle_state, it means it hasn't changed
+                // so we can continue checking other slots
+            }
+            // If address doesn't exist in bundle_state, it means no changes were made
+            // so we can continue checking other slots
+        }
+        
+        // All read slots either match or weren't modified
+        true
+    }
+
+    fn fill_bob_orders(&self, block: &mut Box<dyn BlockBuildingHelper>) {
+        let bundle_queue = self.bundle_queue.lock().unwrap();
+        let bundle_orders = self.bundle_orders.lock().unwrap();
+    
+        // Try each order in priority order while we have enough gas
+        for (order_id, _) in bundle_queue.iter() {
+            if let Some(order) = bundle_orders.get(order_id) {
+                // Add validation check before attempting to commit
+                if let Some(ref used_state_trace) = order.used_state_trace {
+                    if !Self::validate_storage_reads(block.get_bundle_state(), used_state_trace) {
+                        info!(
+                            order_id = ?order.order.id(),
+                            "Skipping order due to storage state changes"
+                        );
+                        continue;
+                    }
+                }
+                match block.commit_sim_order(order) {
+                    Ok(Ok(_execution_result)) => {
+                        info!(
+                            order_id = ?order.order.id(),
+                            "No storage changes - committed order!"
+                        );
+                    }
+                    Ok(Err(_err)) => {}
+                    Err(err) => {
+                        info!(
+                            ?err,
+                            order_id = ?order.order.id(),
+                            "Critical error committing cached order"
+                        );
+                    }
+                }
+            }
+        }
     }
 }
 
