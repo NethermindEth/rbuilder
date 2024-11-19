@@ -34,9 +34,19 @@ use crate::building::evm_inspector::UsedStateTrace;
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq)]
 #[serde(default, deny_unknown_fields)]
 pub struct BobBuilderConfig {
+    /// Port we're running on. We use the ip address on the base config
     port: u16,
+    /// Millisecond before the end of slot we begin streaming blocks
+    /// Important to not start too early, there's potentially negative interactions
+    /// with bob bundles submitted early in the slot consuming the MEV that would
+    /// be given back to users in MEVShare bundles, and resulting in highest bids at
+    /// the relay level such that later block that attribute more MEV back to the user
+    /// are unable to outcompete the early bob block.
     stream_start_dur: u64,
+    /// Timeout for pushing orders taken from the rpc server into the order
+    /// processing queue
     channel_timeout: u64,
+    /// Size of order queue
     channel_buffer_size: usize,
 }
 
@@ -51,14 +61,15 @@ impl Default for BobBuilderConfig {
     }
 }
 
-// There is a single bob instance for the entire builder process
-// It server as a cache for our event handler loop to store partial blocks
-// by uuid, and to store the rpc server responsible for streaming these blocks
-// to bob searchers. The bob does not distinguish between partial blocks associated
-// between different slots - it should be accessed through a handler which contains
-// this association and logic.
+/// There is a single bob instance for the entire builder process
+/// It server as a cache for our event handler loop to store partial blocks
+/// by uuid, and to store the rpc server responsible for streaming these blocks
+/// to bob searchers. The bob does not distinguish between partial blocks associated
+/// between different slots - it should be accessed through a handler which contains
+/// this association and logic.
 #[derive(Clone, Debug)]
 pub struct BobBuilder {
+    // See above config options
     stream_start_dur: Duration,
     channel_timeout: Duration,
     channel_buffer_size: usize,
@@ -66,8 +77,15 @@ pub struct BobBuilder {
 }
 
 struct BobBuilderInner {
+    /// Map for block_uuid to handle uuid. Bob builder is global, and handles are
+    /// created for each slot that managed the slot specific logic and get there own
+    /// uuid. So this is essentially a map for block_uuid -> slot.
     block_handles: Mutex<HashMap<Uuid, Uuid>>,
+    //// Lookup of a handles (slot) uuid to the handle.
     handles: Mutex<HashMap<Uuid, BobHandle>>,
+    /// Separate websocket rpc server running on a separate port from the normal httporder
+    /// receiver rpc server. Specifically for streaming blocks.
+    /// Note receipt of bob_orders are done on the HTTP server.
     state_diff_server: broadcast::Sender<serde_json::Value>,
 }
 
@@ -96,16 +114,14 @@ impl BobBuilder {
         })
     }
 
-    pub fn server(&self) -> broadcast::Sender<serde_json::Value> {
-        return self.inner.state_diff_server.clone();
-    }
-
-    // BobBuilder should be accessed through a handler. This
-    // handler will be associated with a particular slot, and
-    // contains the relevants data fields for it. We spawn
-    // a separate process that will wait for the cancellation token
-    // associated with the slot, and then perform the necessary tear down.
-    // Critically, this includes removing now stale partial blocks by uuid.
+    /// BobBuilder should be accessed through a handler. This
+    /// handler will be associated with a particular slot, and
+    /// contains the relevants data fields for it. Attach
+    /// elicit cleanup logic to a future from that cancellation token
+    /// associated with the slot.
+    /// Critically, this includes removing now stale handles by it's uuid.
+    /// Once that reference in removed, we cleanup the block -> handle map
+    /// in the handles drop function, triggers by the Arc.
     pub fn new_handle(
         &self,
         sink: Arc<dyn UnfinishedBlockBuildingSink>,
@@ -140,7 +156,9 @@ impl BobBuilder {
         return handle;
     }
 
-    pub fn register_block(&self, handle_uuid: Uuid, block_uuid: Uuid) {
+    // Inserts a mapping of handle_uuid -> block_uuid, that that the BoBBuilder
+    // can incoming orders the slot they are relevant for.
+    fn register_block(&self, handle_uuid: Uuid, block_uuid: Uuid) {
         self.inner
             .block_handles
             .lock()
@@ -149,11 +167,11 @@ impl BobBuilder {
     }
 }
 
-// Run bob builder is called once at startup of the builder.
-// It attached an rpc method to receive bob orders from clients
-// then enters and event handler loop that handles incoming orders
-// until global cancellation. Blocks are looked up via uuid in cache,
-// bob orders applied, and then forwards onto the final sink.
+/// Run bob builder is called once at startup of the builder.
+/// It attached an rpc method to receive bob orders from clients
+/// then enters and event handler loop that handles incoming orders
+/// until global cancellation. Blocks are looked up via uuid in cache,
+/// bob orders applied, and then forwards onto the final sink.
 pub async fn run_bob_builder(
     bob_builder: &BobBuilder,
     cancel: CancellationToken,
@@ -161,6 +179,8 @@ pub async fn run_bob_builder(
     let (order_sender, mut order_receiver) = mpsc::channel(bob_builder.channel_buffer_size);
 
     let timeout = bob_builder.channel_timeout;
+    // Creates a new RpcModule returned back to the called that it will merge with it's global
+    // RpcModule
     let mut module = RpcModule::new(());
     module.register_async_method("eth_sendBobBundle", move |params, _| {
         let sender = order_sender.clone();
@@ -213,6 +233,7 @@ pub async fn run_bob_builder(
     let handle = tokio::spawn(async move {
         loop {
             tokio::select! {
+                // Loop until global cancellation
                 _ = cancel.cancelled() => {
                     break
                 }
@@ -239,13 +260,13 @@ pub async fn run_bob_builder(
     Ok((handle, module))
 }
 
-// BobHandle associate a particular slot to the BobBuilder,
-// and store relevant information about the slot, the uuid of partial blocks
-// generated for that slot, highest value observed, and final sealer / bidding sink
-// The BobBuilder is not accessed directly, it should be only be accessed through the handle.
-//
-// It implemented the UnfinishedBlockBuilderSink interface so it can act be directly
-// used as a sink for other building algorithms.
+/// BobHandle associate a particular slot to the BobBuilder,
+/// and store relevant information about the slot, the uuid of partial blocks
+/// generated for that slot, highest value observed, and final sealer / bidding sink
+/// The BobBuilder is not accessed directly, it should be only be accessed through the handle.
+///
+/// It implemented the UnfinishedBlockBuilderSink interface so it can act be directly
+/// used as a sink for other building algorithms.
 #[derive(Clone, Debug)]
 pub struct BobHandle {
     inner: Arc<BobHandleInner>,
@@ -259,6 +280,7 @@ impl BobHandle {
         let mut block = {
             let block_cache = self.inner.block_cache.lock().unwrap();
             if let Some(block) = block_cache.get(&uuid) {
+                // Make a copy of the block, so the original in map in unmodified
                 block.box_clone()
             } else {
                 return;
@@ -356,11 +378,23 @@ impl PartialOrd for PrioritizedOrder {
 }
 
 struct BobHandleInner {
+    /// Cache of blocks produced this slot in the streaming window and sent to searchers
     block_cache: Mutex<HashMap<Uuid, Box<dyn BlockBuildingHelper>>>,
+    /// A reference to the global bob_builder, used to get the global rpc server
+    /// for streaming, to give it block_uuids that we've generated so it can route
+    /// orders to us. Also used in cleanup.
     builder: BobBuilder,
+    /// Cancellation token for this slot
     cancel: CancellationToken,
+    /// Highest raw true value value of a block seen from upstream builders.
+    /// This value will not contain value generated by bob_orders. Downstream
+    /// sinks perform that filtering.
     highest_value: Mutex<U256>,
+    /// Uuid associated with this handle, used in a block_uuid -> handle_uuid
+    /// map by the bob_builder to map incoming orders to the proper slot. Also
+    /// used in cleanup
     key: Uuid,
+    /// Final sink interfacing with the rest of rbuilder, should be a BlockSealingBidder
     sink: Arc<dyn UnfinishedBlockBuildingSink>,
     slot_timestamp: time::OffsetDateTime,
     bundle_store: Mutex<PriorityQueue<OrderId, PrioritizedOrder>>,
@@ -535,13 +569,13 @@ impl BobHandleInner {
 }
 
 impl Drop for BobHandleInner {
-    // Performs teardown for the handle, triggered above when the slot cancellation
-    // token is triggered. Removes uuids we've seen from the builder cache.
-    //
-    // Note that we store that the cancellation has occured - otherwise there could
-    // be stale blocks inserted after cancellation due to race conditions in when upstream
-    // processed receive / handle cancellation. E.G. our teardown occurs before an upstream builder
-    // has handle the cancellation.
+    /// Performs teardown for the handle, triggered above when the slot cancellation
+    /// token is triggered. Removes uuids we've seen from the builder cache.
+    ///
+    /// Note that we store that the cancellation has occured - otherwise there could
+    /// be stale blocks inserted after cancellation due to race conditions in when upstream
+    /// processed receive / handle cancellation. E.G. our teardown occurs before an upstream builder
+    /// has handle the cancellation.
     fn drop(&mut self) {
         let mut block_handles = self.builder.inner.block_handles.lock().unwrap();
         self.block_cache.lock().unwrap().keys().for_each(|uuid| {
