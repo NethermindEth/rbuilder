@@ -39,7 +39,9 @@ use rbuilder::{
 };
 use reth_chainspec::MAINNET;
 use reth_db::{database::Database, DatabaseEnv};
-use reth_provider::{DatabaseProviderFactory, StateProviderFactory};
+use reth_node_api::NodeTypesWithDBAdapter;
+use reth_node_ethereum::EthereumNode;
+use reth_provider::{BlockReader, DatabaseProviderFactory, StateProviderFactory};
 use tokio::{
     signal::ctrl_c,
     sync::{broadcast, mpsc},
@@ -86,7 +88,7 @@ async fn main() -> eyre::Result<()> {
     let (orderpool_sender, orderpool_receiver) =
         mpsc::channel(order_input_config.input_channel_buffer_size);
     let builder = LiveBuilder::<
-        ProviderFactoryReopener<Arc<DatabaseEnv>>,
+        ProviderFactoryReopener<NodeTypesWithDBAdapter<EthereumNode, Arc<DatabaseEnv>>>,
         Arc<DatabaseEnv>,
         MevBoostSlotDataGenerator,
     > {
@@ -205,7 +207,10 @@ impl DummyBuildingAlgorithm {
     ) -> eyre::Result<Box<dyn BlockBuildingHelper>>
     where
         DB: Database + Clone + 'static,
-        P: DatabaseProviderFactory<DB> + StateProviderFactory + Clone + 'static,
+        P: DatabaseProviderFactory<DB = DB, Provider: BlockReader>
+            + StateProviderFactory
+            + Clone
+            + 'static,
     {
         let mut block_building_helper = BlockBuildingHelperFromProvider::new(
             provider.clone(),
@@ -229,7 +234,10 @@ impl DummyBuildingAlgorithm {
 impl<P, DB> BlockBuildingAlgorithm<P, DB> for DummyBuildingAlgorithm
 where
     DB: Database + Clone + 'static,
-    P: DatabaseProviderFactory<DB> + StateProviderFactory + Clone + 'static,
+    P: DatabaseProviderFactory<DB = DB, Provider: BlockReader>
+        + StateProviderFactory
+        + Clone
+        + 'static,
 {
     fn name(&self) -> String {
         BUILDER_NAME.to_string()
