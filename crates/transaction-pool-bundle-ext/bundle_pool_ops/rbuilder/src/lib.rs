@@ -124,7 +124,6 @@ impl BundlePoolOps {
         let builders = create_builders(
             vec![builder_strategy],
             config.base_config.live_root_hash_config().unwrap(),
-            config.base_config.root_hash_task_pool().unwrap(),
             config.base_config.sbundle_mergeabe_signers(),
         );
 

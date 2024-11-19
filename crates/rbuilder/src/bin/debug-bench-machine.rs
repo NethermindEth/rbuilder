@@ -117,7 +117,6 @@ async fn main() -> eyre::Result<()> {
                     &ctx,
                     factory.clone(),
                     root_hash_config.clone(),
-                    config.base_config().root_hash_task_pool()?,
                 )?;
                 let finalize_time = finalize_time.elapsed();
 

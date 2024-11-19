@@ -12,7 +12,7 @@ use alloy_primitives::{Address, B256};
 use eyre::{eyre, Context};
 use jsonrpsee::RpcModule;
 use lazy_static::lazy_static;
-use reth::{chainspec::chain_value_parser, tasks::pool::BlockingTaskPool};
+use reth::chainspec::chain_value_parser;
 use reth_chainspec::ChainSpec;
 use reth_db::{Database, DatabaseEnv};
 use reth_node_api::NodeTypesWithDBAdapter;
@@ -89,7 +89,6 @@ pub struct BaseConfig {
     pub root_hash_use_sparse_trie: bool,
     /// compares result of root hash using sparse trie and reference root hash
     pub root_hash_compare_sparse_trie: bool,
-    pub root_hash_task_pool_threads: usize,
 
     pub watchdog_timeout_sec: u64,
 
@@ -274,15 +273,6 @@ impl BaseConfig {
         )
     }
 
-    /// Creates threadpool for root hash calculation, should be created once per process.
-    pub fn root_hash_task_pool(&self) -> eyre::Result<BlockingTaskPool> {
-        Ok(BlockingTaskPool::new(
-            BlockingTaskPool::builder()
-                .num_threads(self.root_hash_task_pool_threads)
-                .build()?,
-        ))
-    }
-
     pub fn live_root_hash_config(&self) -> eyre::Result<RootHashConfig> {
         if self.root_hash_compare_sparse_trie && !self.root_hash_use_sparse_trie {
             eyre::bail!(
@@ -446,7 +436,6 @@ impl Default for BaseConfig {
             reth_static_files_path: None,
             blocklist_file_path: None,
             extra_data: "extra_data_change_me".to_string(),
-            root_hash_task_pool_threads: 1,
             root_hash_use_sparse_trie: false,
             root_hash_compare_sparse_trie: false,
             watchdog_timeout_sec: 60 * 3,

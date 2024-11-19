@@ -68,7 +68,10 @@ pub trait LiveBuilderConfig: Debug + DeserializeOwned + Sync {
     ) -> eyre::Result<(Block, CachedReads)>
     where
         DB: Database + Clone + 'static,
-        P: DatabaseProviderFactory<DB = DB> + StateProviderFactory + Clone + 'static;
+        P: DatabaseProviderFactory<DB = DB, Provider: BlockReader>
+            + StateProviderFactory
+            + Clone
+            + 'static;
 }
 
 /// print_version_info func that will be called on command Cli::Version

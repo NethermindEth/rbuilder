@@ -7,9 +7,8 @@ use std::{
 use alloy_primitives::utils::format_ether;
 use alloy_primitives::U256;
 use reth::revm::cached::CachedReads;
-use reth::tasks::pool::BlockingTaskPool;
 use reth_db::Database;
-use reth_provider::{DatabaseProviderFactory, StateProviderFactory};
+use reth_provider::{BlockReader, DatabaseProviderFactory, StateProviderFactory};
 use time::OffsetDateTime;
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, trace};
@@ -85,7 +84,10 @@ pub trait BlockBuildingHelper: Send + Sync {
 pub struct BlockBuildingHelperFromProvider<P, DB>
 where
     DB: Database + Clone + 'static,
-    P: DatabaseProviderFactory<DB = DB> + StateProviderFactory + Clone + 'static,
+    P: DatabaseProviderFactory<DB = DB, Provider: BlockReader>
+        + StateProviderFactory
+        + Clone
+        + 'static,
 {
     /// Balance of fee recipient before we stared building.
     _fee_recipient_balance_start: U256,
@@ -102,7 +104,6 @@ where
     built_block_trace: BuiltBlockTrace,
     /// Needed to get the initial state and the final root hash calculation.
     provider: P,
-    root_hash_task_pool: BlockingTaskPool,
     root_hash_config: RootHashConfig,
     /// Token to cancel in case of fatal error (if we believe that it's impossible to build for this block).
     cancel_on_fatal_error: CancellationToken,
@@ -151,7 +152,10 @@ pub struct FinalizeBlockResult {
 impl<P, DB> BlockBuildingHelperFromProvider<P, DB>
 where
     DB: Database + Clone + 'static,
-    P: DatabaseProviderFactory<DB = DB> + StateProviderFactory + Clone + 'static,
+    P: DatabaseProviderFactory<DB = DB, Provider: BlockReader>
+        + StateProviderFactory
+        + Clone
+        + 'static,
 {
     /// allow_tx_skip: see [`PartialBlockFork`]
     /// Performs initialization:
@@ -161,7 +165,6 @@ where
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         provider: P,
-        root_hash_task_pool: BlockingTaskPool,
         root_hash_config: RootHashConfig,
         building_ctx: BlockBuildingContext,
         cached_reads: Option<CachedReads>,
@@ -203,7 +206,6 @@ where
             building_ctx,
             built_block_trace: BuiltBlockTrace::new(),
             provider,
-            root_hash_task_pool,
             root_hash_config,
             cancel_on_fatal_error,
             phantom: PhantomData,
@@ -290,7 +292,10 @@ where
 impl<P, DB> BlockBuildingHelper for BlockBuildingHelperFromProvider<P, DB>
 where
     DB: Database + Clone + 'static,
-    P: DatabaseProviderFactory<DB = DB> + StateProviderFactory + Clone + 'static,
+    P: DatabaseProviderFactory<DB = DB, Provider: BlockReader>
+        + StateProviderFactory
+        + Clone
+        + 'static,
 {
     /// Forwards to partial_block and updates trace.
     fn commit_order(
@@ -359,7 +364,6 @@ where
             &self.building_ctx,
             self.provider.clone(),
             self.root_hash_config,
-            self.root_hash_task_pool,
         ) {
             Ok(finalized_block) => finalized_block,
             Err(err) => {

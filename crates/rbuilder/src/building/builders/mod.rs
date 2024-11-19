@@ -14,11 +14,8 @@ use crate::{
 use ahash::HashSet;
 use alloy_primitives::{Address, B256};
 use block_building_helper::BlockBuildingHelper;
+use reth::primitives::{BlobTransactionSidecar, SealedBlock};
 use reth::revm::cached::CachedReads;
-use reth::{
-    primitives::{BlobTransactionSidecar, SealedBlock},
-    tasks::pool::BlockingTaskPool,
-};
 use reth_db::Database;
 use reth_provider::{DatabaseProviderFactory, StateProviderFactory};
 use std::{fmt::Debug, marker::PhantomData, sync::Arc};
@@ -40,7 +37,6 @@ pub struct Block {
 pub struct LiveBuilderInput<P, DB> {
     pub provider: P,
     pub root_hash_config: RootHashConfig,
-    pub root_hash_task_pool: BlockingTaskPool,
     pub ctx: BlockBuildingContext,
     pub input: broadcast::Receiver<SimulatedOrderCommand>,
     pub sink: Arc<dyn UnfinishedBlockBuildingSink>,

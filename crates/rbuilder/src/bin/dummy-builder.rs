@@ -37,7 +37,6 @@ use rbuilder::{
     roothash::RootHashConfig,
     utils::{ProviderFactoryReopener, Signer},
 };
-use reth::tasks::pool::BlockingTaskPool;
 use reth_chainspec::MAINNET;
 use reth_db::{database::Database, DatabaseEnv};
 use reth_provider::{DatabaseProviderFactory, StateProviderFactory};
@@ -168,19 +167,13 @@ impl UnfinishedBlockBuildingSink for TracingBlockSink {
 struct DummyBuildingAlgorithm {
     /// Amnount of used orders to build a block
     orders_to_use: usize,
-    root_hash_task_pool: BlockingTaskPool,
 }
 
 const ORDER_POLLING_PERIOD: Duration = Duration::from_millis(10);
 const BUILDER_NAME: &str = "DUMMY";
 impl DummyBuildingAlgorithm {
     pub fn new(orders_to_use: usize) -> Self {
-        Self {
-            orders_to_use,
-            root_hash_task_pool: BlockingTaskPool::new(
-                BlockingTaskPool::builder().num_threads(1).build().unwrap(),
-            ),
-        }
+        Self { orders_to_use }
     }
 
     fn wait_for_orders(
@@ -216,7 +209,6 @@ impl DummyBuildingAlgorithm {
     {
         let mut block_building_helper = BlockBuildingHelperFromProvider::new(
             provider.clone(),
-            self.root_hash_task_pool.clone(),
             RootHashConfig::live_config(false, false),
             ctx.clone(),
             None,
