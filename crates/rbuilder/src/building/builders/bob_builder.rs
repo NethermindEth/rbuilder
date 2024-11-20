@@ -9,14 +9,13 @@ use crate::{
 use ahash::HashMap;
 use alloy_primitives::{B256, U256};
 use alloy_rpc_types_eth::state::{AccountOverride, StateOverride};
-use futures::FutureExt;
 use jsonrpsee::{types::ErrorObject, RpcModule};
 use revm::db::BundleState;
 use serde::{Deserialize, Serialize};
 use std::{
     fmt,
     net::Ipv4Addr,
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, Weak},
     time::{Duration, Instant},
 };
 use tokio::{
@@ -80,9 +79,7 @@ struct BobBuilderInner {
     /// Map for block_uuid to handle uuid. Bob builder is global, and handles are
     /// created for each slot that managed the slot specific logic and get there own
     /// uuid. So this is essentially a map for block_uuid -> slot.
-    block_handles: Mutex<HashMap<Uuid, Uuid>>,
-    //// Lookup of a handles (slot) uuid to the handle.
-    handles: Mutex<HashMap<Uuid, BobHandle>>,
+    block_handles: Mutex<HashMap<Uuid, Weak<BobHandleInner>>>,
     /// Separate websocket rpc server running on a separate port from the normal httporder
     /// receiver rpc server. Specifically for streaming blocks.
     /// Note receipt of bob_orders are done on the HTTP server.
@@ -100,15 +97,13 @@ impl BobBuilder {
         let server = start_block_subscription_server(ip, config.port)
             .await
             .expect("Failed to start block subscription server");
-        let block_handles = HashMap::<Uuid, Uuid>::default();
-        let handles = HashMap::<Uuid, BobHandle>::default();
+        let block_handles = HashMap::<Uuid, Weak<BobHandleInner>>::default();
         Ok(Self {
             stream_start_dur: Duration::from_millis(config.stream_start_dur),
             channel_timeout: Duration::from_millis(config.channel_timeout),
             channel_buffer_size: config.channel_buffer_size,
             inner: Arc::new(BobBuilderInner {
                 block_handles: Mutex::new(block_handles),
-                handles: Mutex::new(handles),
                 state_diff_server: server,
             }),
         })
@@ -128,42 +123,29 @@ impl BobBuilder {
         slot_timestamp: time::OffsetDateTime,
         cancel: CancellationToken,
     ) -> BobHandle {
-        let key = Uuid::new_v4();
         let handle = BobHandle {
             inner: Arc::new(BobHandleInner {
                 block_cache: Mutex::new(HashMap::<Uuid, Box<dyn BlockBuildingHelper>>::default()),
                 builder: self.clone(),
                 cancel: cancel.clone(),
                 highest_value: Mutex::new(U256::from(0)),
-                key: key,
                 slot_timestamp: slot_timestamp,
                 sink: sink,
                 bundle_store: Mutex::new(PriorityQueue::new()),
             }),
         };
-        self.inner
-            .handles
-            .lock()
-            .unwrap()
-            .insert(key, handle.clone());
 
-        // Must remove reference to the handle from the builder when the slot is cancelled.
-        let inner = self.inner.clone();
-        let _ = cancel.cancelled().map(move |_| {
-            let mut handles = inner.handles.lock().unwrap();
-            handles.remove(&key)
-        });
         return handle;
     }
 
     // Inserts a mapping of handle_uuid -> block_uuid, that that the BoBBuilder
     // can incoming orders the slot they are relevant for.
-    fn register_block(&self, handle_uuid: Uuid, block_uuid: Uuid) {
+    fn register_block(&self, block_uuid: Uuid, handle: Weak<BobHandleInner>) {
         self.inner
             .block_handles
             .lock()
             .unwrap()
-            .insert(block_uuid, handle_uuid);
+            .insert(block_uuid, handle);
     }
 }
 
@@ -239,18 +221,14 @@ pub async fn run_bob_builder(
                 }
                 Some((order, block_uuid)) = order_receiver.recv() => {
                     debug!("Received bob order for uuid: {:?} {:?}", order, block_uuid);
-                    let handle_uuid = {
-                        let block_handles = inner.block_handles.lock().unwrap();
-                        block_handles.get(&block_uuid).cloned()
+                    let handle = {
+                        let handles = inner.block_handles.lock().unwrap();
+                        handles.get(&block_uuid).cloned()
                     };
-                    if let Some(handle_uuid) = handle_uuid {
-                        let handle = {
-                            let handles = inner.handles.lock().unwrap();
-                            handles.get(&handle_uuid).cloned()
-                        };
-                        if let Some(handle) = handle {
+                    if let Some(handle) = handle {
+                        if let Some(handle) = handle.upgrade() {
                             handle.new_order(order, block_uuid);
-                        }
+                        };
                     };
                 }
             }
@@ -272,61 +250,6 @@ pub struct BobHandle {
     inner: Arc<BobHandleInner>,
 }
 
-impl BobHandle {
-    /// When a new order is received, we fetch the UUID associated with the partial block and call commit_order_with_trace
-    /// Commit_order_with_trace is commit_order but adds a tracer to populate used_state_trace
-    /// We store the execution result in our bundle store and pass the block to the sink
-    fn new_order(&self, order: Order, uuid: Uuid) {
-        let mut block = {
-            let block_cache = self.inner.block_cache.lock().unwrap();
-            if let Some(block) = block_cache.get(&uuid) {
-                // Make a copy of the block, so the original in map in unmodified
-                block.box_clone()
-            } else {
-                return;
-            }
-        };
-
-        match block.commit_order_with_trace(&order) {
-            Ok(Ok(execution_result)) => {
-                info!(
-                    ?uuid,
-                    order_id=?order.id(),
-                    profit=?execution_result.inplace_sim.coinbase_profit,
-                    gas_used=execution_result.gas_used,
-                    used_state_trace=?execution_result.used_state_trace,
-                    "Successfully committed order"
-                );
-
-                // Prepare simulatedOrder fields from execution result
-                let profit = execution_result.inplace_sim.coinbase_profit.to::<u128>();
-                let sim_order = SimulatedOrder {
-                    order: execution_result.order.clone(),
-                    sim_value: execution_result.inplace_sim.clone(),
-                    prev_order: None,
-                    used_state_trace: execution_result.used_state_trace.clone(),
-                };
-
-                // Insert into bundle store under mutex protection
-                let mut bundle_store = self.inner.bundle_store.lock().unwrap();
-                bundle_store.push(execution_result.order.id(), PrioritizedOrder {
-                        order: sim_order,
-                        profit,
-                });
-
-                // Pass stored partial block with bob order to sink
-                self.inner.sink.new_block(block);
-            }
-            Ok(Err(e)) => {
-                debug!("Reverted or failed bob order: {:?}", e);
-            }
-            Err(e) => {
-                debug!("Error commiting bob order: {:?}", e);
-            }
-        }
-    }
-}
-
 impl UnfinishedBlockBuildingSink for BobHandle {
 
     /// BobHandle is passed as the sink for all other algorithms
@@ -335,8 +258,14 @@ impl UnfinishedBlockBuildingSink for BobHandle {
     /// 2. Attempt to commit_sim_order bob bundles
     /// 3. Pass the block to BlockSealingBidder
     fn new_block(&self, mut block: Box<dyn BlockBuildingHelper>) {
+        if !self.inner.check_stream(&block) {
+            return
+        }
+
+        let block_uuid = Uuid::new_v4();
+        self.inner.builder.register_block(block_uuid, Arc::downgrade(&self.inner));
         // Stream the block to searchers
-        self.inner.stream_block(block.box_clone());
+        self.inner.stream_block(block_uuid, block.box_clone());
         // Try to fill with cached bundle orders
         self.inner.fill_bob_orders(&mut block);
         // Pass filled block to sink
@@ -344,7 +273,7 @@ impl UnfinishedBlockBuildingSink for BobHandle {
     }
 
     fn can_use_suggested_fee_recipient_as_coinbase(&self) -> bool {
-        return self.inner.can_use_suggested_fee_recipient_as_coinbase();
+        return self.inner.sink.can_use_suggested_fee_recipient_as_coinbase();
     }
 }
 
@@ -390,10 +319,6 @@ struct BobHandleInner {
     /// This value will not contain value generated by bob_orders. Downstream
     /// sinks perform that filtering.
     highest_value: Mutex<U256>,
-    /// Uuid associated with this handle, used in a block_uuid -> handle_uuid
-    /// map by the bob_builder to map incoming orders to the proper slot. Also
-    /// used in cleanup
-    key: Uuid,
     /// Final sink interfacing with the rest of rbuilder, should be a BlockSealingBidder
     sink: Arc<dyn UnfinishedBlockBuildingSink>,
     slot_timestamp: time::OffsetDateTime,
@@ -407,24 +332,79 @@ impl fmt::Debug for BobHandleInner {
 }
 
 impl BobHandleInner {
-    fn stream_block(&self, block: Box<dyn BlockBuildingHelper>) {
+    /// When a new order is received, we fetch the UUID associated with the partial block and call commit_order_with_trace
+    /// Commit_order_with_trace is commit_order but adds a tracer to populate used_state_trace
+    /// We store the execution result in our bundle store and pass the block to the sink
+    fn new_order(&self, order: Order, uuid: Uuid) {
+        let mut block = {
+            let block_cache = self.block_cache.lock().unwrap();
+            if let Some(block) = block_cache.get(&uuid) {
+                // Make a copy of the block, so the original in map in unmodified
+                block.box_clone()
+            } else {
+                return;
+            }
+        };
+
+        match block.commit_order_with_trace(&order) {
+            Ok(Ok(execution_result)) => {
+                info!(
+                    ?uuid,
+                    order_id=?order.id(),
+                    profit=?execution_result.inplace_sim.coinbase_profit,
+                    gas_used=execution_result.gas_used,
+                    used_state_trace=?execution_result.used_state_trace,
+                    "Successfully committed order"
+                );
+
+                // Prepare simulatedOrder fields from execution result
+                let profit = execution_result.inplace_sim.coinbase_profit.to::<u128>();
+                let sim_order = SimulatedOrder {
+                    order: execution_result.order.clone(),
+                    sim_value: execution_result.inplace_sim.clone(),
+                    prev_order: None,
+                    used_state_trace: execution_result.used_state_trace.clone(),
+                };
+
+                // Insert into bundle store under mutex protection
+                let mut bundle_store = self.bundle_store.lock().unwrap();
+                bundle_store.push(execution_result.order.id(), PrioritizedOrder {
+                        order: sim_order,
+                        profit,
+                });
+
+                // Pass stored partial block with bob order to sink
+                self.sink.new_block(block);
+            }
+            Ok(Err(e)) => {
+                debug!("Reverted or failed bob order: {:?}", e);
+            }
+            Err(e) => {
+                debug!("Error commiting bob order: {:?}", e);
+            }
+        }
+    }
+
+    fn check_stream(&self, block: &Box<dyn BlockBuildingHelper>) -> bool {
         // If we've processed a cancellation for this slot, bail.
         if self.cancel.is_cancelled() {
-            return;
+            return false;
         }
 
         // We only stream new partial blocks to searchers in a default 2 second window
         // before the slot end. We don't need to store partial blocks not streamed so bail.
         if !self.in_stream_window() {
-            return;
+            return false;
         }
         // Only stream new partial blocks whose non-bob value is an increase.
-        if !self.check_and_store_block_value(&block) {
-            return;
+        if !self.check_and_store_block_value(block) {
+            return false;
         }
-        trace!("Streaming bob partial block");
+        return true;
+    }
 
-        let block_uuid = Uuid::new_v4();
+    fn stream_block(&self, block_uuid: Uuid, block: Box<dyn BlockBuildingHelper>) {
+        trace!("Streaming bob partial block");
 
         let building_context = block.building_context();
         let bundle_state = block.get_bundle_state();
@@ -445,7 +425,6 @@ impl BobHandleInner {
         // The actual rpc message is constructed above to avoid creating an uncessary clone
         // due to ownership rules.
         self.block_cache.lock().unwrap().insert(block_uuid, block);
-        self.builder.register_block(self.key, block_uuid);
 
         // Get block context and state
         match serde_json::to_value(&block_state_update) {
@@ -461,10 +440,6 @@ impl BobHandleInner {
             }
             Err(e) => error!("Failed to serialize block state diff update: {:?}", e),
         }
-    }
-
-    fn can_use_suggested_fee_recipient_as_coinbase(&self) -> bool {
-        return self.sink.can_use_suggested_fee_recipient_as_coinbase();
     }
 
     // Checks if we're in the streaming window
@@ -581,9 +556,6 @@ impl Drop for BobHandleInner {
         self.block_cache.lock().unwrap().keys().for_each(|uuid| {
             block_handles.remove(uuid);
         });
-
-        let mut handles = self.builder.inner.handles.lock().unwrap();
-        handles.remove(&self.key);
     }
 }
 
