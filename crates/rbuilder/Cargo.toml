@@ -139,14 +139,12 @@ criterion = { version = "0.5.1", features = ["html_reports", "async_tokio"] }
 
 [features]
 optimism = [
-#	"reth-chainspec/optimism",
-#	"reth-provider/optimism",
-#	"reth/optimism",
-#	"reth-db/optimism",
-#	"reth-node-core/optimism",
-#	"reth-primitives/optimism",
-#	"revm-primitives/optimism",
-#	"revm/optimism"
+	"reth-db/optimism",
+	"reth-node-core/optimism",
+	"reth-primitives/optimism",
+	"reth-provider/optimism",
+	"revm-primitives/optimism",
+	"revm/optimism"
 ]
 redact-sensitive = []
 

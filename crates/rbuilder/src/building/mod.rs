@@ -27,7 +27,6 @@ use ahash::HashSet;
 use alloy_eips::{calc_excess_blob_gas, eip7685::Requests, merge::BEACON_NONCE};
 use alloy_rpc_types_beacon::events::PayloadAttributesEvent;
 use jsonrpsee::core::Serialize;
-use reth::revm::cached::CachedReads;
 use reth::{
     payload::PayloadId,
     primitives::{
@@ -35,6 +34,7 @@ use reth::{
         Receipt, Receipts, SealedBlock, Withdrawals,
     },
     providers::ExecutionOutcome,
+    revm::cached::CachedReads,
 };
 use reth_basic_payload_builder::{commit_withdrawals, WithdrawalsOutcome};
 use reth_chainspec::{ChainSpec, EthereumHardforks};

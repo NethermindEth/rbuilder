@@ -8,8 +8,10 @@ mod test_data_generator;
 
 use crate::building::evm_inspector::UsedStateTrace;
 use alloy_consensus::Transaction as _;
-use alloy_eips::eip2718::{Decodable2718, Eip2718Error, Encodable2718};
-use alloy_eips::eip4844::{Blob, Bytes48};
+use alloy_eips::{
+    eip2718::{Decodable2718, Eip2718Error, Encodable2718},
+    eip4844::{Blob, Bytes48},
+};
 use alloy_primitives::{keccak256, Address, Bytes, TxHash, B256, U256};
 use derivative::Derivative;
 use integer_encoding::VarInt;

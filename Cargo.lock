@@ -6398,9 +6398,10 @@ dependencies = [
  "op-rbuilder-payload-builder",
  "rbuilder-bundle-pool-operations",
  "reth-basic-payload-builder",
- "reth-chainspec",
  "reth-evm",
+ "reth-node-api",
  "reth-node-builder",
+ "reth-optimism-chainspec",
  "reth-optimism-evm",
  "reth-optimism-node",
  "reth-payload-builder",
@@ -6408,6 +6409,7 @@ dependencies = [
  "reth-provider",
  "reth-tracing",
  "reth-transaction-pool",
+ "reth-trie-db",
  "tracing",
  "transaction-pool-bundle-ext",
 ]
@@ -6416,15 +6418,24 @@ dependencies = [
 name = "op-rbuilder-payload-builder"
 version = "0.1.0"
 dependencies = [
+ "alloy-consensus",
+ "alloy-eips",
+ "alloy-rpc-types-beacon",
+ "alloy-rpc-types-engine",
+ "op-alloy-consensus",
  "reth-basic-payload-builder",
  "reth-chain-state",
  "reth-chainspec",
  "reth-evm",
  "reth-execution-types",
+ "reth-optimism-chainspec",
+ "reth-optimism-consensus",
  "reth-optimism-evm",
+ "reth-optimism-forks",
  "reth-optimism-node",
  "reth-optimism-payload-builder",
  "reth-payload-builder",
+ "reth-payload-primitives",
  "reth-primitives",
  "reth-provider",
  "reth-revm",
@@ -6526,6 +6537,18 @@ name = "overload"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b15813163c1d831bf4a13c3610c05c0d03b39feb07f7e09fa234dac9b15aaf39"
+
+[[package]]
+name = "p256"
+version = "0.13.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c9863ad85fa8f4460f9c48cb909d38a0d689dba1f6f6988a5e3e0d31071bcd4b"
+dependencies = [
+ "ecdsa 0.16.9",
+ "elliptic-curve 0.13.8",
+ "primeorder",
+ "sha2 0.10.8",
+]
 
 [[package]]
 name = "page_size"
@@ -7220,6 +7243,15 @@ checksum = "3ae130e2f271fbc2ac3a40fb1d07180839cdbbe443c7a27e1e3c13c5cac0116d"
 dependencies = [
  "diff",
  "yansi",
+]
+
+[[package]]
+name = "primeorder"
+version = "0.13.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "353e1ca18966c16d9deb1c69278edbc5f194139612772bd9537af60ac231e1e6"
+dependencies = [
+ "elliptic-curve 0.13.8",
 ]
 
 [[package]]
@@ -8088,6 +8120,7 @@ dependencies = [
  "reth-execution-types",
  "reth-network-p2p",
  "reth-network-peers",
+ "reth-optimism-consensus",
  "reth-primitives",
  "reth-provider",
  "reth-revm",
@@ -8140,6 +8173,7 @@ dependencies = [
  "itertools 0.13.0",
  "metrics",
  "reth-blockchain-tree-api",
+ "reth-chainspec",
  "reth-engine-primitives",
  "reth-errors",
  "reth-ethereum-consensus",
@@ -8698,6 +8732,7 @@ dependencies = [
  "alloy-rpc-types-engine",
  "eyre",
  "futures-util",
+ "op-alloy-rpc-types-engine",
  "reth-beacon-consensus",
  "reth-chainspec",
  "reth-consensus",
@@ -9745,6 +9780,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "reth-optimism-primitives"
+version = "1.1.1"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.1.1#15c230bac20e2b1b3532c8b0d470e815fbc0cc22"
+dependencies = [
+ "alloy-consensus",
+ "alloy-primitives 0.8.12",
+ "reth-primitives",
+]
+
+[[package]]
 name = "reth-optimism-rpc"
 version = "1.1.1"
 source = "git+https://github.com/paradigmxyz/reth?tag=v1.1.1#15c230bac20e2b1b3532c8b0d470e815fbc0cc22"
@@ -9926,6 +9971,7 @@ dependencies = [
  "reth-network-p2p",
  "reth-nippy-jar",
  "reth-node-types",
+ "reth-optimism-primitives",
  "reth-primitives",
  "reth-prune-types",
  "reth-stages-types",
@@ -10678,6 +10724,7 @@ dependencies = [
  "cfg-if",
  "k256 0.13.4",
  "once_cell",
+ "p256",
  "revm-primitives",
  "ripemd",
  "secp256k1",

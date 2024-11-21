@@ -5,8 +5,8 @@ use super::{
 use crate::utils::u256decimal_serde_helper;
 use alloy_eips::eip2718::Encodable2718;
 use alloy_primitives::{Address, BlockHash, Bytes, FixedBytes, B256, U256};
-use alloy_rpc_types_beacon::events::PayloadAttributesData;
 use alloy_rpc_types_beacon::{
+    events::PayloadAttributesData,
     relay::{BidTrace, SignedBidSubmissionV2, SignedBidSubmissionV3, SignedBidSubmissionV4},
     BlsPublicKey,
 };

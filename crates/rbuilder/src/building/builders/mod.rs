@@ -14,8 +14,10 @@ use crate::{
 use ahash::HashSet;
 use alloy_primitives::{Address, Bytes, B256};
 use block_building_helper::BlockBuildingHelper;
-use reth::primitives::{BlobTransactionSidecar, SealedBlock};
-use reth::revm::cached::CachedReads;
+use reth::{
+    primitives::{BlobTransactionSidecar, SealedBlock},
+    revm::cached::CachedReads,
+};
 use reth_db::Database;
 use reth_provider::{DatabaseProviderFactory, StateProviderFactory};
 use std::{fmt::Debug, marker::PhantomData, sync::Arc};

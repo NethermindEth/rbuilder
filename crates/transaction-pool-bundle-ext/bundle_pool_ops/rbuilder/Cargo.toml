@@ -22,8 +22,8 @@ tracing = { workspace = true }
 
 [features]
 optimism = [
-#	"reth-primitives/optimism",
 	"rbuilder/optimism",
-#	"reth-provider/optimism",
-#	"reth-db-api/optimism"
+	"reth-db-api/optimism",
+	"reth-primitives/optimism",
+	"reth-provider/optimism"
 ]

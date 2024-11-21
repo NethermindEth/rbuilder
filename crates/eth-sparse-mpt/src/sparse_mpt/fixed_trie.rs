@@ -1,6 +1,4 @@
-use crate::utils::hash_map_with_capacity;
-use crate::utils::HashMap;
-use crate::utils::HashSet;
+use crate::utils::{hash_map_with_capacity, HashMap, HashSet};
 use alloy_primitives::Bytes;
 use alloy_rlp::Decodable;
 use alloy_trie::nodes::{
@@ -11,16 +9,13 @@ use reth_trie::Nibbles;
 use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, Seq};
 use smallvec::SmallVec;
-use std::cmp::max;
-use std::sync::Arc;
+use std::{cmp::max, sync::Arc};
 
 use crate::utils::strip_first_nibble_mut;
 
-use super::get_new_ptr;
-use super::NodeCursor;
 use super::{
-    DiffBranchNode, DiffChildPtr, DiffExtensionNode, DiffLeafNode, DiffTrie, DiffTrieNode,
-    DiffTrieNodeKind,
+    get_new_ptr, DiffBranchNode, DiffChildPtr, DiffExtensionNode, DiffLeafNode, DiffTrie,
+    DiffTrieNode, DiffTrieNodeKind, NodeCursor,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

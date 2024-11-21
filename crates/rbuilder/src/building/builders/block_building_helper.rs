@@ -4,8 +4,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use alloy_primitives::utils::format_ether;
-use alloy_primitives::U256;
+use alloy_primitives::{utils::format_ether, U256};
 use reth::revm::cached::CachedReads;
 use reth_db::Database;
 use reth_provider::{BlockReader, DatabaseProviderFactory, StateProviderFactory};

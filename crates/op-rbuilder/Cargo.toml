@@ -28,11 +28,15 @@ reth-discv4.workspace = true
 [features]
 default = ["jemalloc"]
 
-jemalloc = ["dep:tikv-jemallocator"]
+jemalloc = [
+	"dep:tikv-jemallocator",
+	"reth-cli-util/jemalloc"
+]
 jemalloc-prof = [
 	"jemalloc",
 	"tikv-jemallocator?/profiling",
-	"reth/jemalloc-prof"
+	"reth/jemalloc-prof",
+	"reth-cli-util/jemalloc-prof"
 ]
 
 min-error-logs = ["tracing/release_max_level_error"]
@@ -42,11 +46,10 @@ min-debug-logs = ["tracing/release_max_level_debug"]
 min-trace-logs = ["tracing/release_max_level_trace"]
 
 optimism = [
-#	"reth-optimism-node/optimism",
-#	"reth/optimism",
-#	"reth-optimism-rpc/optimism",
-#	"op-rbuilder-node-optimism/optimism",
-	"rbuilder/optimism"
+	"rbuilder/optimism",
+	"reth-optimism-node/optimism",
+	"reth-optimism-rpc/optimism",
+	"op-rbuilder-node-optimism/optimism"
 ]
 
 redact-sensitive = [

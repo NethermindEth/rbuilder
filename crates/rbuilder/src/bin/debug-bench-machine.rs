@@ -10,8 +10,7 @@ use rbuilder::{
     live_builder::{base_config::load_config_toml_and_env, cli::LiveBuilderConfig, config::Config},
     utils::{extract_onchain_block_txs, find_suggested_fee_recipient, http_provider},
 };
-use reth::providers::BlockNumReader;
-use reth::revm::cached::CachedReads;
+use reth::{providers::BlockNumReader, revm::cached::CachedReads};
 use reth_provider::StateProvider;
 use std::{path::PathBuf, sync::Arc, time::Instant};
 use tracing::{debug, info};

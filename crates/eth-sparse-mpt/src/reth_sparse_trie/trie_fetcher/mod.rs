@@ -1,16 +1,15 @@
 use crate::utils::{hash_map_with_capacity, HashMap, HashSet};
-use alloy_primitives::map::HashMap as AlloyHashMap;
-use alloy_primitives::map::HashSet as AlloyHashSet;
+use alloy_primitives::map::{HashMap as AlloyHashMap, HashSet as AlloyHashSet};
 
 use alloy_primitives::{Bytes, B256};
 use alloy_trie::Nibbles;
 use rayon::prelude::*;
 use reth_errors::ProviderError;
 use reth_execution_errors::trie::StateProofError;
-use reth_provider::providers::ConsistentDbView;
-use reth_provider::{BlockReader, DBProvider, DatabaseProviderFactory};
-use reth_trie::proof::Proof;
-use reth_trie::{MultiProof as RethMultiProof, EMPTY_ROOT_HASH};
+use reth_provider::{
+    providers::ConsistentDbView, BlockReader, DBProvider, DatabaseProviderFactory,
+};
+use reth_trie::{proof::Proof, MultiProof as RethMultiProof, EMPTY_ROOT_HASH};
 use reth_trie_db::{DatabaseHashedCursorFactory, DatabaseTrieCursorFactory};
 use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, Seq};

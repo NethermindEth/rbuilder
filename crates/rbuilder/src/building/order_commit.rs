@@ -14,8 +14,7 @@ use alloy_primitives::{Address, B256, U256};
 
 use alloy_consensus::{constants::KECCAK_EMPTY, Transaction};
 use alloy_eips::eip4844::{DATA_GAS_PER_BLOB, MAX_DATA_GAS_PER_BLOCK};
-use reth::revm::cached::CachedReads;
-use reth::revm::database::StateProviderDatabase;
+use reth::revm::{cached::CachedReads, database::StateProviderDatabase};
 use reth_errors::ProviderError;
 use reth_primitives::{transaction::FillTxEnv, Receipt};
 use reth_provider::{StateProvider, StateProviderBox};

@@ -58,6 +58,7 @@ reth-payload-primitives = { git = "https://github.com/paradigmxyz/reth", tag = "
 reth-transaction-pool = { git = "https://github.com/paradigmxyz/reth", tag = "v1.1.1" }
 reth-consensus = { git = "https://github.com/paradigmxyz/reth", tag = "v1.1.1" }
 reth-optimism-consensus = { git = "https://github.com/paradigmxyz/reth", tag = "v1.1.1" }
+reth-optimism-forks = { git = "https://github.com/paradigmxyz/reth", tag = "v1.1.1" }
 reth-auto-seal-consensus = { git = "https://github.com/paradigmxyz/reth", tag = "v1.1.1" }
 reth-execution-types = { git = "https://github.com/paradigmxyz/reth", tag = "v1.1.1" }
 reth-revm = { git = "https://github.com/paradigmxyz/reth", tag = "v1.1.1" }
@@ -105,6 +106,7 @@ alloy-network = { version = "0.5.4" }
 alloy-transport = { version = "0.5.4" }
 alloy-node-bindings = { version = "0.5.4" }
 alloy-consensus = { version = "0.5.4", features = ["kzg"] }
+op-alloy-consensus = { version = "0.5.2", features = ["kzg"] }
 alloy-serde = { version = "0.5.4" }
 alloy-rpc-types-beacon = { version = "0.5.4", features = [
     "ssz",
