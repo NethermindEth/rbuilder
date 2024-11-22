@@ -535,7 +535,7 @@ fn calculate_backtest_identity_and_order_exclusion<ConfigType: LiveBuilderConfig
             let id = order.order.id();
             let exclusions = included_orders_exclusions
                 .remove(&id)
-                .expect("included order exclusion not found");
+                .unwrap_or_else(|| panic!("included order id {} exclusion not found in: {:#?}", id, included_orders_exclusions.keys().collect::<Vec<_>>()));
             result.push((id, exclusions))
         }
         result
