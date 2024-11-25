@@ -58,8 +58,8 @@ use reth_provider::{
 };
 use serde::Deserialize;
 use serde_with::{serde_as, OneOrMany};
-use std::fmt::Debug;
 use std::{
+    fmt::Debug,
     path::{Path, PathBuf},
     str::FromStr,
     sync::Arc,

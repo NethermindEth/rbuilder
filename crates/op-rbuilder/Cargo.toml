@@ -10,8 +10,8 @@ transaction-pool-bundle-ext = { path = "../transaction-pool-bundle-ext" }
 
 reth.workspace = true
 reth-optimism-node.workspace = true
+reth-optimism-cli.workspace = true
 reth-cli-util.workspace = true
-reth-optimism-rpc.workspace = true
 
 tokio.workspace = true
 tracing.workspace = true
@@ -30,7 +30,8 @@ default = ["jemalloc"]
 
 jemalloc = [
 	"dep:tikv-jemallocator",
-	"reth-cli-util/jemalloc"
+	"reth-cli-util/jemalloc",
+	"reth-optimism-cli/jemalloc"
 ]
 jemalloc-prof = [
 	"jemalloc",
@@ -48,8 +49,8 @@ min-trace-logs = ["tracing/release_max_level_trace"]
 optimism = [
 	"rbuilder/optimism",
 	"reth-optimism-node/optimism",
-	"reth-optimism-rpc/optimism",
-	"op-rbuilder-node-optimism/optimism"
+	"op-rbuilder-node-optimism/optimism",
+	"reth-optimism-cli/optimism"
 ]
 
 redact-sensitive = [

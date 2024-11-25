@@ -22,7 +22,7 @@ use reth_optimism_node::{
 };
 use reth_payload_builder::{PayloadBuilderHandle, PayloadBuilderService};
 use reth_primitives::{Header, TransactionSigned};
-use reth_provider::CanonStateSubscriptions;
+use reth_provider::{BlockReader, CanonStateSubscriptions, DatabaseProviderFactory};
 use reth_tracing::tracing::{debug, info};
 use reth_transaction_pool::{
     blobstore::DiskFileBlobStore, CoinbaseTipOrdering, EthPooledTransaction,
@@ -73,6 +73,7 @@ impl OpRbuilderNode {
         Node: FullNodeTypes<
             Types: NodeTypesWithEngine<Engine = OpEngineTypes, ChainSpec = OpChainSpec>,
         >,
+        <<Node as FullNodeTypes>::Provider as DatabaseProviderFactory>::Provider: BlockReader,
     {
         let OpRbuilderArgs {
             disable_txpool_gossip,
@@ -97,6 +98,7 @@ impl OpRbuilderNode {
 impl<N> Node<N> for OpRbuilderNode
 where
     N: FullNodeTypes<Types: NodeTypesWithEngine<Engine = OpEngineTypes, ChainSpec = OpChainSpec>>,
+    <<N as FullNodeTypes>::Provider as DatabaseProviderFactory>::Provider: BlockReader,
 {
     type ComponentsBuilder = ComponentsBuilder<
         N,
@@ -157,6 +159,7 @@ pub type OpRbuilderTransactionPool<Client, S> = BundleSupportedPool<
 impl<Node> PoolBuilder<Node> for OpRbuilderPoolBuilder
 where
     Node: FullNodeTypes<Types: NodeTypes<ChainSpec = OpChainSpec>>,
+    <<Node as FullNodeTypes>::Provider as DatabaseProviderFactory>::Provider: BlockReader,
 {
     type Pool = OpRbuilderTransactionPool<Node::Provider, DiskFileBlobStore>;
 
@@ -182,7 +185,7 @@ where
                 .require_l1_data_gas_fee(!ctx.config().dev.dev)
         });
 
-        let bundle_ops = BundlePoolOps::new(ctx.provider(), self.rbuilder_config_path)
+        let bundle_ops = BundlePoolOps::new(ctx.provider().clone(), self.rbuilder_config_path)
             .await
             .expect("Failed to instantiate RbuilderBundlePoolOps");
         let transaction_pool = OpRbuilderTransactionPool::new(
@@ -267,6 +270,7 @@ impl OpRbuilderPayloadServiceBuilder {
         Node: FullNodeTypes<
             Types: NodeTypesWithEngine<Engine = OpEngineTypes, ChainSpec = OpChainSpec>,
         >,
+        <<Node as FullNodeTypes>::Provider as DatabaseProviderFactory>::Provider: BlockReader,
         Pool: TransactionPoolBundleExt
             + BundlePoolOperations<Transaction = TransactionSigned>
             + Unpin
@@ -307,6 +311,7 @@ impl<Node, Pool> PayloadServiceBuilder<Node, Pool> for OpRbuilderPayloadServiceB
 where
     Node:
         FullNodeTypes<Types: NodeTypesWithEngine<Engine = OpEngineTypes, ChainSpec = OpChainSpec>>,
+    <<Node as FullNodeTypes>::Provider as DatabaseProviderFactory>::Provider: BlockReader,
     Pool: TransactionPoolBundleExt
         + BundlePoolOperations<Transaction = TransactionSigned>
         + Unpin
