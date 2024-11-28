@@ -161,7 +161,6 @@ impl UnfinishedBlockBuildingSink for TracingBlockSink {
 ////////////////////////////
 /// BUILDING ALGORITHM
 ////////////////////////////
-
 /// Dummy algorithm that waits for some orders and creates a block inserting them in the order they arrived.
 /// Generates only a single block.
 /// This is a NOT real builder some data is not filled correctly (eg:BuiltBlockTrace)

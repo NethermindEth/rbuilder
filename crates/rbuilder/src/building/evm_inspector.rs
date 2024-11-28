@@ -75,7 +75,7 @@ impl<'a> UsedStateEVMInspector<'a> {
     }
 }
 
-impl<'a, DB> Inspector<DB> for UsedStateEVMInspector<'a>
+impl<DB> Inspector<DB> for UsedStateEVMInspector<'_>
 where
     DB: Database,
 {

@@ -147,7 +147,7 @@ where
     }
 }
 
-impl<'a, DB> Drop for BlockStateDBRef<'a, DB>
+impl<DB> Drop for BlockStateDBRef<'_, DB>
 where
     DB: Database<Error = ProviderError>,
 {
@@ -156,7 +156,7 @@ where
     }
 }
 
-impl<'a, DB> AsRef<State<DB>> for BlockStateDBRef<'a, DB>
+impl<DB> AsRef<State<DB>> for BlockStateDBRef<'_, DB>
 where
     DB: Database<Error = ProviderError>,
 {
@@ -165,7 +165,7 @@ where
     }
 }
 
-impl<'a, DB> AsMut<State<DB>> for BlockStateDBRef<'a, DB>
+impl<DB> AsMut<State<DB>> for BlockStateDBRef<'_, DB>
 where
     DB: Database<Error = ProviderError>,
 {
@@ -1117,7 +1117,7 @@ impl<'a, 'b, Tracer: SimulationTracer> PartialBlockFork<'a, 'b, Tracer> {
     }
 }
 
-impl<'a, 'b> PartialBlockFork<'a, 'b, ()> {
+impl<'a> PartialBlockFork<'a, '_, ()> {
     pub fn new(state: &'a mut BlockState) -> Self {
         Self {
             rollbacks: 0,

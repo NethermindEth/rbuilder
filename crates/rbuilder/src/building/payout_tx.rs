@@ -121,7 +121,7 @@ pub fn estimate_payout_gas_limit(
         .checked_sub(U256::from(gas_used))
         .unwrap_or_default();
     let estimation = insert_test_payout_tx(to, ctx, state, gas_left.to())?
-        .ok_or_else(|| EstimatePayoutGasErr::FailedToEstimate)?;
+        .ok_or(EstimatePayoutGasErr::FailedToEstimate)?;
 
     if insert_test_payout_tx(to, ctx, state, estimation)?.is_some() {
         return Ok(estimation);
