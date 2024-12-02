@@ -88,12 +88,12 @@ pub struct OrderInputConfig {
     /// Input RPC port
     server_port: u16,
     /// Input RPC ip
-    pub server_ip: Ipv4Addr,
+    server_ip: Ipv4Addr,
     /// Input RPC max connections
     serve_max_connections: u32,
     /// All order sources send new ReplaceableOrderPoolCommands through an mpsc::Sender bounded channel.
     /// Timeout to wait when sending to that channel (after that the ReplaceableOrderPoolCommand is lost).
-    pub results_channel_timeout: Duration,
+    results_channel_timeout: Duration,
     /// Size of the bounded channel.
     pub input_channel_buffer_size: usize,
 }

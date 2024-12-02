@@ -226,7 +226,7 @@ impl BaseConfig {
 
             global_cancellation: cancellation_token,
 
-            extra_rpc: RpcModule::new(()).into(),
+            extra_rpc: RpcModule::new(()),
             sink_factory,
             builders: Vec::new(),
             bob_builder: None,
