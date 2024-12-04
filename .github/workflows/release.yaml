@@ -25,6 +25,7 @@ on:
         default: ''
         description: "Binary Compilation Features"
         options:
+          - ''
           - 'redact-sensitive'
         required: false
         type: choice
