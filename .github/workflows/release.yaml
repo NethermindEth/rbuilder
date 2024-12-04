@@ -6,6 +6,11 @@ on:
       - "v*"
   workflow_dispatch:
     inputs:
+      draft-release:
+        description: "Draft Release"
+        required: false
+        type: boolean
+        default: false
       build-docker:
         description: "Build Docker"
         required: false
@@ -20,11 +25,6 @@ on:
         description: "Binary Compilation Features"
         required: false
         type: string
-      draft-release:
-        description: "Draft Release"
-        required: false
-        type: boolean
-        default: false
 
 jobs:
   extract-version:
@@ -75,9 +75,7 @@ jobs:
           # Paused until docker is pre-installed https://github.com/actions/runner-images/blob/main/images/macos/macos-14-arm64-Readme.md
           # - target: aarch64-apple-darwin
           #   runner: warp-macos-14-arm64-6x
-        features: ${{ fromJson(inputs.features || '[""]') }}
-          # - ""
-          # - "redact-sensitive"
+        features: ${{ inputs.features != '' && fromJson('["' + join(split(replace(inputs.features, ',', ' '), ' '), '","') + '"]') || [''] }}
 
     steps:
       - name: Install dependencies
@@ -176,7 +174,6 @@ jobs:
       - name: docker buildx
         uses: docker/setup-buildx-action@v3
 
-      # https://github.com/docker/metadata-action
       - name: docker metadata
         uses: docker/metadata-action@v5
         id: meta
