@@ -7,26 +7,27 @@ on:
   workflow_dispatch:
     inputs:
       draft-release:
+        default: false
         description: "Draft Release"
         required: false
         type: boolean
-        default: false
       build-docker:
+        default: false
         description: "Build Docker"
         required: false
         type: boolean
-        default: false
       build-binary:
+        default: true
         description: "Build Binary"
         required: false
         type: boolean
-        default: true
       features:
-        type: choice
+        default: ''
         description: "Binary Compilation Features"
         options:
           - 'redact-sensitive'
         required: false
+        type: choice
 
 jobs:
   extract-version:
