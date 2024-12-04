@@ -22,9 +22,11 @@ on:
         type: boolean
         default: true
       features:
+        type: choice
         description: "Binary Compilation Features"
+        options:
+          - 'redact-sensitive'
         required: false
-        type: string
 
 jobs:
   extract-version:
@@ -75,7 +77,8 @@ jobs:
           # Paused until docker is pre-installed https://github.com/actions/runner-images/blob/main/images/macos/macos-14-arm64-Readme.md
           # - target: aarch64-apple-darwin
           #   runner: warp-macos-14-arm64-6x
-        features: ${{ inputs.features != '' && fromJson('["' + join(split(replace(inputs.features, ',', ' '), ' '), '","') + '"]') || [''] }}
+        features:
+          - ${{ github.event.inputs.features || '' }}
 
     steps:
       - name: Install dependencies
