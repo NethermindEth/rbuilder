@@ -77,7 +77,7 @@ jobs:
           # Paused until docker is pre-installed https://github.com/actions/runner-images/blob/main/images/macos/macos-14-arm64-Readme.md
           # - target: aarch64-apple-darwin
           #   runner: warp-macos-14-arm64-6x
-        features: ${{ github.event.inputs.features }}
+        features: ${{ fromJson(inputs.features || '[""]') }}
           # - ""
           # - "redact-sensitive"
 
