@@ -11,7 +11,6 @@ use crate::{
     utils::gen_uid,
 };
 use ahash::HashMap;
-use reth_provider::StateProviderFactory;
 use simulation_job::SimulationJob;
 use std::sync::{Arc, Mutex};
 use tokio::{sync::mpsc, task::JoinHandle};
@@ -49,8 +48,7 @@ pub struct CurrentSimulationContexts {
 /// 4 IMPORTANT: When done with the simulations signal the provided block_cancellation.
 
 #[derive(Debug)]
-pub struct OrderSimulationPool<P> {
-    provider: P,
+pub struct OrderSimulationPool {
     running_tasks: Arc<Mutex<Vec<JoinHandle<()>>>>,
     current_contexts: Arc<Mutex<CurrentSimulationContexts>>,
     worker_threads: Vec<std::thread::JoinHandle<()>>,
@@ -65,13 +63,9 @@ pub enum SimulatedOrderCommand {
     Cancellation(OrderId),
 }
 
-impl<P> OrderSimulationPool<P>
-where
-    P: StateProviderFactory + Clone + 'static,
-{
-    pub fn new(provider: P, num_workers: usize, global_cancellation: CancellationToken) -> Self {
+impl OrderSimulationPool {
+    pub fn new(num_workers: usize, global_cancellation: CancellationToken) -> Self {
         let mut result = Self {
-            provider,
             running_tasks: Arc::new(Mutex::new(Vec::new())),
             current_contexts: Arc::new(Mutex::new(CurrentSimulationContexts {
                 contexts: HashMap::default(),
@@ -80,12 +74,11 @@ where
         };
         for i in 0..num_workers {
             let ctx = Arc::clone(&result.current_contexts);
-            let provider = result.provider.clone();
             let cancel = global_cancellation.clone();
             let handle = std::thread::Builder::new()
                 .name(format!("sim_thread:{}", i))
                 .spawn(move || {
-                    sim_worker::run_sim_worker(i, ctx, provider, cancel);
+                    sim_worker::run_sim_worker(i, ctx, cancel);
                 })
                 .expect("Failed to start sim worker thread");
             result.worker_threads.push(handle);
@@ -178,7 +171,7 @@ mod tests {
             ProviderFactoryReopener::new_from_existing(test_context.provider_factory().clone())
                 .unwrap();
 
-        let sim_pool = OrderSimulationPool::new(provider_factory_reopener, 4, cancel.clone());
+        let sim_pool = OrderSimulationPool::new(4, cancel.clone());
         let (order_sender, order_receiver) = mpsc::unbounded_channel();
         let orders_for_block = OrdersForBlock {
             new_order_sub: order_receiver,

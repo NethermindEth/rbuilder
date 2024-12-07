@@ -30,7 +30,7 @@ pub struct BlockBuildingPool<P, DB> {
     builders: Vec<Arc<dyn BlockBuildingAlgorithm<P, DB>>>,
     sink_factory: Box<dyn UnfinishedBlockBuildingSinkFactory>,
     orderpool_subscriber: order_input::OrderPoolSubscriber,
-    order_simulation_pool: OrderSimulationPool<P>,
+    order_simulation_pool: OrderSimulationPool,
     run_sparse_trie_prefetcher: bool,
     phantom: PhantomData<DB>,
 }
@@ -48,7 +48,7 @@ where
         builders: Vec<Arc<dyn BlockBuildingAlgorithm<P, DB>>>,
         sink_factory: Box<dyn UnfinishedBlockBuildingSinkFactory>,
         orderpool_subscriber: order_input::OrderPoolSubscriber,
-        order_simulation_pool: OrderSimulationPool<P>,
+        order_simulation_pool: OrderSimulationPool,
         run_sparse_trie_prefetcher: bool,
     ) -> Self {
         BlockBuildingPool {

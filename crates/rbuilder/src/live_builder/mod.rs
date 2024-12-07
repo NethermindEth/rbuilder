@@ -160,13 +160,8 @@ where
             sub
         };
 
-        let order_simulation_pool = {
-            OrderSimulationPool::new(
-                self.provider.clone(),
-                self.simulation_threads,
-                self.global_cancellation.clone(),
-            )
-        };
+        let order_simulation_pool =
+            OrderSimulationPool::new(self.simulation_threads, self.global_cancellation.clone());
 
         let mut builder_pool = BlockBuildingPool::new(
             self.provider.clone(),

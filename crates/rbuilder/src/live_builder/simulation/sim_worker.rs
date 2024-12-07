@@ -8,7 +8,6 @@ use crate::{
     telemetry::add_sim_thread_utilisation_timings,
 };
 use reth::revm::cached::CachedReads;
-use reth_provider::StateProviderFactory;
 use std::{
     sync::{Arc, Mutex},
     thread::sleep,
@@ -20,14 +19,11 @@ use tracing::error;
 /// Function that continuously looks for a SimulationContext on ctx and when it finds one it polls its "request for simulation" channel (SimulationContext::requests).
 /// When the channel closes it goes back to waiting for a new SimulationContext.
 /// It's blocking so it's expected to run in its own thread.
-pub fn run_sim_worker<P>(
+pub fn run_sim_worker(
     worker_id: usize,
     ctx: Arc<Mutex<CurrentSimulationContexts>>,
-    provider: P,
     global_cancellation: CancellationToken,
-) where
-    P: StateProviderFactory,
-{
+) {
     loop {
         if global_cancellation.is_cancelled() {
             return;
