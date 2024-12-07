@@ -5,7 +5,6 @@ use crate::{
 };
 use alloy_provider::{IpcConnect, Provider, ProviderBuilder};
 use futures::StreamExt;
-use reth_provider::StateProviderFactory;
 use std::{
     pin::pin,
     sync::{Arc, Mutex},
@@ -17,15 +16,11 @@ use tracing::{debug, error, info};
 
 /// Performs maintenance operations on every new header by calling OrderPool::head_updated.
 /// Also calls some functions to generate metrics.
-pub async fn spawn_clean_orderpool_job<P>(
+pub async fn spawn_clean_orderpool_job(
     config: OrderInputConfig,
-    provider_factory: P,
     orderpool: Arc<Mutex<OrderPool>>,
     global_cancellation: CancellationToken,
-) -> eyre::Result<JoinHandle<()>>
-where
-    P: StateProviderFactory + 'static,
-{
+) -> eyre::Result<JoinHandle<()>> {
     let ipc = IpcConnect::new(config.ipc_path);
     let provider = ProviderBuilder::new().on_ipc(ipc).await?;
 
@@ -47,19 +42,11 @@ where
         while let Some(block) = new_block_stream.next().await {
             let block_number = block.header.number;
             set_current_block(block_number);
-            let state = match provider_factory.latest() {
-                Ok(state) => state,
-                Err(err) => {
-                    error!("Failed to get latest state: {}", err);
-                    // @Metric error count
-                    continue;
-                }
-            };
 
             let mut orderpool = orderpool.lock().unwrap();
             let start = Instant::now();
 
-            orderpool.head_updated(block_number, &state);
+            orderpool.head_updated(block_number);
 
             let update_time = start.elapsed();
             let (tx_count, bundle_count) = orderpool.content_count();

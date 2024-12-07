@@ -220,7 +220,7 @@ impl OrderPool {
     /// Should be called when last block is updated.
     /// It's slow but since it only happens at the start of the block it does now matter.
     /// It clears old txs from the mempool and old bundle_cancellations.
-    pub fn head_updated(&mut self, new_block_number: u64, new_state: &StateProviderBox) {
+    pub fn head_updated(&mut self, new_block_number: u64) {
         // remove from bundles by target block
         self.bundles_by_target_block
             .retain(|block_number, _| *block_number > new_block_number);

@@ -150,7 +150,6 @@ where
         let orderpool_subscriber = {
             let (handle, sub) = start_orderpool_jobs(
                 self.order_input_config,
-                self.provider.clone(),
                 self.extra_rpc,
                 self.global_cancellation.clone(),
                 self.orderpool_sender,
