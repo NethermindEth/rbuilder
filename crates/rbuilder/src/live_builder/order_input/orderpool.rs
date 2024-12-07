@@ -5,7 +5,6 @@ use crate::primitives::{
 use ahash::HashMap;
 use alloy_eips::merge::SLOT_DURATION;
 use lru::LruCache;
-use reth::providers::StateProviderBox;
 use std::{
     collections::VecDeque,
     num::NonZeroUsize,

@@ -66,9 +66,9 @@ pub struct SimulatedResult {
 
 // @Feat replaceable orders
 #[derive(Debug)]
-pub struct SimTree<P> {
+pub struct SimTree {
     // fields for nonce management
-    nonce_cache: NonceCache<P>,
+    nonce_cache: NonceCache,
 
     sims: HashMap<SimulationId, SimulatedResult>,
     sims_that_update_one_nonce: HashMap<NonceKey, SimulationId>,
@@ -86,12 +86,9 @@ enum OrderNonceState {
     Ready(Vec<Order>),
 }
 
-impl<P> SimTree<P>
-where
-    P: StateProviderFactory + Clone + 'static,
-{
-    pub fn new(provider: P, parent_block: B256) -> Self {
-        let nonce_cache = NonceCache::new(provider, parent_block);
+impl SimTree {
+    pub fn new(parent_block: B256) -> Self {
+        let nonce_cache = NonceCache::new(parent_block);
         Self {
             nonce_cache,
             sims: HashMap::default(),
@@ -316,7 +313,7 @@ pub fn simulate_all_orders_with_sim_tree<P>(
 where
     P: StateProviderFactory + Clone + 'static,
 {
-    let mut sim_tree = SimTree::new(provider.clone(), ctx.attributes.parent);
+    let mut sim_tree = SimTree::new(ctx.attributes.parent);
 
     let mut orders = orders.to_vec();
     let random_insert_size = max(orders.len() / 20, 1);

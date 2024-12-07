@@ -108,8 +108,8 @@ impl OrderConsumer {
 }
 
 #[derive(Debug)]
-pub struct OrderIntakeConsumer<P> {
-    nonce_cache: NonceCache<P>,
+pub struct OrderIntakeConsumer {
+    nonce_cache: NonceCache,
 
     block_orders: BlockOrders,
     onchain_nonces_updated: HashSet<Address>,
@@ -117,19 +117,15 @@ pub struct OrderIntakeConsumer<P> {
     order_consumer: OrderConsumer,
 }
 
-impl<P> OrderIntakeConsumer<P>
-where
-    P: StateProviderFactory,
-{
+impl OrderIntakeConsumer {
     /// See [`ShareBundleMerger`] for sbundle_merger_selected_signers
     pub fn new(
-        provider: P,
         orders: broadcast::Receiver<SimulatedOrderCommand>,
         parent_block: B256,
         sorting: Sorting,
         sbundle_merger_selected_signers: &[Address],
     ) -> Self {
-        let nonce_cache = NonceCache::new(provider, parent_block);
+        let nonce_cache = NonceCache::new(parent_block);
 
         Self {
             nonce_cache,

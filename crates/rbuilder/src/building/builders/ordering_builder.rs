@@ -71,7 +71,6 @@ where
         + 'static,
 {
     let mut order_intake_consumer = OrderIntakeConsumer::new(
-        input.provider.clone(),
         input.input,
         input.ctx.attributes.parent,
         config.sorting,

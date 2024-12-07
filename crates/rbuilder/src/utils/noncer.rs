@@ -1,8 +1,6 @@
 use ahash::HashMap;
 use alloy_primitives::{Address, B256};
-use reth::providers::StateProviderBox;
 use reth_errors::ProviderResult;
-use reth_provider::StateProviderFactory;
 use std::sync::{Arc, Mutex};
 
 /// Struct to get nonces for Addresses, caching the results.
@@ -12,21 +10,16 @@ use std::sync::{Arc, Mutex};
 /// - For every context where the nonce is needed call NonceCache::get_ref and call NonceCacheRef::nonce all the times you need.
 ///   Neither NonceCache or NonceCacheRef are clonable, the clone of shared info happens on get_ref where we clone the internal cache.
 #[derive(Debug)]
-pub struct NonceCache<P> {
-    provider: P,
+pub struct NonceCache {
     // We have to use Arc<Mutex here because Rc are not Send (so can't be used in futures)
     // and borrows don't work when nonce cache is a field in a struct.
     cache: Arc<Mutex<HashMap<Address, u64>>>,
     block: B256,
 }
 
-impl<P> NonceCache<P>
-where
-    P: StateProviderFactory,
-{
-    pub fn new(provider: P, block: B256) -> Self {
+impl NonceCache {
+    pub fn new(block: B256) -> Self {
         Self {
-            provider,
             cache: Arc::new(Mutex::new(HashMap::default())),
             block,
         }
@@ -35,14 +28,12 @@ where
     pub fn get_ref(&self) -> ProviderResult<NonceCacheRef> {
         let state = self.provider.history_by_block_hash(self.block)?;
         Ok(NonceCacheRef {
-            state,
             cache: Arc::clone(&self.cache),
         })
     }
 }
 
 pub struct NonceCacheRef {
-    state: StateProviderBox,
     cache: Arc<Mutex<HashMap<Address, u64>>>,
 }
 

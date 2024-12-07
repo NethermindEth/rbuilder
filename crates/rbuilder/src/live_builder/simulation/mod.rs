@@ -106,14 +106,13 @@ where
     ) -> SlotOrderSimResults {
         let (slot_sim_results_sender, slot_sim_results_receiver) = mpsc::channel(10_000);
 
-        let provider = self.provider.clone();
         let current_contexts = Arc::clone(&self.current_contexts);
         let block_context: BlockContextId = gen_uid();
         let span = info_span!("sim_ctx", block = ctx.block_env.number.to::<u64>(), parent = ?ctx.attributes.parent);
 
         let handle = tokio::spawn(
             async move {
-                let sim_tree = SimTree::new(provider, ctx.attributes.parent);
+                let sim_tree = SimTree::new(ctx.attributes.parent);
                 let new_order_sub = input.new_order_sub;
                 let (sim_req_sender, sim_req_receiver) = flume::unbounded();
                 let (sim_results_sender, sim_results_receiver) = mpsc::channel(1024);
