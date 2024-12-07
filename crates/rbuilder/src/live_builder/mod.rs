@@ -212,8 +212,7 @@ where
                 // @Nicer
                 let parent_block = payload.parent_block_hash();
                 let timestamp = payload.timestamp();
-                match wait_for_block_header(parent_block, timestamp, &self.provider, &timings).await
-                {
+                match wait_for_block_header(parent_block, timestamp, &timings).await {
                     Ok(header) => header,
                     Err(err) => {
                         warn!("Failed to get parent header for new slot: {:?}", err);
@@ -277,15 +276,11 @@ where
 }
 
 /// May fail if we wait too much (see [BLOCK_HEADER_DEAD_LINE_DELTA])
-async fn wait_for_block_header<P>(
+async fn wait_for_block_header(
     block: B256,
     slot_time: OffsetDateTime,
-    provider: P,
     timings: &TimingsConfig,
-) -> eyre::Result<Header>
-where
-    P: HeaderProvider,
-{
+) -> eyre::Result<Header> {
     let deadline = slot_time + timings.block_header_deadline_delta;
     while OffsetDateTime::now_utc() < deadline {
         if let Some(header) = provider.header(&block)? {
