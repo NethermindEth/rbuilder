@@ -4,7 +4,6 @@ use eyre::Result;
 use itertools::Itertools;
 use rand::{seq::SliceRandom, SeedableRng};
 use reth::{providers::StateProvider, revm::cached::CachedReads};
-use reth_provider::StateProviderFactory;
 use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
 use tracing::trace;
@@ -21,18 +20,14 @@ use crate::{
 
 /// Context for resolving conflicts in merging tasks.
 #[derive(Debug)]
-pub struct ResolverContext<P> {
-    pub provider: P,
+pub struct ResolverContext {
     pub ctx: BlockBuildingContext,
     pub cancellation_token: CancellationToken,
     pub cache: Option<CachedReads>,
     pub simulation_cache: Arc<SharedSimulationCache>,
 }
 
-impl<P> ResolverContext<P>
-where
-    P: StateProviderFactory + Clone + 'static,
-{
+impl ResolverContext {
     /// Creates a new `ResolverContext`.
     ///
     /// # Arguments
@@ -43,14 +38,12 @@ where
     /// * `cache` - Optional cached reads for optimization.
     /// * `simulation_cache` - Shared cache for simulation results.
     pub fn new(
-        provider: P,
         ctx: BlockBuildingContext,
         cancellation_token: CancellationToken,
         cache: Option<CachedReads>,
         simulation_cache: Arc<SharedSimulationCache>,
     ) -> Self {
         ResolverContext {
-            provider,
             ctx,
             cancellation_token,
             cache,
@@ -73,10 +66,6 @@ where
             task.group.id,
             task.algorithm
         );
-        let state_provider = self
-            .provider
-            .history_by_block_hash(self.ctx.attributes.parent)?;
-        let state_provider: Arc<dyn StateProvider> = Arc::from(state_provider);
 
         let sequence_to_try = generate_sequences_of_orders_to_try(&task);
 
@@ -86,8 +75,7 @@ where
         };
 
         for sequence_of_orders in sequence_to_try {
-            let (resolution_result, state) =
-                self.process_sequence_of_orders(sequence_of_orders, &task, &state_provider)?;
+            let resolution_result = self.process_sequence_of_orders(sequence_of_orders, &task)?;
             self.update_best_result(resolution_result, &mut best_resolution_result);
 
             let (new_cached_reads, _, _) = state.into_parts();
@@ -135,8 +123,7 @@ where
         &mut self,
         sequence_of_orders: Vec<usize>,
         task: &ConflictTask,
-        state_provider: &Arc<dyn StateProvider>,
-    ) -> Result<(ResolutionResult, BlockState)> {
+    ) -> Result<ResolutionResult> {
         let order_id_to_index = self.initialize_order_id_to_index_map(task);
         let full_sequence_of_orders = self.initialize_full_order_ids_vec(&sequence_of_orders, task);
 
@@ -147,7 +134,6 @@ where
 
         // Initialize state and partial block
         let mut partial_block = PartialBlock::new(true, None);
-        let mut state = self.initialize_block_state(&cached_state_option, state_provider);
         partial_block.pre_block_call(&self.ctx, &mut state)?;
 
         // Initialize sequenced_order_result
@@ -190,18 +176,13 @@ where
             }
         }
 
-        self.store_simulation_state(
-            &full_sequence_of_orders,
-            &state,
-            total_profit,
-            &per_order_profits,
-        );
+        self.store_simulation_state(&full_sequence_of_orders, total_profit, &per_order_profits);
 
         let resolution_result = ResolutionResult {
             total_profit,
             sequence_of_orders: sequenced_order_result,
         };
-        Ok((resolution_result, state))
+        Ok(resolution_result)
     }
 
     /// Helper function to handle a successful commit of an order.
@@ -307,7 +288,6 @@ where
     fn store_simulation_state(
         &self,
         full_order_ids: &[OrderId],
-        state: &BlockState,
         total_profit: U256,
         per_order_profits: &[(OrderId, U256)],
     ) {

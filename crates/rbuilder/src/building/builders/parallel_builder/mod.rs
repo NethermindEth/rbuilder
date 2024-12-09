@@ -77,7 +77,7 @@ struct ParallelBuilder<P, DB> {
     order_intake_consumer: OrderIntakeStore,
     conflict_finder: ConflictFinder,
     conflict_task_generator: ConflictTaskGenerator,
-    conflict_resolving_pool: ConflictResolvingPool<P>,
+    conflict_resolving_pool: ConflictResolvingPool,
     results_aggregator: ResultsAggregator,
     block_building_result_assembler: BlockBuildingResultAssembler<P, DB>,
 }
@@ -113,7 +113,6 @@ where
             group_result_sender,
             input.cancel.clone(),
             input.ctx.clone(),
-            input.provider.clone(),
             Arc::clone(&simulation_cache),
         );
 
@@ -310,7 +309,6 @@ where
         group_result_sender,
         CancellationToken::new(),
         input.ctx.clone(),
-        input.provider.clone(),
         Arc::clone(&simulation_cache),
     );
 
@@ -322,7 +320,6 @@ where
     let results = conflict_resolving_pool.process_groups_backtest(
         groups,
         &input.ctx,
-        &input.provider,
         Arc::clone(&simulation_cache),
     );
     let processing_duration = processing_start.elapsed();
