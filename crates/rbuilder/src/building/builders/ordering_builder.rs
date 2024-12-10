@@ -259,7 +259,6 @@ where
         self.order_attempts.clear();
 
         let mut block_building_helper = BlockBuildingHelperFromProvider::new(
-            self.provider.clone(),
             self.root_hash_config.clone(),
             new_ctx,
             self.cached_reads.take(),

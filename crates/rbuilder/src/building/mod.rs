@@ -596,20 +596,12 @@ impl<Tracer: SimulationTracer> PartialBlock<Tracer> {
 
     /// Mostly based on reth's (v1.1.1) default_ethereum_payload_builder.
     #[allow(clippy::too_many_arguments)]
-    pub fn finalize<P, DB>(
+    pub fn finalize(
         self,
         state: &mut BlockState,
         ctx: &BlockBuildingContext,
-        provider: P,
         root_hash_config: RootHashConfig,
-    ) -> Result<FinalizeResult, FinalizeError>
-    where
-        DB: Database + Clone + 'static,
-        P: DatabaseProviderFactory<DB = DB, Provider: BlockReader>
-            + StateProviderFactory
-            + Clone
-            + 'static,
-    {
+    ) -> Result<FinalizeResult, FinalizeError> {
         let requests = if ctx
             .chain_spec
             .is_prague_active_at_timestamp(ctx.attributes.timestamp())
@@ -690,7 +682,6 @@ impl<Tracer: SimulationTracer> PartialBlock<Tracer> {
         // calculate the state root
         let start = Instant::now();
         let state_root = calculate_state_root(
-            provider,
             ctx.attributes.parent,
             &execution_outcome,
             ctx.shared_sparse_mpt_cache.clone(),

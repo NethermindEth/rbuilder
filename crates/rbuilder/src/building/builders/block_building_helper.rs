@@ -1,6 +1,5 @@
 use std::{
     cmp::max,
-    marker::PhantomData,
     time::{Duration, Instant},
 };
 
@@ -80,14 +79,7 @@ pub trait BlockBuildingHelper: Send + Sync {
 
 /// Implementation of BlockBuildingHelper based on a generic Provider
 #[derive(Clone)]
-pub struct BlockBuildingHelperFromProvider<P, DB>
-where
-    DB: Database + Clone + 'static,
-    P: DatabaseProviderFactory<DB = DB, Provider: BlockReader>
-        + StateProviderFactory
-        + Clone
-        + 'static,
-{
+pub struct BlockBuildingHelperFromProvider {
     /// Balance of fee recipient before we stared building.
     _fee_recipient_balance_start: U256,
     /// Accumulated changes for the block (due to commit_order calls).
@@ -101,12 +93,9 @@ where
     builder_name: String,
     building_ctx: BlockBuildingContext,
     built_block_trace: BuiltBlockTrace,
-    /// Needed to get the initial state and the final root hash calculation.
-    provider: P,
     root_hash_config: RootHashConfig,
     /// Token to cancel in case of fatal error (if we believe that it's impossible to build for this block).
     cancel_on_fatal_error: CancellationToken,
-    phantom: PhantomData<DB>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -148,14 +137,7 @@ pub struct FinalizeBlockResult {
     pub cached_reads: CachedReads,
 }
 
-impl<P, DB> BlockBuildingHelperFromProvider<P, DB>
-where
-    DB: Database + Clone + 'static,
-    P: DatabaseProviderFactory<DB = DB, Provider: BlockReader>
-        + StateProviderFactory
-        + Clone
-        + 'static,
-{
+impl BlockBuildingHelperFromProvider {
     /// allow_tx_skip: see [`PartialBlockFork`]
     /// Performs initialization:
     /// - Query fee_recipient_balance_start.
@@ -163,7 +145,6 @@ where
     /// - Estimate payout tx cost.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
-        provider: P,
         root_hash_config: RootHashConfig,
         building_ctx: BlockBuildingContext,
         cached_reads: Option<CachedReads>,
@@ -173,7 +154,6 @@ where
         cancel_on_fatal_error: CancellationToken,
     ) -> Result<Self, BlockBuildingHelperError> {
         // @Maybe an issue - we have 2 db txs here (one for hash and one for finalize)
-        let state_provider = provider.history_by_block_hash(building_ctx.attributes.parent)?;
         let fee_recipient_balance_start = state_provider
             .account_balance(building_ctx.attributes.suggested_fee_recipient)?
             .unwrap_or_default();
@@ -204,10 +184,8 @@ where
             builder_name,
             building_ctx,
             built_block_trace: BuiltBlockTrace::new(),
-            provider,
             root_hash_config,
             cancel_on_fatal_error,
-            phantom: PhantomData,
         })
     }
 
@@ -288,14 +266,7 @@ where
     }
 }
 
-impl<P, DB> BlockBuildingHelper for BlockBuildingHelperFromProvider<P, DB>
-where
-    DB: Database + Clone + 'static,
-    P: DatabaseProviderFactory<DB = DB, Provider: BlockReader>
-        + StateProviderFactory
-        + Clone
-        + 'static,
-{
+impl BlockBuildingHelper for BlockBuildingHelperFromProvider {
     /// Forwards to partial_block and updates trace.
     fn commit_order(
         &mut self,
@@ -361,7 +332,6 @@ where
         let finalized_block = match self.partial_block.finalize(
             &mut self.block_state,
             &self.building_ctx,
-            self.provider.clone(),
             self.root_hash_config,
         ) {
             Ok(finalized_block) => finalized_block,

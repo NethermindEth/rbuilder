@@ -95,16 +95,12 @@ where
 }
 
 #[allow(clippy::too_many_arguments)]
-pub fn calculate_state_root<P>(
-    provider: P,
+pub fn calculate_state_root(
     parent_hash: B256,
     outcome: &ExecutionOutcome,
     sparse_trie_shared_cache: SparseTrieSharedCache,
     config: RootHashConfig,
-) -> Result<B256, RootHashError>
-where
-    P: DatabaseProviderFactory<Provider: BlockReader> + Send + Sync + Clone + 'static,
-{
+) -> Result<B256, RootHashError> {
     let consistent_db_view = match config.mode {
         RootHashMode::CorrectRoot => ConsistentDbView::new(provider, Some(parent_hash)),
         RootHashMode::IgnoreParentHash => ConsistentDbView::new_with_latest_tip(provider)

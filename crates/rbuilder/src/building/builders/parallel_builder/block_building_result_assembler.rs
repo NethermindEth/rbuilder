@@ -198,7 +198,6 @@ where
         }
 
         let mut block_building_helper = BlockBuildingHelperFromProvider::new(
-            self.provider.clone(),
             self.root_hash_config.clone(),
             ctx,
             self.cached_reads.clone(),
@@ -266,7 +265,6 @@ where
         orders_closed_at: OffsetDateTime,
     ) -> eyre::Result<Box<dyn BlockBuildingHelper>> {
         let mut block_building_helper = BlockBuildingHelperFromProvider::new(
-            self.provider.clone(),
             self.root_hash_config.clone(), // Adjust as needed for backtest
             self.ctx.clone(),
             None, // No cached reads for backtest start
