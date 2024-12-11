@@ -3,6 +3,7 @@ pub mod block_output;
 pub mod building;
 pub mod cli;
 pub mod config;
+pub mod http_provider;
 pub mod order_input;
 pub mod payload_events;
 pub mod simulation;

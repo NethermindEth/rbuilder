@@ -18,7 +18,7 @@ use crate::{
     utils::build_info::Version,
 };
 
-use super::{base_config::BaseConfig, LiveBuilder};
+use super::{base_config::BaseConfig, http_provider::HttpProvider, LiveBuilder};
 
 #[derive(Parser, Debug)]
 enum Cli {
@@ -111,6 +111,7 @@ where
     )
     .await?;
     let provider = config.base_config().create_provider_factory()?;
+    let provider = HttpProvider::new_with_url("");
     let builder = config.new_builder(provider, cancel.clone()).await?;
 
     let ctrlc = tokio::spawn(async move {
