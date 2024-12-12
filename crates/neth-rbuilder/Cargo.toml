@@ -1,0 +1,7 @@
+[package]
+name = "neth-rbuilder"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+rbuilder = { path = "../rbuilder" }
