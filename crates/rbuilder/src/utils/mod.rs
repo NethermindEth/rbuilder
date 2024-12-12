@@ -24,7 +24,7 @@ use crate::primitives::{
 };
 use alloy_consensus::TxEnvelope;
 use alloy_eips::eip2718::Encodable2718;
-pub use noncer::{NonceCache, NonceCacheRef};
+pub use noncer::{NonceCache, NonceCacheRef, NonceProvider, NonceStateProvider};
 pub use provider_factory_reopen::{
     check_provider_factory_health, is_provider_factory_health_error, ProviderFactoryReopener,
 };

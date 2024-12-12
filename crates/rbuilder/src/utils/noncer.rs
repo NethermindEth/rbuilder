@@ -1,8 +1,7 @@
 use ahash::HashMap;
 use alloy_primitives::{Address, B256};
-use reth::providers::StateProviderBox;
 use reth_errors::ProviderResult;
-use reth_provider::StateProviderFactory;
+use reth_provider::{StateProviderBox, StateProviderFactory};
 use std::sync::{Arc, Mutex};
 
 /// Struct to get nonces for Addresses, caching the results.
@@ -22,7 +21,7 @@ pub struct NonceCache<P> {
 
 impl<P> NonceCache<P>
 where
-    P: StateProviderFactory,
+    P: NonceStateProvider,
 {
     pub fn new(provider: P, block: B256) -> Self {
         Self {
@@ -32,8 +31,8 @@ where
         }
     }
 
-    pub fn get_ref(&self) -> ProviderResult<NonceCacheRef> {
-        let state = self.provider.history_by_block_hash(self.block)?;
+    pub fn get_ref(&self) -> ProviderResult<NonceCacheRef<P::Provider>> {
+        let state = self.provider.get_state_by_block_hash(self.block)?;
         Ok(NonceCacheRef {
             state,
             cache: Arc::clone(&self.cache),
@@ -41,19 +40,49 @@ where
     }
 }
 
-pub struct NonceCacheRef {
-    state: StateProviderBox,
+pub struct NonceCacheRef<P> {
+    state: P,
     cache: Arc<Mutex<HashMap<Address, u64>>>,
 }
 
-impl NonceCacheRef {
+impl<P> NonceCacheRef<P>
+where
+    P: NonceProvider,
+{
     pub fn nonce(&self, address: Address) -> ProviderResult<u64> {
         let mut cache = self.cache.lock().unwrap();
         if let Some(nonce) = cache.get(&address) {
             return Ok(*nonce);
         }
-        let nonce = self.state.account_nonce(address)?.unwrap_or_default();
+        let nonce = self.state.get_nonce(address)?.unwrap_or_default();
         cache.insert(address, nonce);
         Ok(nonce)
+    }
+}
+
+pub trait NonceProvider {
+    fn get_nonce(&self, address: Address) -> ProviderResult<Option<u64>>;
+}
+
+pub trait NonceStateProvider {
+    type Provider: NonceProvider;
+
+    fn get_state_by_block_hash(&self, block: B256) -> ProviderResult<Self::Provider>;
+}
+
+impl<T> NonceStateProvider for T
+where
+    T: StateProviderFactory,
+{
+    type Provider = StateProviderBox;
+
+    fn get_state_by_block_hash(&self, block: B256) -> ProviderResult<Self::Provider> {
+        self.history_by_block_hash(block)
+    }
+}
+
+impl NonceProvider for StateProviderBox {
+    fn get_nonce(&self, address: Address) -> ProviderResult<Option<u64>> {
+        self.account_nonce(address)
     }
 }

@@ -5,7 +5,7 @@ use super::{
 use crate::{
     building::{BlockBuildingContext, BlockState, CriticalCommitOrderError},
     primitives::{Order, OrderId, SimValue, SimulatedOrder},
-    utils::{NonceCache, NonceCacheRef},
+    utils::{NonceCache, NonceCacheRef, NonceProvider, NonceStateProvider},
 };
 use ahash::{HashMap, HashSet};
 use alloy_primitives::{Address, B256};
@@ -88,7 +88,7 @@ enum OrderNonceState {
 
 impl<P> SimTree<P>
 where
-    P: StateProviderFactory + Clone + 'static,
+    P: NonceStateProvider + Clone + 'static,
 {
     pub fn new(provider: P, parent_block: B256) -> Self {
         let nonce_cache = NonceCache::new(provider, parent_block);
@@ -102,7 +102,11 @@ where
         }
     }
 
-    fn push_order(&mut self, order: Order, nonces: &NonceCacheRef) -> Result<(), ProviderError> {
+    fn push_order(
+        &mut self,
+        order: Order,
+        nonces: &NonceCacheRef<impl NonceProvider>,
+    ) -> Result<(), ProviderError> {
         if self.pending_orders.contains_key(&order.id()) {
             return Ok(());
         }
@@ -143,7 +147,7 @@ where
     fn get_order_nonce_state(
         &mut self,
         order: &Order,
-        nonces: &NonceCacheRef,
+        nonces: &NonceCacheRef<impl NonceProvider>,
     ) -> Result<OrderNonceState, ProviderError> {
         let mut onchain_nonces_incremented = HashSet::default();
         let mut pending_nonces = Vec::new();
@@ -223,7 +227,7 @@ where
     fn process_simulation_task_result(
         &mut self,
         result: SimulatedResult,
-        state: &NonceCacheRef,
+        state: &NonceCacheRef<impl NonceProvider>,
     ) -> Result<(), ProviderError> {
         self.sims.insert(result.id, result.clone());
         let mut orders_ready = Vec::new();
