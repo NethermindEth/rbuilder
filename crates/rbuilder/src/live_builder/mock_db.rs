@@ -1,5 +1,5 @@
 use alloy_eips::{BlockHashOrNumber, BlockNumberOrTag};
-use alloy_primitives::{BlockHash, BlockNumber, TxHash, TxNumber, U256};
+use alloy_primitives::{BlockHash, BlockNumber, StorageKey, StorageValue, TxHash, TxNumber, U256};
 use alloy_rpc_types::Withdrawal;
 use reth_chainspec::ChainInfo;
 use reth_db::{
@@ -11,15 +11,20 @@ use reth_db::{
 };
 use reth_errors::ProviderResult;
 use reth_primitives::{
-    Block, BlockWithSenders, Header, Receipt, SealedBlock, SealedBlockWithSenders, SealedHeader,
-    TransactionSigned, TransactionSignedNoHash, Withdrawals,
+    Account, Block, BlockWithSenders, Bytecode, Header, Receipt, SealedBlock,
+    SealedBlockWithSenders, SealedHeader, TransactionSigned, TransactionSignedNoHash, Withdrawals,
 };
 use reth_provider::{
-    BlockHashReader, BlockIdReader, BlockNumReader, BlockReader, BlockSource, DBProvider,
-    DatabaseProviderFactory, HeaderProvider, ReceiptProvider, StateProviderBox,
-    StateProviderFactory, TransactionVariant, TransactionsProvider, WithdrawalsProvider,
+    AccountReader, BlockHashReader, BlockIdReader, BlockNumReader, BlockReader, BlockSource,
+    DBProvider, DatabaseProviderFactory, HeaderProvider, ReceiptProvider, StateProofProvider,
+    StateProvider, StateProviderBox, StateProviderFactory, StateRootProvider, StorageRootProvider,
+    TransactionVariant, TransactionsProvider, WithdrawalsProvider,
 };
-use revm_primitives::{Address, B256};
+use reth_trie::{
+    updates::TrieUpdates, AccountProof, HashedPostState, HashedStorage, MultiProof, StorageProof,
+    TrieInput,
+};
+use revm_primitives::{Address, Bytes, HashMap, HashSet, B256};
 use std::ops::{RangeBounds, RangeInclusive};
 
 #[derive(Debug, Clone)]
@@ -605,3 +610,93 @@ impl WithdrawalsProvider for IpcProvider {
 }
 
 // ========== END BLOCK READER ================//
+
+impl StateProvider for IpcProvider {
+    fn storage(
+        &self,
+        _account: Address,
+        _storage_key: StorageKey,
+    ) -> ProviderResult<Option<StorageValue>> {
+        todo!()
+    }
+
+    fn bytecode_by_hash(&self, _code_hash: B256) -> ProviderResult<Option<Bytecode>> {
+        todo!()
+    }
+}
+
+impl AccountReader for IpcProvider {
+    fn basic_account(&self, _address: Address) -> ProviderResult<Option<Account>> {
+        todo!()
+    }
+}
+
+impl StateRootProvider for IpcProvider {
+    fn state_root(&self, _hashed_state: HashedPostState) -> ProviderResult<B256> {
+        todo!()
+    }
+
+    fn state_root_from_nodes(&self, _input: TrieInput) -> ProviderResult<B256> {
+        todo!()
+    }
+
+    fn state_root_with_updates(
+        &self,
+        _hashed_state: HashedPostState,
+    ) -> ProviderResult<(B256, TrieUpdates)> {
+        todo!()
+    }
+
+    fn state_root_from_nodes_with_updates(
+        &self,
+        _input: TrieInput,
+    ) -> ProviderResult<(B256, TrieUpdates)> {
+        todo!()
+    }
+}
+
+impl StorageRootProvider for IpcProvider {
+    fn storage_root(
+        &self,
+        _address: Address,
+        _hashed_storage: HashedStorage,
+    ) -> ProviderResult<B256> {
+        todo!()
+    }
+
+    fn storage_proof(
+        &self,
+        _address: Address,
+        _slot: B256,
+        _hashed_storage: HashedStorage,
+    ) -> ProviderResult<StorageProof> {
+        todo!()
+    }
+}
+
+impl StateProofProvider for IpcProvider {
+    fn proof(
+        &self,
+        _input: TrieInput,
+        _address: Address,
+        _slots: &[B256],
+    ) -> ProviderResult<AccountProof> {
+        todo!()
+    }
+
+    fn multiproof(
+        &self,
+        _input: TrieInput,
+        _targets: HashMap<B256, HashSet<B256>>,
+    ) -> ProviderResult<MultiProof> {
+        todo!()
+    }
+
+    fn witness(
+        &self,
+        _input: TrieInput,
+        _target: HashedPostState,
+    ) -> ProviderResult<HashMap<B256, Bytes>> {
+        todo!()
+    }
+}
