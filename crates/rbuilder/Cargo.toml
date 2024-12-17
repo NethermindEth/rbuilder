@@ -34,6 +34,7 @@ revm.workspace = true
 revm-primitives.workspace = true
 revm-inspectors.workspace = true
 reth-node-ethereum.workspace = true
+reth-prune-types.workspace = true
 
 alloy-primitives.workspace = true
 alloy-rlp.workspace = true

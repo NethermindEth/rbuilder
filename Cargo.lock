@@ -7806,6 +7806,7 @@ dependencies = [
  "reth-payload-builder",
  "reth-primitives",
  "reth-provider",
+ "reth-prune-types",
  "reth-trie",
  "reth-trie-parallel",
  "revm",

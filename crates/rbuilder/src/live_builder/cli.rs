@@ -18,6 +18,7 @@ use crate::{
     utils::build_info::Version,
 };
 
+use super::mock_db::IpcProvider;
 use super::{base_config::BaseConfig, LiveBuilder};
 
 #[derive(Parser, Debug)]
@@ -111,6 +112,7 @@ where
     )
     .await?;
     let provider = config.base_config().create_provider_factory()?;
+    let provider = IpcProvider();
     let builder = config.new_builder(provider, cancel.clone()).await?;
 
     let ctrlc = tokio::spawn(async move {
