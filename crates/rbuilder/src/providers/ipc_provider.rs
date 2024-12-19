@@ -26,7 +26,7 @@ pub struct IPCStateProvider;
 impl StateProviderFactory for IPCProviderFactory {
     /// Storage provider for latest block.
     fn latest(&self) -> ProviderResult<StateProviderBox> {
-        unimplemented!()
+        todo!()
     }
 
     fn state_by_block_number_or_tag(
