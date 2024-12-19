@@ -20,10 +20,10 @@ use reth_trie::{
 };
 use revm_primitives::{Address, B256};
 
-pub struct IpcProviderFactory;
+pub struct IPCProviderFactory;
 pub struct IPCStateProvider;
 
-impl StateProviderFactory for IpcProviderFactory {
+impl StateProviderFactory for IPCProviderFactory {
     /// Storage provider for latest block.
     fn latest(&self) -> ProviderResult<StateProviderBox> {
         unimplemented!()
@@ -61,7 +61,7 @@ impl StateProviderFactory for IpcProviderFactory {
 }
 
 // Required by the StateProviderFactory
-impl BlockIdReader for IpcProviderFactory {
+impl BlockIdReader for IPCProviderFactory {
     fn pending_block_num_hash(&self) -> ProviderResult<Option<alloy_eips::BlockNumHash>> {
         unimplemented!()
     }
@@ -76,7 +76,7 @@ impl BlockIdReader for IpcProviderFactory {
 }
 
 // Required by the BlockIdReader
-impl BlockNumReader for IpcProviderFactory {
+impl BlockNumReader for IPCProviderFactory {
     fn chain_info(&self) -> ProviderResult<ChainInfo> {
         unimplemented!()
     }
@@ -95,7 +95,7 @@ impl BlockNumReader for IpcProviderFactory {
     }
 }
 // Required by the BlockNumReader
-impl BlockHashReader for IpcProviderFactory {
+impl BlockHashReader for IPCProviderFactory {
     fn block_hash(&self, _number: BlockNumber) -> ProviderResult<Option<B256>> {
         unimplemented!()
     }
@@ -109,7 +109,7 @@ impl BlockHashReader for IpcProviderFactory {
     }
 }
 
-impl HeaderProvider for IpcProviderFactory {
+impl HeaderProvider for IPCProviderFactory {
     /// Get header by block hash
     fn header(&self, _block_hash: &BlockHash) -> ProviderResult<Option<Header>> {
         todo!()
