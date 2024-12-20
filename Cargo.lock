@@ -7732,6 +7732,7 @@ dependencies = [
  "alloy-provider",
  "alloy-pubsub",
  "alloy-rlp",
+ "alloy-rpc-client",
  "alloy-rpc-types",
  "alloy-rpc-types-beacon",
  "alloy-rpc-types-engine",

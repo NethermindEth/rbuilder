@@ -1,1 +1,1 @@
-pub mod ipc_provider;
+pub mod remote_provider;

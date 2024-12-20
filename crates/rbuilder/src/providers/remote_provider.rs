@@ -1,13 +1,16 @@
 use std::ops::RangeBounds;
 
 use alloy_consensus::Header;
-use alloy_eips::BlockNumberOrTag;
+use alloy_eips::{BlockId, BlockNumberOrTag};
 use alloy_primitives::{
     map::{HashMap, HashSet},
     BlockHash, BlockNumber, Bytes, StorageKey, StorageValue, U256,
 };
+use alloy_provider::{Provider, ProviderBuilder, RootProvider};
+use alloy_rpc_client::RpcClient;
+use alloy_transport::{Transport, TransportError};
 use reth_chainspec::ChainInfo;
-use reth_errors::ProviderResult;
+use reth_errors::{ProviderError, ProviderResult};
 use reth_primitives::{Account, Bytecode, SealedHeader};
 use reth_provider::{
     AccountReader, BlockHashReader, BlockIdReader, BlockNumReader, HeaderProvider,
@@ -20,13 +23,42 @@ use reth_trie::{
 };
 use revm_primitives::{Address, B256};
 
-pub struct IPCProviderFactory;
-pub struct IPCStateProvider;
+pub struct RemoteProviderFactory<T> {
+    remote_provider: RootProvider<T>,
+}
 
-impl StateProviderFactory for IPCProviderFactory {
+impl<T> RemoteProviderFactory<T>
+where
+    T: Transport + Clone,
+{
+    pub fn new(client: T, is_local: bool) -> Self {
+        let client = RpcClient::new(client, is_local);
+        let provider = ProviderBuilder::new().on_client(client);
+        Self {
+            remote_provider: provider,
+        }
+    }
+}
+
+// TODO:
+// Check if calls to the functions below are always used from within a tokio context
+// I'm using futures::executor, instead of the tokio runtime
+// This is because I'm unsure if the code here is always called from withing tokio context/runtime
+// Tokio is indeed used, but some code is executed from within sys threads instead of Tokio -
+// calling tokio::Handle::block_on() will result in a panic in this scenario
+// Downside of the futures::executor is that it adds overhead of yet another executor which is not
+// "in sync" with the tokio one
+
+impl<T> StateProviderFactory for RemoteProviderFactory<T>
+where
+    T: Transport + Clone,
+{
     /// Storage provider for latest block.
     fn latest(&self) -> ProviderResult<StateProviderBox> {
-        todo!()
+        Ok(RemoteStateProvider::boxed(
+            self.remote_provider.clone(),
+            BlockId::Number(BlockNumberOrTag::Latest),
+        ))
     }
 
     fn state_by_block_number_or_tag(
@@ -43,8 +75,11 @@ impl StateProviderFactory for IPCProviderFactory {
     /// Returns a historical [StateProvider] indexed by the given block hash.
     ///
     /// Note: this only looks at historical blocks, not pending blocks.
-    fn history_by_block_hash(&self, _block: BlockHash) -> ProviderResult<StateProviderBox> {
-        todo!()
+    fn history_by_block_hash(&self, block: BlockHash) -> ProviderResult<StateProviderBox> {
+        Ok(RemoteStateProvider::boxed(
+            self.remote_provider.clone(),
+            BlockId::Hash(block.into()),
+        ))
     }
 
     fn state_by_block_hash(&self, _block: BlockHash) -> ProviderResult<StateProviderBox> {
@@ -61,7 +96,10 @@ impl StateProviderFactory for IPCProviderFactory {
 }
 
 // Required by the StateProviderFactory
-impl BlockIdReader for IPCProviderFactory {
+impl<T> BlockIdReader for RemoteProviderFactory<T>
+where
+    T: Transport + Clone,
+{
     fn pending_block_num_hash(&self) -> ProviderResult<Option<alloy_eips::BlockNumHash>> {
         unimplemented!()
     }
@@ -76,7 +114,10 @@ impl BlockIdReader for IPCProviderFactory {
 }
 
 // Required by the BlockIdReader
-impl BlockNumReader for IPCProviderFactory {
+impl<T> BlockNumReader for RemoteProviderFactory<T>
+where
+    T: Transport + Clone,
+{
     fn chain_info(&self) -> ProviderResult<ChainInfo> {
         unimplemented!()
     }
@@ -87,7 +128,8 @@ impl BlockNumReader for IPCProviderFactory {
 
     /// Returns the last block number associated with the last canonical header in the database.
     fn last_block_number(&self) -> ProviderResult<BlockNumber> {
-        todo!()
+        futures::executor::block_on(self.remote_provider.get_block_number())
+            .map_err(transport_to_provider_error)
     }
 
     fn block_number(&self, _hash: B256) -> ProviderResult<Option<BlockNumber>> {
@@ -95,7 +137,10 @@ impl BlockNumReader for IPCProviderFactory {
     }
 }
 // Required by the BlockNumReader
-impl BlockHashReader for IPCProviderFactory {
+impl<T> BlockHashReader for RemoteProviderFactory<T>
+where
+    T: Transport + Clone,
+{
     fn block_hash(&self, _number: BlockNumber) -> ProviderResult<Option<B256>> {
         unimplemented!()
     }
@@ -109,7 +154,10 @@ impl BlockHashReader for IPCProviderFactory {
     }
 }
 
-impl HeaderProvider for IPCProviderFactory {
+impl<T> HeaderProvider for RemoteProviderFactory<T>
+where
+    T: Send + Sync,
+{
     /// Get header by block hash
     fn header(&self, _block_hash: &BlockHash) -> ProviderResult<Option<Header>> {
         todo!()
@@ -144,24 +192,66 @@ impl HeaderProvider for IPCProviderFactory {
     }
 }
 
-impl StateProvider for IPCStateProvider {
+pub struct RemoteStateProvider<T> {
+    remote_provider: RootProvider<T>,
+    block_id: BlockId,
+}
+
+impl<T> RemoteStateProvider<T> {
+    pub fn new(remote_provider: RootProvider<T>, block_id: BlockId) -> Self {
+        Self {
+            remote_provider,
+            block_id,
+        }
+    }
+
+    pub fn boxed(remote_provider: RootProvider<T>, block_id: BlockId) -> Box<Self> {
+        Box::new(Self::new(remote_provider, block_id))
+    }
+}
+
+impl<T> StateProvider for RemoteStateProvider<T>
+where
+    T: Transport + Clone,
+{
     /// Get storage of given account
     fn storage(
         &self,
-        _account: Address,
-        _storage_key: StorageKey,
+        account: Address,
+        storage_key: StorageKey,
     ) -> ProviderResult<Option<StorageValue>> {
-        todo!()
+        let storage = futures::executor::block_on(async {
+            self.remote_provider
+                .get_storage_at(account, storage_key.into())
+                .await
+        })
+        .map_err(transport_to_provider_error)?;
+
+        Ok(Some(storage))
     }
 
+    // TODO: C/P from Ferran's PR (https://github.com/flashbots/rbuilder/pull/144),
+    // but I'm not sure this is actually correct, code_hash shouldn't be the same thing as Address
+
     ///Get account code by its hash
-    fn bytecode_by_hash(&self, _code_hash: B256) -> ProviderResult<Option<Bytecode>> {
-        todo!()
+    fn bytecode_by_hash(&self, code_hash: B256) -> ProviderResult<Option<Bytecode>> {
+        let bytecode = futures::executor::block_on(async {
+            self.remote_provider
+                .get_code_at(Address::from_word(code_hash))
+                .block_id(self.block_id)
+                .await
+        })
+        .map_err(transport_to_provider_error)?;
+
+        Ok(Some(Bytecode::new_raw(bytecode)))
     }
 }
 
 // Required by the StateProvider
-impl BlockHashReader for IPCStateProvider {
+impl<T> BlockHashReader for RemoteStateProvider<T>
+where
+    T: Send + Sync,
+{
     /// Get the hash of the block with the given number. Returns `None` if no block with this number exists
     fn block_hash(&self, _number: BlockNumber) -> ProviderResult<Option<B256>> {
         todo!()
@@ -177,15 +267,36 @@ impl BlockHashReader for IPCStateProvider {
 }
 
 // Required by the StateProvider
-impl AccountReader for IPCStateProvider {
+impl<T> AccountReader for RemoteStateProvider<T>
+where
+    T: Transport + Clone,
+{
     /// Get basic account information.
     /// Returns `None` if the account doesn't exist.
-    fn basic_account(&self, _address: Address) -> ProviderResult<Option<Account>> {
-        todo!()
+    fn basic_account(&self, address: Address) -> ProviderResult<Option<Account>> {
+        let account = futures::executor::block_on(async {
+            let account = self
+                .remote_provider
+                .get_proof(address, Vec::new())
+                .block_id(self.block_id)
+                .await?;
+
+            Ok(Account {
+                nonce: account.nonce,
+                bytecode_hash: account.code_hash.into(),
+                balance: account.balance,
+            })
+        })
+        .map_err(transport_to_provider_error)?;
+
+        Ok(Some(account))
     }
 }
 
-impl StateRootProvider for IPCStateProvider {
+impl<T> StateRootProvider for RemoteStateProvider<T>
+where
+    T: Send + Sync,
+{
     fn state_root(&self, _hashed_state: HashedPostState) -> ProviderResult<B256> {
         unimplemented!()
     }
@@ -209,7 +320,10 @@ impl StateRootProvider for IPCStateProvider {
     }
 }
 
-impl StorageRootProvider for IPCStateProvider {
+impl<T> StorageRootProvider for RemoteStateProvider<T>
+where
+    T: Send + Sync,
+{
     fn storage_root(
         &self,
         _address: Address,
@@ -228,7 +342,10 @@ impl StorageRootProvider for IPCStateProvider {
     }
 }
 
-impl StateProofProvider for IPCStateProvider {
+impl<T> StateProofProvider for RemoteStateProvider<T>
+where
+    T: Send + Sync,
+{
     fn proof(
         &self,
         _input: TrieInput,
@@ -253,4 +370,8 @@ impl StateProofProvider for IPCStateProvider {
     ) -> ProviderResult<HashMap<B256, Bytes>> {
         unimplemented!()
     }
+}
+
+fn transport_to_provider_error(transport_error: TransportError) -> ProviderError {
+    ProviderError::Database(reth_db::DatabaseError::Other(transport_error.to_string()))
 }
