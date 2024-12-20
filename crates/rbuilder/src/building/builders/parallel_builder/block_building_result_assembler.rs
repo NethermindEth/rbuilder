@@ -24,7 +24,7 @@ use crate::{
 };
 
 /// Assembles block building results from the best orderings of order groups.
-pub struct BlockBuildingResultAssembler<P, DB> {
+pub struct BlockBuildingResultAssembler<P> {
     provider: P,
     ctx: BlockBuildingContext,
     cancellation_token: CancellationToken,
@@ -38,16 +38,13 @@ pub struct BlockBuildingResultAssembler<P, DB> {
     best_results: Arc<BestResults>,
     run_id: u64,
     last_version: Option<u64>,
-    phantom: PhantomData<DB>,
+    //TODO: delete me?
+    phantom: PhantomData<P>,
 }
 
-impl<P, DB> BlockBuildingResultAssembler<P, DB>
+impl<P> BlockBuildingResultAssembler<P>
 where
-    DB: Database + Clone + 'static,
-    P: DatabaseProviderFactory<DB = DB, Provider: BlockReader>
-        + StateProviderFactory
-        + Clone
-        + 'static,
+    P: StateProviderFactory + Clone + 'static,
 {
     /// Creates a new `BlockBuildingResultAssembler`.
     ///

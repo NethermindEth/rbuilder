@@ -61,13 +61,9 @@ impl OrderingBuilderConfig {
     }
 }
 
-pub fn run_ordering_builder<P, DB>(input: LiveBuilderInput<P, DB>, config: &OrderingBuilderConfig)
+pub fn run_ordering_builder<P>(input: LiveBuilderInput<P>, config: &OrderingBuilderConfig)
 where
-    DB: Database + Clone + 'static,
-    P: DatabaseProviderFactory<DB = DB, Provider: BlockReader>
-        + StateProviderFactory
-        + Clone
-        + 'static,
+    P: StateProviderFactory + Clone + 'static,
 {
     let mut order_intake_consumer = OrderIntakeConsumer::new(
         input.provider.clone(),
@@ -130,16 +126,12 @@ where
     }
 }
 
-pub fn backtest_simulate_block<P, DB>(
+pub fn backtest_simulate_block<P>(
     ordering_config: OrderingBuilderConfig,
     input: BacktestSimulateBlockInput<'_, P>,
 ) -> eyre::Result<(Block, CachedReads)>
 where
-    DB: Database + Clone + 'static,
-    P: DatabaseProviderFactory<DB = DB, Provider: BlockReader>
-        + StateProviderFactory
-        + Clone
-        + 'static,
+    P: StateProviderFactory + Clone + 'static,
 {
     let use_suggested_fee_recipient_as_coinbase = ordering_config.coinbase_payment;
     let state_provider = input
@@ -174,7 +166,7 @@ where
 }
 
 #[derive(Debug)]
-pub struct OrderingBuilderContext<P, DB> {
+pub struct OrderingBuilderContext<P> {
     provider: P,
     builder_name: String,
     ctx: BlockBuildingContext,
@@ -188,16 +180,13 @@ pub struct OrderingBuilderContext<P, DB> {
     failed_orders: HashSet<OrderId>,
     order_attempts: HashMap<OrderId, usize>,
 
-    phantom: PhantomData<DB>,
+    //TODO: delete me?
+    phantom: PhantomData<P>,
 }
 
-impl<P, DB> OrderingBuilderContext<P, DB>
+impl<P> OrderingBuilderContext<P>
 where
-    DB: Database + Clone + 'static,
-    P: DatabaseProviderFactory<DB = DB, Provider: BlockReader>
-        + StateProviderFactory
-        + Clone
-        + 'static,
+    P: StateProviderFactory + Clone + 'static,
 {
     pub fn new(
         provider: P,
@@ -358,13 +347,9 @@ impl OrderingBuildingAlgorithm {
     }
 }
 
-impl<P, DB> BlockBuildingAlgorithm<P, DB> for OrderingBuildingAlgorithm
+impl<P> BlockBuildingAlgorithm<P> for OrderingBuildingAlgorithm
 where
-    DB: Database + Clone + 'static,
-    P: DatabaseProviderFactory<DB = DB, Provider: BlockReader>
-        + StateProviderFactory
-        + Clone
-        + 'static,
+    P: StateProviderFactory + Clone + 'static,
 {
     fn name(&self) -> String {
         self.name.clone()

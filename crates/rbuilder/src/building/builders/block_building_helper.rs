@@ -4,7 +4,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use alloy_primitives::{utils::format_ether, U256};
+use alloy_primitives::{utils::format_ether, Uint, U256};
 use reth::revm::cached::CachedReads;
 use reth_db::Database;
 use reth_provider::{BlockReader, DatabaseProviderFactory, StateProviderFactory};
@@ -84,13 +84,9 @@ pub trait BlockBuildingHelper: Send + Sync {
 
 /// Implementation of BlockBuildingHelper based on a generic Provider
 #[derive(Clone)]
-pub struct BlockBuildingHelperFromProvider<P, DB>
+pub struct BlockBuildingHelperFromProvider<P>
 where
-    DB: Database + Clone + 'static,
-    P: DatabaseProviderFactory<DB = DB, Provider: BlockReader>
-        + StateProviderFactory
-        + Clone
-        + 'static,
+    P: StateProviderFactory + Clone + 'static,
 {
     /// Balance of fee recipient before we stared building.
     _fee_recipient_balance_start: U256,
@@ -110,7 +106,8 @@ where
     root_hash_config: RootHashConfig,
     /// Token to cancel in case of fatal error (if we believe that it's impossible to build for this block).
     cancel_on_fatal_error: CancellationToken,
-    phantom: PhantomData<DB>,
+    //TODO: delete me?
+    phantom: PhantomData<P>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -152,13 +149,9 @@ pub struct FinalizeBlockResult {
     pub cached_reads: CachedReads,
 }
 
-impl<P, DB> BlockBuildingHelperFromProvider<P, DB>
+impl<P> BlockBuildingHelperFromProvider<P>
 where
-    DB: Database + Clone + 'static,
-    P: DatabaseProviderFactory<DB = DB, Provider: BlockReader>
-        + StateProviderFactory
-        + Clone
-        + 'static,
+    P: StateProviderFactory + Clone + 'static,
 {
     /// allow_tx_skip: see [`PartialBlockFork`]
     /// Performs initialization:
@@ -269,7 +262,9 @@ where
                 &self.building_ctx,
                 &mut self.block_state,
             ) {
-                Ok(()) => (payout_tx_value, self.true_block_value()?),
+                //TODO: fix me
+                //Ok(()) => (payout_tx_value, self.true_block_value()?),
+                Ok(()) => (payout_tx_value, Uint::default()),
                 Err(err) => return Err(err.into()),
             }
         } else {
@@ -292,13 +287,9 @@ where
     }
 }
 
-impl<P, DB> BlockBuildingHelper for BlockBuildingHelperFromProvider<P, DB>
+impl<P> BlockBuildingHelper for BlockBuildingHelperFromProvider<P>
 where
-    DB: Database + Clone + 'static,
-    P: DatabaseProviderFactory<DB = DB, Provider: BlockReader>
-        + StateProviderFactory
-        + Clone
-        + 'static,
+    P: StateProviderFactory + Clone + 'static,
 {
     /// Forwards to partial_block and updates trace.
     fn commit_order(
@@ -362,49 +353,52 @@ where
 
         let sim_gas_used = self.partial_block.tracer.used_gas;
         let block_number = self.building_context().block();
-        let finalized_block = match self.partial_block.finalize(
-            &mut self.block_state,
-            &self.building_ctx,
-            self.provider.clone(),
-            self.root_hash_config,
-        ) {
-            Ok(finalized_block) => finalized_block,
-            Err(err) => {
-                if err.is_consistent_db_view_err() {
-                    let last_block_number = self.provider.last_block_number().unwrap_or_default();
-                    debug!(
-                        block_number,
-                        last_block_number, "Can't build on this head, cancelling slot"
-                    );
-                    self.cancel_on_fatal_error.cancel();
-                }
-                return Err(BlockBuildingHelperError::FinalizeError(err));
-            }
-        };
-        self.built_block_trace.update_orders_sealed_at();
-        self.built_block_trace.root_hash_time = finalized_block.root_hash_time;
-
-        self.built_block_trace.finalize_time = start_time.elapsed();
-
-        Self::trace_finalized_block(
-            &finalized_block,
-            &self.builder_name,
-            &self.building_ctx,
-            &self.built_block_trace,
-            sim_gas_used,
-        );
-
-        let block = Block {
-            trace: self.built_block_trace,
-            sealed_block: finalized_block.sealed_block,
-            txs_blobs_sidecars: finalized_block.txs_blob_sidecars,
-            builder_name: self.builder_name.clone(),
-            execution_requests: finalized_block.execution_requests,
-        };
-        Ok(FinalizeBlockResult {
-            block,
-            cached_reads: finalized_block.cached_reads,
-        })
+        unreachable!();
+        //
+        //TODO: fix me
+        //let finalized_block = match self.partial_block.finalize(
+        //    &mut self.block_state,
+        //    &self.building_ctx,
+        //    self.provider.clone(),
+        //    self.root_hash_config,
+        //) {
+        //    Ok(finalized_block) => finalized_block,
+        //    Err(err) => {
+        //        if err.is_consistent_db_view_err() {
+        //            let last_block_number = self.provider.last_block_number().unwrap_or_default();
+        //            debug!(
+        //                block_number,
+        //                last_block_number, "Can't build on this head, cancelling slot"
+        //            );
+        //            self.cancel_on_fatal_error.cancel();
+        //        }
+        //        return Err(BlockBuildingHelperError::FinalizeError(err));
+        //    }
+        //};
+        //self.built_block_trace.update_orders_sealed_at();
+        //self.built_block_trace.root_hash_time = finalized_block.root_hash_time;
+        //
+        //self.built_block_trace.finalize_time = start_time.elapsed();
+        //
+        //Self::trace_finalized_block(
+        //    &finalized_block,
+        //    &self.builder_name,
+        //    &self.building_ctx,
+        //    &self.built_block_trace,
+        //    sim_gas_used,
+        //);
+        //
+        //let block = Block {
+        //    trace: self.built_block_trace,
+        //    sealed_block: finalized_block.sealed_block,
+        //    txs_blobs_sidecars: finalized_block.txs_blob_sidecars,
+        //    builder_name: self.builder_name.clone(),
+        //    execution_requests: finalized_block.execution_requests,
+        //};
+        //Ok(FinalizeBlockResult {
+        //    block,
+        //    cached_reads: finalized_block.cached_reads,
+        //})
     }
 
     fn clone_cached_reads(&self) -> CachedReads {

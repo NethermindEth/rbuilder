@@ -179,7 +179,6 @@ impl BaseConfig {
     ) -> eyre::Result<
         super::LiveBuilder<
             ProviderFactoryReopener<NodeTypesWithDBAdapter<EthereumNode, Arc<DatabaseEnv>>>,
-            Arc<DatabaseEnv>,
             SlotSourceType,
         >,
     >
@@ -187,7 +186,7 @@ impl BaseConfig {
         SlotSourceType: SlotSource,
     {
         let provider_factory = self.create_provider_factory()?;
-        self.create_builder_with_provider_factory::<ProviderFactoryReopener<NodeTypesWithDBAdapter<EthereumNode, Arc<DatabaseEnv>>>, Arc<DatabaseEnv>, SlotSourceType>(
+        self.create_builder_with_provider_factory::<ProviderFactoryReopener<NodeTypesWithDBAdapter<EthereumNode, Arc<DatabaseEnv>>>, SlotSourceType>(
             cancellation_token,
             sink_factory,
             slot_source,
@@ -197,22 +196,21 @@ impl BaseConfig {
     }
 
     /// Allows instantiating a [`LiveBuilder`] with an existing provider factory
-    pub async fn create_builder_with_provider_factory<P, DB, SlotSourceType>(
+    pub async fn create_builder_with_provider_factory<P, SlotSourceType>(
         &self,
         cancellation_token: tokio_util::sync::CancellationToken,
         sink_factory: Box<dyn UnfinishedBlockBuildingSinkFactory>,
         slot_source: SlotSourceType,
         provider: P,
-    ) -> eyre::Result<super::LiveBuilder<P, DB, SlotSourceType>>
+    ) -> eyre::Result<super::LiveBuilder<P, SlotSourceType>>
     where
-        DB: Database + Clone + 'static,
-        P: DatabaseProviderFactory<DB = DB> + StateProviderFactory + HeaderProvider + Clone,
+        P: StateProviderFactory + HeaderProvider + Clone,
         SlotSourceType: SlotSource,
     {
         let order_input_config = OrderInputConfig::from_config(self)?;
         let (orderpool_sender, orderpool_receiver) =
             mpsc::channel(order_input_config.input_channel_buffer_size);
-        Ok(LiveBuilder::<P, DB, SlotSourceType> {
+        Ok(LiveBuilder::<P, SlotSourceType> {
             watchdog_timeout: self.watchdog_timeout(),
             error_storage_path: self.error_storage_path.clone(),
             simulation_threads: self.simulation_threads,

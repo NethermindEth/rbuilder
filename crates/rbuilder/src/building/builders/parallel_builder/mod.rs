@@ -72,26 +72,22 @@ fn get_shared_data_structures() -> (Arc<BestResults>, TaskQueue) {
     (best_results, task_queue)
 }
 
-struct ParallelBuilder<P, DB> {
+struct ParallelBuilder<P> {
     order_intake_consumer: OrderIntakeStore,
     conflict_finder: ConflictFinder,
     conflict_task_generator: ConflictTaskGenerator,
     conflict_resolving_pool: ConflictResolvingPool<P>,
     results_aggregator: ResultsAggregator,
-    block_building_result_assembler: BlockBuildingResultAssembler<P, DB>,
+    block_building_result_assembler: BlockBuildingResultAssembler<P>,
 }
 
-impl<P, DB> ParallelBuilder<P, DB>
+impl<P> ParallelBuilder<P>
 where
-    DB: Database + Clone + 'static,
-    P: DatabaseProviderFactory<DB = DB, Provider: BlockReader>
-        + StateProviderFactory
-        + Clone
-        + 'static,
+    P: StateProviderFactory + Clone + 'static,
 {
     /// Creates a ParallelBuilder.
     /// Sets up the various components and communication channels.
-    pub fn new(input: LiveBuilderInput<P, DB>, config: &ParallelBuilderConfig) -> Self {
+    pub fn new(input: LiveBuilderInput<P>, config: &ParallelBuilderConfig) -> Self {
         let (group_result_sender, group_result_receiver) = get_communication_channels();
         let group_result_sender_for_task_generator = group_result_sender.clone();
 
@@ -181,13 +177,10 @@ where
 ///
 /// # Type Parameters
 /// * `DB`: The database type, which must implement Database, Clone, and have a static lifetime.
-pub fn run_parallel_builder<P, DB>(input: LiveBuilderInput<P, DB>, config: &ParallelBuilderConfig)
+//TODO: update the docs above
+pub fn run_parallel_builder<P>(input: LiveBuilderInput<P>, config: &ParallelBuilderConfig)
 where
-    DB: Database + Clone + 'static,
-    P: DatabaseProviderFactory<DB = DB, Provider: BlockReader>
-        + StateProviderFactory
-        + Clone
-        + 'static,
+    P: StateProviderFactory + Clone + 'static,
 {
     let cancel_for_results_aggregator = input.cancel.clone();
     let cancel_for_block_building_result_assembler = input.cancel.clone();
@@ -268,16 +261,12 @@ fn run_order_intake(
     }
 }
 
-pub fn parallel_build_backtest<P, DB>(
+pub fn parallel_build_backtest<P>(
     input: BacktestSimulateBlockInput<'_, P>,
     config: ParallelBuilderConfig,
 ) -> Result<(Block, CachedReads)>
 where
-    DB: Database + Clone + 'static,
-    P: DatabaseProviderFactory<DB = DB, Provider: BlockReader>
-        + StateProviderFactory
-        + Clone
-        + 'static,
+    P: StateProviderFactory + Clone + 'static,
 {
     let start_time = Instant::now();
 
@@ -400,13 +389,9 @@ impl ParallelBuildingAlgorithm {
     }
 }
 
-impl<P, DB> BlockBuildingAlgorithm<P, DB> for ParallelBuildingAlgorithm
+impl<P> BlockBuildingAlgorithm<P> for ParallelBuildingAlgorithm
 where
-    DB: Database + Clone + 'static,
-    P: DatabaseProviderFactory<DB = DB, Provider: BlockReader>
-        + StateProviderFactory
-        + Clone
-        + 'static,
+    P: StateProviderFactory + Clone + 'static,
 {
     fn name(&self) -> String {
         self.name.clone()

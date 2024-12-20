@@ -16,9 +16,8 @@ use alloy_eips::eip4844::BlobTransactionSidecar;
 use alloy_primitives::{Address, Bytes, B256};
 use block_building_helper::BlockBuildingHelper;
 use reth::{primitives::SealedBlock, revm::cached::CachedReads};
-use reth_db::Database;
 use reth_errors::ProviderError;
-use reth_provider::{DatabaseProviderFactory, StateProviderFactory};
+use reth_provider::StateProviderFactory;
 use std::{fmt::Debug, marker::PhantomData, sync::Arc};
 use tokio::sync::{broadcast, broadcast::error::TryRecvError};
 use tokio_util::sync::CancellationToken;
@@ -39,7 +38,7 @@ pub struct Block {
 }
 
 #[derive(Debug)]
-pub struct LiveBuilderInput<P, DB> {
+pub struct LiveBuilderInput<P> {
     pub provider: P,
     pub root_hash_config: RootHashConfig,
     pub ctx: BlockBuildingContext,
@@ -47,7 +46,7 @@ pub struct LiveBuilderInput<P, DB> {
     pub sink: Arc<dyn UnfinishedBlockBuildingSink>,
     pub builder_name: String,
     pub cancel: CancellationToken,
-    phantom: PhantomData<DB>,
+    phantom: PhantomData<P>,
 }
 
 /// Struct that helps reading new orders/cancelations
@@ -214,10 +213,9 @@ pub struct BlockBuildingAlgorithmInput<P> {
 /// Algorithm to build blocks
 /// build_blocks should send block to input.sink until  input.cancel is cancelled.
 /// slot_bidder should be used to decide how much to bid.
-pub trait BlockBuildingAlgorithm<P, DB>: Debug + Send + Sync
+pub trait BlockBuildingAlgorithm<P>: Debug + Send + Sync
 where
-    DB: Database + Clone + 'static,
-    P: DatabaseProviderFactory<DB = DB> + StateProviderFactory + Clone + 'static,
+    P: StateProviderFactory + Clone + 'static,
 {
     fn name(&self) -> String;
     fn build_blocks(&self, input: BlockBuildingAlgorithmInput<P>);

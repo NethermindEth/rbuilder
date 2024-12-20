@@ -94,12 +94,7 @@ impl BundlePoolOps {
         rbuilder_config_path: impl AsRef<Path>,
     ) -> Result<Self, Error>
     where
-        DB: Database + Clone + 'static,
-        P: DatabaseProviderFactory<DB = DB, Provider: BlockReader>
-            + StateProviderFactory
-            + HeaderProvider
-            + Clone
-            + 'static,
+        P: StateProviderFactory + HeaderProvider + Clone + 'static,
     {
         // Create the payload source to trigger new block building
         let cancellation_token = CancellationToken::new();
@@ -136,7 +131,7 @@ impl BundlePoolOps {
         // Build and run the process
         let builder = config
             .base_config
-            .create_builder_with_provider_factory::<P, DB, OurSlotSource>(
+            .create_builder_with_provider_factory::<P, OurSlotSource>(
                 cancellation_token,
                 Box::new(sink_factory),
                 slot_source,
