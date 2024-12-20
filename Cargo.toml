@@ -113,6 +113,7 @@ alloy-node-bindings = { version = "0.6.4" }
 alloy-consensus = { version = "0.6.4", features = ["kzg"] }
 op-alloy-consensus = { version = "0.6.8", features = ["kzg"] }
 alloy-serde = { version = "0.6.4" }
+alloy-rpc-client = { version = "0.6.4" }
 alloy-rpc-types-beacon = { version = "0.6.4", features = ["ssz"] }
 alloy-rpc-types-engine = { version = "0.6.4", features = ["ssz"] }
 alloy-rpc-types-eth = { version = "0.6.4" }
