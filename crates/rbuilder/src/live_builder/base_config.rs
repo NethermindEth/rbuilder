@@ -3,7 +3,7 @@
 use crate::{
     building::builders::UnfinishedBlockBuildingSinkFactory,
     live_builder::{order_input::OrderInputConfig, LiveBuilder},
-    roothash::RootHashConfig,
+    roothash::{RootHashConfig, StateRootCalculator},
     telemetry::{setup_reloadable_tracing_subscriber, LoggerConfig},
     utils::{http_provider, BoxedProvider, ProviderFactoryReopener, Signer},
 };
@@ -169,8 +169,9 @@ impl BaseConfig {
             self.full_telemetry_server_port,
         ))
     }
-
+    ///
     /// WARN: opens reth db
+    ///
     pub async fn create_builder<SlotSourceType>(
         &self,
         cancellation_token: tokio_util::sync::CancellationToken,
@@ -179,6 +180,7 @@ impl BaseConfig {
     ) -> eyre::Result<
         super::LiveBuilder<
             ProviderFactoryReopener<NodeTypesWithDBAdapter<EthereumNode, Arc<DatabaseEnv>>>,
+            ProviderFactoryReopener<NodeTypesWithDBAdapter<EthereumNode, Arc<DatabaseEnv>>>,
             SlotSourceType,
         >,
     >
@@ -186,31 +188,38 @@ impl BaseConfig {
         SlotSourceType: SlotSource,
     {
         let provider_factory = self.create_provider_factory()?;
-        self.create_builder_with_provider_factory::<ProviderFactoryReopener<NodeTypesWithDBAdapter<EthereumNode, Arc<DatabaseEnv>>>, SlotSourceType>(
+        self.create_builder_with_provider_factory::<
+        ProviderFactoryReopener<NodeTypesWithDBAdapter<EthereumNode, Arc<DatabaseEnv>>>
+,
+        ProviderFactoryReopener<NodeTypesWithDBAdapter<EthereumNode, Arc<DatabaseEnv>>>
+, SlotSourceType>(
             cancellation_token,
             sink_factory,
             slot_source,
+            provider_factory.clone(),
             provider_factory,
         )
         .await
     }
 
     /// Allows instantiating a [`LiveBuilder`] with an existing provider factory
-    pub async fn create_builder_with_provider_factory<P, SlotSourceType>(
+    pub async fn create_builder_with_provider_factory<P, C, SlotSourceType>(
         &self,
         cancellation_token: tokio_util::sync::CancellationToken,
         sink_factory: Box<dyn UnfinishedBlockBuildingSinkFactory>,
         slot_source: SlotSourceType,
         provider: P,
-    ) -> eyre::Result<super::LiveBuilder<P, SlotSourceType>>
+        root_calculator: C,
+    ) -> eyre::Result<super::LiveBuilder<P, C, SlotSourceType>>
     where
         P: StateProviderFactory + HeaderProvider + Clone,
+        C: StateRootCalculator + Clone + Send + Sync + 'static,
         SlotSourceType: SlotSource,
     {
         let order_input_config = OrderInputConfig::from_config(self)?;
         let (orderpool_sender, orderpool_receiver) =
             mpsc::channel(order_input_config.input_channel_buffer_size);
-        Ok(LiveBuilder::<P, SlotSourceType> {
+        Ok(LiveBuilder::<P, C, SlotSourceType> {
             watchdog_timeout: self.watchdog_timeout(),
             error_storage_path: self.error_storage_path.clone(),
             simulation_threads: self.simulation_threads,
@@ -233,6 +242,9 @@ impl BaseConfig {
 
             orderpool_sender,
             orderpool_receiver,
+
+            root_calculator,
+
             sbundle_merger_selected_signers: Arc::new(self.sbundle_mergeable_signers()),
         })
     }

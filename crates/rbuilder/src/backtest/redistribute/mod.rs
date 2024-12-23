@@ -16,6 +16,7 @@ use crate::{
     },
     live_builder::cli::LiveBuilderConfig,
     primitives::{Order, OrderId},
+    roothash::StateRootCalculator,
     utils::{signed_uint_delta, u256decimal_serde_helper},
 };
 use ahash::{HashMap, HashSet};
@@ -117,19 +118,16 @@ pub struct RedistributionBlockOutput {
     pub joint_contribution: Vec<JointContributionData>,
 }
 
-pub fn calc_redistributions<P, DB, ConfigType>(
+pub fn calc_redistributions<P, C, ConfigType>(
     provider: P,
     config: &ConfigType,
     block_data: BlockData,
     distribute_to_mempool_txs: bool,
+    root_calculator: C,
 ) -> eyre::Result<RedistributionBlockOutput>
 where
-    DB: Database + Clone + 'static,
-    P: DatabaseProviderFactory<DB = DB, Provider: BlockReader>
-        + StateProviderFactory
-        + HeaderProvider
-        + Clone
-        + 'static,
+    P: StateProviderFactory + HeaderProvider + Clone + 'static,
+    C: StateRootCalculator + Clone + Send + Sync + 'static,
     ConfigType: LiveBuilderConfig,
 {
     let _block_span = info_span!("block", block = block_data.block_number).entered();
@@ -154,8 +152,12 @@ where
         distribute_to_mempool_txs,
     );
 
-    let results_without_exclusion =
-        calculate_backtest_without_exclusion(provider.clone(), config, block_data.clone())?;
+    let results_without_exclusion = calculate_backtest_without_exclusion(
+        provider.clone(),
+        root_calculator.clone(),
+        config,
+        block_data.clone(),
+    )?;
 
     let exclusion_results = calculate_backtest_identity_and_order_exclusion(
         provider.clone(),
@@ -163,6 +165,7 @@ where
         block_data.clone(),
         &available_orders,
         &results_without_exclusion,
+        root_calculator.clone(),
     )?;
 
     let exclusion_results = calc_joint_exclusion_results(
@@ -173,6 +176,7 @@ where
         &results_without_exclusion,
         exclusion_results,
         distribute_to_mempool_txs,
+        root_calculator.clone(),
     )?;
 
     let calculated_redistribution_result = apply_redistribution_formula(
@@ -480,18 +484,15 @@ impl ResultsWithoutExclusion {
     }
 }
 
-fn calculate_backtest_without_exclusion<P, DB, ConfigType>(
+fn calculate_backtest_without_exclusion<P, C, ConfigType>(
     provider: P,
+    root_calculator: C,
     config: &ConfigType,
     block_data: BlockData,
 ) -> eyre::Result<ResultsWithoutExclusion>
 where
-    DB: Database + Clone + 'static,
-    P: DatabaseProviderFactory<DB = DB, Provider: BlockReader>
-        + StateProviderFactory
-        + HeaderProvider
-        + Clone
-        + 'static,
+    P: StateProviderFactory + HeaderProvider + Clone + 'static,
+    C: StateRootCalculator + Send + Sync + Clone + 'static,
     ConfigType: LiveBuilderConfig,
 {
     let ExclusionResult {
@@ -509,6 +510,7 @@ where
             orders_excluded_before: vec![],
             profit_before: U256::ZERO,
         },
+        root_calculator.clone(),
     )?;
     Ok(ResultsWithoutExclusion {
         profit,
@@ -548,20 +550,17 @@ impl ExclusionResults {
     }
 }
 
-fn calculate_backtest_identity_and_order_exclusion<P, DB, ConfigType>(
+fn calculate_backtest_identity_and_order_exclusion<P, C, ConfigType>(
     provider: P,
     config: &ConfigType,
     block_data: BlockData,
     available_orders: &AvailableOrders,
     results_without_exclusion: &ResultsWithoutExclusion,
+    root_calculator: C,
 ) -> eyre::Result<ExclusionResults>
 where
-    DB: Database + Clone + 'static,
-    P: DatabaseProviderFactory<DB = DB, Provider: BlockReader>
-        + StateProviderFactory
-        + HeaderProvider
-        + Clone
-        + 'static,
+    P: StateProviderFactory + HeaderProvider + Clone + 'static,
+    C: StateRootCalculator + Clone + Send + Sync + 'static,
     ConfigType: LiveBuilderConfig,
 {
     let included_orders_exclusion = {
@@ -588,6 +587,7 @@ where
                     config,
                     &block_data,
                     results_without_exclusion.exclusion_input(exclusions),
+                    root_calculator.clone(),
                 )
                 .map(|ok| (id, ok))
             })
@@ -609,6 +609,7 @@ where
                 config,
                 &block_data,
                 results_without_exclusion.exclusion_input(orders),
+                root_calculator.clone(),
             )
             .map(|ok| (address, ok))
         })
@@ -621,7 +622,7 @@ where
     })
 }
 
-fn calc_joint_exclusion_results<P, DB, ConfigType>(
+fn calc_joint_exclusion_results<P, C, ConfigType>(
     provider: P,
     config: &ConfigType,
     block_data: BlockData,
@@ -629,14 +630,11 @@ fn calc_joint_exclusion_results<P, DB, ConfigType>(
     results_without_exclusion: &ResultsWithoutExclusion,
     mut exclusion_results: ExclusionResults,
     distribute_to_mempool_txs: bool,
+    root_calculator: C,
 ) -> eyre::Result<ExclusionResults>
 where
-    DB: Database + Clone + 'static,
-    P: DatabaseProviderFactory<DB = DB, Provider: BlockReader>
-        + StateProviderFactory
-        + HeaderProvider
-        + Clone
-        + 'static,
+    P: StateProviderFactory + HeaderProvider + Clone + 'static,
+    C: StateRootCalculator + Send + Sync + Clone + 'static,
     ConfigType: LiveBuilderConfig,
 {
     // calculate identities that are possibly connected
@@ -700,6 +698,7 @@ where
                 config,
                 &block_data,
                 results_without_exclusion.exclusion_input(orders),
+                root_calculator.clone(),
             )
             .map(|ok| ((address1, address2), ok))
         })
@@ -962,19 +961,16 @@ struct ExclusionResult {
 }
 
 /// calculate block profit excluding some orders
-fn calc_profit_after_exclusion<P, DB, ConfigType>(
+fn calc_profit_after_exclusion<P, C, ConfigType>(
     provider: P,
     config: &ConfigType,
     block_data: &BlockData,
     exclusion_input: ExclusionInput,
+    root_calculator: C,
 ) -> eyre::Result<ExclusionResult>
 where
-    DB: Database + Clone + 'static,
-    P: DatabaseProviderFactory<DB = DB, Provider: BlockReader>
-        + StateProviderFactory
-        + HeaderProvider
-        + Clone
-        + 'static,
+    P: StateProviderFactory + HeaderProvider + Clone + 'static,
+    C: StateRootCalculator + Clone + Send + Sync + 'static,
     ConfigType: LiveBuilderConfig,
 {
     let block_data_with_excluded = {
@@ -1011,6 +1007,7 @@ where
         config,
         base_config.blocklist()?,
         &base_config.sbundle_mergeable_signers(),
+        root_calculator,
     )?
     .builder_outputs
     .into_iter()

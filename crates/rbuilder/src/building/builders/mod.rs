@@ -38,7 +38,7 @@ pub struct Block {
 }
 
 #[derive(Debug)]
-pub struct LiveBuilderInput<P> {
+pub struct LiveBuilderInput<P, C> {
     pub provider: P,
     pub root_hash_config: RootHashConfig,
     pub ctx: BlockBuildingContext,
@@ -47,6 +47,8 @@ pub struct LiveBuilderInput<P> {
     pub builder_name: String,
     pub cancel: CancellationToken,
     phantom: PhantomData<P>,
+
+    root_calculator: C,
 }
 
 /// Struct that helps reading new orders/cancelations
@@ -201,24 +203,26 @@ pub trait UnfinishedBlockBuildingSink: std::fmt::Debug + Send + Sync {
 }
 
 #[derive(Debug)]
-pub struct BlockBuildingAlgorithmInput<P> {
+pub struct BlockBuildingAlgorithmInput<P, C> {
     pub provider: P,
     pub ctx: BlockBuildingContext,
     pub input: broadcast::Receiver<SimulatedOrderCommand>,
     /// output for the blocks
     pub sink: Arc<dyn UnfinishedBlockBuildingSink>,
     pub cancel: CancellationToken,
+
+    pub root_calculator: C,
 }
 
 /// Algorithm to build blocks
 /// build_blocks should send block to input.sink until  input.cancel is cancelled.
 /// slot_bidder should be used to decide how much to bid.
-pub trait BlockBuildingAlgorithm<P>: Debug + Send + Sync
+pub trait BlockBuildingAlgorithm<P, C>: Debug + Send + Sync
 where
     P: StateProviderFactory + Clone + 'static,
 {
     fn name(&self) -> String;
-    fn build_blocks(&self, input: BlockBuildingAlgorithmInput<P>);
+    fn build_blocks(&self, input: BlockBuildingAlgorithmInput<P, C>);
 }
 
 /// Factory used to create UnfinishedBlockBuildingSink for builders.
@@ -233,12 +237,14 @@ pub trait UnfinishedBlockBuildingSinkFactory: Debug + Send + Sync {
 }
 
 /// Basic configuration to run a single block building with a BlockBuildingAlgorithm
-pub struct BacktestSimulateBlockInput<'a, P> {
+pub struct BacktestSimulateBlockInput<'a, P, C> {
     pub ctx: BlockBuildingContext,
     pub builder_name: String,
     pub sim_orders: &'a Vec<SimulatedOrder>,
     pub provider: P,
     pub cached_reads: Option<CachedReads>,
+
+    pub root_calculator: C,
 }
 
 /// Handles error from block filling stage.

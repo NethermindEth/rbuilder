@@ -172,13 +172,14 @@ where
                     let block_number = block_data.block_number;
                     match backtest_simulate_block(
                         block_data,
-                        provider_factory,
+                        provider_factory.clone(),
                         chain_spec,
                         lag as i64,
                         builders_names,
                         &config,
                         blocklist,
                         &config.base_config().sbundle_mergeable_signers(),
+                        provider_factory,
                     ) {
                         Ok(ok) => Some(ok),
                         Err(err) => {

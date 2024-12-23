@@ -14,6 +14,7 @@ use crate::{
     live_builder::{
         base_config::load_config_toml_and_env, payload_events::MevBoostSlotDataGenerator,
     },
+    roothash::StateRootCalculator,
     telemetry,
     utils::build_info::Version,
 };
@@ -50,23 +51,27 @@ pub trait LiveBuilderConfig: Debug + DeserializeOwned + Sync {
     /// Create a concrete builder
     ///
     /// Desugared from async to future to keep clippy happy
-    fn new_builder<P>(
+    fn new_builder<P, C>(
         &self,
         provider: P,
         cancellation_token: CancellationToken,
-    ) -> impl std::future::Future<Output = eyre::Result<LiveBuilder<P, MevBoostSlotDataGenerator>>> + Send
+        root_calculator: C,
+    ) -> impl std::future::Future<Output = eyre::Result<LiveBuilder<P, C, MevBoostSlotDataGenerator>>>
+           + Send
     where
-        P: StateProviderFactory + HeaderProvider + Clone + 'static;
+        P: StateProviderFactory + HeaderProvider + Clone + 'static,
+        C: StateRootCalculator + Clone + Send + Sync + 'static;
 
     /// Patch until we have a unified way of backtesting using the exact algorithms we use on the LiveBuilder.
     /// building_algorithm_name will come from the specific configuration.
-    fn build_backtest_block<P>(
+    fn build_backtest_block<P, C>(
         &self,
         building_algorithm_name: &str,
-        input: BacktestSimulateBlockInput<'_, P>,
+        input: BacktestSimulateBlockInput<'_, P, C>,
     ) -> eyre::Result<(Block, CachedReads)>
     where
-        P: StateProviderFactory + Clone + 'static;
+        P: StateProviderFactory + Clone + 'static,
+        C: StateRootCalculator + Clone + Send + Sync + 'static;
 }
 
 /// print_version_info func that will be called on command Cli::Version
@@ -114,7 +119,9 @@ where
     )
     .await?;
     let provider = config.base_config().create_provider_factory()?;
-    let builder = config.new_builder(provider, cancel.clone()).await?;
+    let builder = config
+        .new_builder(provider.clone(), cancel.clone(), provider)
+        .await?;
 
     let ctrlc = tokio::spawn(async move {
         ctrl_c().await.unwrap_or_default();

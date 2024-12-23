@@ -26,6 +26,7 @@ use rbuilder::{
         SlotSource,
     },
     primitives::{Bundle, BundleReplacementKey, Order},
+    roothash::StateRootCalculator,
     telemetry,
 };
 use reth_db_api::Database;
@@ -89,10 +90,7 @@ impl SlotSource for OurSlotSource {
 }
 
 impl BundlePoolOps {
-    pub async fn new<P, DB>(
-        provider: P,
-        rbuilder_config_path: impl AsRef<Path>,
-    ) -> Result<Self, Error>
+    pub async fn new<P>(provider: P, rbuilder_config_path: impl AsRef<Path>) -> Result<Self, Error>
     where
         P: StateProviderFactory + HeaderProvider + Clone + 'static,
     {
@@ -131,11 +129,12 @@ impl BundlePoolOps {
         // Build and run the process
         let builder = config
             .base_config
-            .create_builder_with_provider_factory::<P, OurSlotSource>(
+            .create_builder_with_provider_factory::<P, BundlePoolOpsRootCalculator, OurSlotSource>(
                 cancellation_token,
                 Box::new(sink_factory),
                 slot_source,
                 provider,
+                BundlePoolOpsRootCalculator,
             )
             .await
             .unwrap()
@@ -173,6 +172,14 @@ impl BundlePoolOps {
             payload_attributes_tx,
             orderpool_tx,
         })
+    }
+}
+
+#[derive(Clone)]
+struct BundlePoolOpsRootCalculator;
+impl StateRootCalculator for BundlePoolOpsRootCalculator {
+    fn calculate(&self) -> Result<alloy_primitives::B256, rbuilder::roothash::RootHashError> {
+        todo!()
     }
 }
 

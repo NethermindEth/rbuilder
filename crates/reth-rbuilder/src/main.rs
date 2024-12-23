@@ -8,6 +8,7 @@
 use clap::{Args, Parser};
 use rbuilder::{
     live_builder::{base_config::load_config_toml_and_env, cli::LiveBuilderConfig, config::Config},
+    roothash::StateRootCalculator,
     telemetry,
 };
 use reth::{chainspec::EthereumChainSpecParser, cli::Cli};
@@ -147,7 +148,9 @@ where
                 config.base_config.log_enable_dynamic,
             )
             .await?;
-            let builder = config.new_builder(provider, Default::default()).await?;
+            let builder = config
+                .new_builder(provider, Default::default(), RethRootCalculator)
+                .await?;
 
             builder.run().await?;
 
@@ -163,4 +166,13 @@ where
         error!("rbuilder stopped unexpectedly");
         process::exit(1);
     });
+}
+
+#[derive(Clone)]
+struct RethRootCalculator;
+
+impl StateRootCalculator for RethRootCalculator {
+    fn calculate(&self) -> Result<reth::revm::primitives::B256, rbuilder::roothash::RootHashError> {
+        todo!()
+    }
 }

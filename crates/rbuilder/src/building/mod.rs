@@ -20,7 +20,7 @@ use reth_provider::{BlockReader, DatabaseProviderFactory, StateProviderFactory};
 
 use crate::{
     primitives::{Order, OrderId, SimValue, SimulatedOrder, TransactionSignedEcRecoveredWithBlobs},
-    roothash::{calculate_state_root, RootHashConfig, RootHashError},
+    roothash::{RootCalculator, RootHashConfig, RootHashError, StateRootCalculator},
     utils::{a2r_withdrawal, calc_gas_limit, timestamp_as_u64, Signer},
 };
 use ahash::HashSet;
@@ -597,19 +597,17 @@ impl<Tracer: SimulationTracer> PartialBlock<Tracer> {
 
     /// Mostly based on reth's (v1.1.1) default_ethereum_payload_builder.
     #[allow(clippy::too_many_arguments)]
-    pub fn finalize<P, DB>(
+    pub fn finalize<P, C>(
         self,
         state: &mut BlockState,
         ctx: &BlockBuildingContext,
         provider: P,
         root_hash_config: RootHashConfig,
+        root_calculator: C,
     ) -> Result<FinalizeResult, FinalizeError>
     where
-        DB: Database + Clone + 'static,
-        P: DatabaseProviderFactory<DB = DB, Provider: BlockReader>
-            + StateProviderFactory
-            + Clone
-            + 'static,
+        P: StateProviderFactory + Clone + Send + Sync + 'static,
+        C: StateRootCalculator,
     {
         let requests = if ctx
             .chain_spec
@@ -670,7 +668,7 @@ impl<Tracer: SimulationTracer> PartialBlock<Tracer> {
         let block_number = ctx.block_env.number.to::<u64>();
 
         let requests_hash = requests.as_ref().map(|requests| requests.requests_hash());
-        let execution_outcome = ExecutionOutcome::new(
+        let execution_outcome = ExecutionOutcome::<Receipt>::new(
             bundle,
             Receipts::from(vec![self
                 .receipts
@@ -690,13 +688,14 @@ impl<Tracer: SimulationTracer> PartialBlock<Tracer> {
 
         // calculate the state root
         let start = Instant::now();
-        let state_root = calculate_state_root(
-            provider,
-            ctx.attributes.parent,
-            &execution_outcome,
-            ctx.shared_sparse_mpt_cache.clone(),
-            root_hash_config,
-        )?;
+        //let root_calculator = RootCalculator::new(
+        //    provider,
+        //    ctx.attributes.parent,
+        //    execution_outcome,
+        //    ctx.shared_sparse_mpt_cache.clone(),
+        //    root_hash_config,
+        //);
+        let state_root = root_calculator.calculate()?;
         let root_hash_time = start.elapsed();
 
         // create the block header

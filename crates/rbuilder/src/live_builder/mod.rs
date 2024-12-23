@@ -18,6 +18,7 @@ use crate::{
         simulation::OrderSimulationPool,
         watchdog::spawn_watchdog_thread,
     },
+    roothash::StateRootCalculator,
     telemetry::inc_active_slots,
     utils::{error_storage::spawn_error_storage_writer, Signer},
 };
@@ -81,9 +82,10 @@ pub trait SlotSource {
 /// # Usage
 /// Create and run()
 #[derive(Debug)]
-pub struct LiveBuilder<P, BlocksSourceType>
+pub struct LiveBuilder<P, C, BlocksSourceType>
 where
     P: StateProviderFactory + Clone,
+    C: StateRootCalculator + Clone + Send + Sync,
     BlocksSourceType: SlotSource,
 {
     pub watchdog_timeout: Option<Duration>,
@@ -103,25 +105,28 @@ where
     pub global_cancellation: CancellationToken,
 
     pub sink_factory: Box<dyn UnfinishedBlockBuildingSinkFactory>,
-    pub builders: Vec<Arc<dyn BlockBuildingAlgorithm<P>>>,
+    pub builders: Vec<Arc<dyn BlockBuildingAlgorithm<P, C>>>,
     pub extra_rpc: RpcModule<()>,
 
     /// Notify rbuilder of new [`ReplaceableOrderPoolCommand`] flow via this channel.
     pub orderpool_sender: mpsc::Sender<ReplaceableOrderPoolCommand>,
     pub orderpool_receiver: mpsc::Receiver<ReplaceableOrderPoolCommand>,
     pub sbundle_merger_selected_signers: Arc<Vec<Address>>,
+
+    pub root_calculator: C,
 }
 
-impl<P, BlocksSourceType: SlotSource> LiveBuilder<P, BlocksSourceType>
+impl<P, C, BlocksSourceType: SlotSource> LiveBuilder<P, C, BlocksSourceType>
 where
     P: StateProviderFactory + HeaderProvider + Clone + 'static,
+    C: StateRootCalculator + Clone + Send + Sync + 'static,
     BlocksSourceType: SlotSource,
 {
     pub fn with_extra_rpc(self, extra_rpc: RpcModule<()>) -> Self {
         Self { extra_rpc, ..self }
     }
 
-    pub fn with_builders(self, builders: Vec<Arc<dyn BlockBuildingAlgorithm<P>>>) -> Self {
+    pub fn with_builders(self, builders: Vec<Arc<dyn BlockBuildingAlgorithm<P, C>>>) -> Self {
         Self { builders, ..self }
     }
 
@@ -174,6 +179,7 @@ where
             order_simulation_pool,
             self.run_sparse_trie_prefetcher,
             self.sbundle_merger_selected_signers.clone(),
+            self.root_calculator,
         );
 
         let watchdog_sender = match self.watchdog_timeout {

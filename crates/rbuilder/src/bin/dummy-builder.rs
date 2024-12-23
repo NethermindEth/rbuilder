@@ -34,7 +34,7 @@ use rbuilder::{
         mev_boost::{MevBoostRelay, RelayConfig},
         SimulatedOrder,
     },
-    roothash::RootHashConfig,
+    roothash::{RootHashConfig, StateRootCalculator},
     utils::{ProviderFactoryReopener, Signer},
 };
 use reth_chainspec::MAINNET;
@@ -87,7 +87,15 @@ async fn main() -> eyre::Result<()> {
     );
     let (orderpool_sender, orderpool_receiver) =
         mpsc::channel(order_input_config.input_channel_buffer_size);
+    let provider = create_provider_factory(
+        Some(&RETH_DB_PATH.parse::<PathBuf>().unwrap()),
+        None,
+        None,
+        chain_spec.clone(),
+    )?;
+
     let builder = LiveBuilder::<
+        ProviderFactoryReopener<NodeTypesWithDBAdapter<EthereumNode, Arc<DatabaseEnv>>>,
         ProviderFactoryReopener<NodeTypesWithDBAdapter<EthereumNode, Arc<DatabaseEnv>>>,
         MevBoostSlotDataGenerator,
     > {
@@ -97,12 +105,7 @@ async fn main() -> eyre::Result<()> {
         blocks_source: payload_event,
         order_input_config,
         chain_chain_spec: chain_spec.clone(),
-        provider: create_provider_factory(
-            Some(&RETH_DB_PATH.parse::<PathBuf>().unwrap()),
-            None,
-            None,
-            chain_spec.clone(),
-        )?,
+        provider: provider.clone(),
         coinbase_signer: Signer::random(),
         extra_data: Vec::new(),
         blocklist: Default::default(),
@@ -114,6 +117,7 @@ async fn main() -> eyre::Result<()> {
         orderpool_sender,
         orderpool_receiver,
         sbundle_merger_selected_signers: Default::default(),
+        root_calculator: provider,
     };
 
     let ctrlc = tokio::spawn(async move {
@@ -198,17 +202,20 @@ impl DummyBuildingAlgorithm {
         }
     }
 
-    fn build_block<P>(
+    fn build_block<P, C>(
         &self,
         orders: Vec<SimulatedOrder>,
         provider: P,
         ctx: &BlockBuildingContext,
+        root_calculator: C,
     ) -> eyre::Result<Box<dyn BlockBuildingHelper>>
     where
         P: StateProviderFactory + Clone + 'static,
+        C: StateRootCalculator + Clone + Send + Sync + 'static,
     {
         let mut block_building_helper = BlockBuildingHelperFromProvider::new(
             provider.clone(),
+            root_calculator,
             RootHashConfig::live_config(false, false),
             ctx.clone(),
             None,
@@ -226,18 +233,19 @@ impl DummyBuildingAlgorithm {
     }
 }
 
-impl<P> BlockBuildingAlgorithm<P> for DummyBuildingAlgorithm
+impl<P, C> BlockBuildingAlgorithm<P, C> for DummyBuildingAlgorithm
 where
     P: StateProviderFactory + Clone + 'static,
+    C: StateRootCalculator + Clone + Send + Sync + 'static,
 {
     fn name(&self) -> String {
         BUILDER_NAME.to_string()
     }
 
-    fn build_blocks(&self, input: BlockBuildingAlgorithmInput<P>) {
+    fn build_blocks(&self, input: BlockBuildingAlgorithmInput<P, C>) {
         if let Some(orders) = self.wait_for_orders(&input.cancel, input.input) {
             let block = self
-                .build_block(orders, input.provider, &input.ctx)
+                .build_block(orders, input.provider, &input.ctx, input.root_calculator)
                 .unwrap();
             input.sink.new_block(block);
         }

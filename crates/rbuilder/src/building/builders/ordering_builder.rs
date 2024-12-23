@@ -14,7 +14,7 @@ use crate::{
         BlockBuildingContext, BlockOrders, ExecutionError, Sorting,
     },
     primitives::{AccountNonce, OrderId},
-    roothash::RootHashConfig,
+    roothash::{RootHashConfig, StateRootCalculator},
 };
 use ahash::{HashMap, HashSet};
 use reth::revm::cached::CachedReads;
@@ -61,9 +61,10 @@ impl OrderingBuilderConfig {
     }
 }
 
-pub fn run_ordering_builder<P>(input: LiveBuilderInput<P>, config: &OrderingBuilderConfig)
+pub fn run_ordering_builder<P, C>(input: LiveBuilderInput<P, C>, config: &OrderingBuilderConfig)
 where
     P: StateProviderFactory + Clone + 'static,
+    C: StateRootCalculator + Clone + Send + Sync + 'static,
 {
     let mut order_intake_consumer = OrderIntakeConsumer::new(
         input.provider.clone(),
@@ -78,6 +79,7 @@ where
         input.ctx,
         config.clone(),
         input.root_hash_config,
+        input.root_calculator.clone(),
     );
 
     // this is a hack to mark used orders until built block trace is implemented as a sane thing
@@ -126,12 +128,13 @@ where
     }
 }
 
-pub fn backtest_simulate_block<P>(
+pub fn backtest_simulate_block<P, C>(
     ordering_config: OrderingBuilderConfig,
-    input: BacktestSimulateBlockInput<'_, P>,
+    input: BacktestSimulateBlockInput<'_, P, C>,
 ) -> eyre::Result<(Block, CachedReads)>
 where
     P: StateProviderFactory + Clone + 'static,
+    C: StateRootCalculator + Clone + Send + Sync + 'static,
 {
     let use_suggested_fee_recipient_as_coinbase = ordering_config.coinbase_payment;
     let state_provider = input
@@ -145,6 +148,7 @@ where
         input.ctx.clone(),
         ordering_config,
         RootHashConfig::skip_root_hash(),
+        input.root_calculator.clone(),
     )
     .with_cached_reads(input.cached_reads.unwrap_or_default());
     let block_builder = builder.build_block(
@@ -166,7 +170,7 @@ where
 }
 
 #[derive(Debug)]
-pub struct OrderingBuilderContext<P> {
+pub struct OrderingBuilderContext<P, C> {
     provider: P,
     builder_name: String,
     ctx: BlockBuildingContext,
@@ -182,11 +186,13 @@ pub struct OrderingBuilderContext<P> {
 
     //TODO: delete me?
     phantom: PhantomData<P>,
+    root_calculator: C,
 }
 
-impl<P> OrderingBuilderContext<P>
+impl<P, C> OrderingBuilderContext<P, C>
 where
     P: StateProviderFactory + Clone + 'static,
+    C: StateRootCalculator + Clone + Send + Sync + 'static,
 {
     pub fn new(
         provider: P,
@@ -194,6 +200,7 @@ where
         ctx: BlockBuildingContext,
         config: OrderingBuilderConfig,
         root_hash_config: RootHashConfig,
+        root_calculator: C,
     ) -> Self {
         Self {
             provider,
@@ -204,6 +211,7 @@ where
             cached_reads: None,
             failed_orders: HashSet::default(),
             order_attempts: HashMap::default(),
+            root_calculator,
             phantom: PhantomData,
         }
     }
@@ -244,6 +252,7 @@ where
 
         let mut block_building_helper = BlockBuildingHelperFromProvider::new(
             self.provider.clone(),
+            self.root_calculator.clone(),
             self.root_hash_config.clone(),
             new_ctx,
             self.cached_reads.take(),
@@ -347,15 +356,16 @@ impl OrderingBuildingAlgorithm {
     }
 }
 
-impl<P> BlockBuildingAlgorithm<P> for OrderingBuildingAlgorithm
+impl<P, C> BlockBuildingAlgorithm<P, C> for OrderingBuildingAlgorithm
 where
     P: StateProviderFactory + Clone + 'static,
+    C: StateRootCalculator + Clone + Send + Sync + 'static,
 {
     fn name(&self) -> String {
         self.name.clone()
     }
 
-    fn build_blocks(&self, input: BlockBuildingAlgorithmInput<P>) {
+    fn build_blocks(&self, input: BlockBuildingAlgorithmInput<P, C>) {
         let live_input = LiveBuilderInput {
             provider: input.provider,
             root_hash_config: self.root_hash_config.clone(),
@@ -365,6 +375,7 @@ where
             builder_name: self.name.clone(),
             cancel: input.cancel,
             phantom: Default::default(),
+            root_calculator: input.root_calculator,
         };
         run_ordering_builder(live_input, &self.config);
     }

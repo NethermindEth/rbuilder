@@ -10,7 +10,7 @@ use crate::{
     },
     live_builder::{payload_events::MevBoostSlotData, simulation::SlotOrderSimResults},
     primitives::{OrderId, SimulatedOrder},
-    roothash::run_trie_prefetcher,
+    roothash::{run_trie_prefetcher, StateRootCalculator},
 };
 use reth_provider::StateProviderFactory;
 use revm_primitives::Address;
@@ -27,30 +27,34 @@ use super::{
 };
 
 #[derive(Debug)]
-pub struct BlockBuildingPool<P> {
+pub struct BlockBuildingPool<P, C> {
     provider: P,
-    builders: Vec<Arc<dyn BlockBuildingAlgorithm<P>>>,
+    builders: Vec<Arc<dyn BlockBuildingAlgorithm<P, C>>>,
     sink_factory: Box<dyn UnfinishedBlockBuildingSinkFactory>,
     orderpool_subscriber: order_input::OrderPoolSubscriber,
     order_simulation_pool: OrderSimulationPool<P>,
     run_sparse_trie_prefetcher: bool,
     sbundle_merger_selected_signers: Arc<Vec<Address>>,
     //TODO: remove me?
-    phantom: PhantomData<P>,
+    phantom: PhantomData<C>,
+
+    root_calculator: C,
 }
 
-impl<P> BlockBuildingPool<P>
+impl<P, C> BlockBuildingPool<P, C>
 where
     P: StateProviderFactory + Clone + 'static,
+    C: StateRootCalculator + Clone + Send + Sync + 'static,
 {
     pub fn new(
         provider: P,
-        builders: Vec<Arc<dyn BlockBuildingAlgorithm<P>>>,
+        builders: Vec<Arc<dyn BlockBuildingAlgorithm<P, C>>>,
         sink_factory: Box<dyn UnfinishedBlockBuildingSinkFactory>,
         orderpool_subscriber: order_input::OrderPoolSubscriber,
         order_simulation_pool: OrderSimulationPool<P>,
         run_sparse_trie_prefetcher: bool,
         sbundle_merger_selected_signers: Arc<Vec<Address>>,
+        root_calculator: C,
     ) -> Self {
         BlockBuildingPool {
             provider,
@@ -60,6 +64,7 @@ where
             order_simulation_pool,
             run_sparse_trie_prefetcher,
             sbundle_merger_selected_signers,
+            root_calculator,
             phantom: PhantomData,
         }
     }
@@ -118,12 +123,13 @@ where
         for builder in self.builders.iter() {
             let builder_name = builder.name();
             debug!(block = block_number, builder_name, "Spawning builder job");
-            let input = BlockBuildingAlgorithmInput::<P> {
+            let input = BlockBuildingAlgorithmInput::<P, C> {
                 provider: self.provider.clone(),
                 ctx: ctx.clone(),
                 input: broadcast_input.subscribe(),
                 sink: builder_sink.clone(),
                 cancel: cancel.clone(),
+                root_calculator: self.root_calculator.clone(),
             };
             let builder = builder.clone();
             tokio::task::spawn_blocking(move || {

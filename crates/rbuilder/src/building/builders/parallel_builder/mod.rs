@@ -33,7 +33,7 @@ use crate::{
         BacktestSimulateBlockInput, Block, BlockBuildingAlgorithm, BlockBuildingAlgorithmInput,
         LiveBuilderInput,
     },
-    roothash::RootHashConfig,
+    roothash::{RootHashConfig, StateRootCalculator},
 };
 use reth::revm::cached::CachedReads;
 use reth_db::database::Database;
@@ -72,22 +72,25 @@ fn get_shared_data_structures() -> (Arc<BestResults>, TaskQueue) {
     (best_results, task_queue)
 }
 
-struct ParallelBuilder<P> {
+struct ParallelBuilder<P, C> {
     order_intake_consumer: OrderIntakeStore,
     conflict_finder: ConflictFinder,
     conflict_task_generator: ConflictTaskGenerator,
     conflict_resolving_pool: ConflictResolvingPool<P>,
     results_aggregator: ResultsAggregator,
-    block_building_result_assembler: BlockBuildingResultAssembler<P>,
+    block_building_result_assembler: BlockBuildingResultAssembler<P, C>,
+
+    phantom: std::marker::PhantomData<C>,
 }
 
-impl<P> ParallelBuilder<P>
+impl<P, C> ParallelBuilder<P, C>
 where
     P: StateProviderFactory + Clone + 'static,
+    C: StateRootCalculator + Clone + Send + Sync + 'static,
 {
     /// Creates a ParallelBuilder.
     /// Sets up the various components and communication channels.
-    pub fn new(input: LiveBuilderInput<P>, config: &ParallelBuilderConfig) -> Self {
+    pub fn new(input: LiveBuilderInput<P, C>, config: &ParallelBuilderConfig) -> Self {
         let (group_result_sender, group_result_receiver) = get_communication_channels();
         let group_result_sender_for_task_generator = group_result_sender.clone();
 
@@ -125,6 +128,7 @@ where
             input.builder_name.clone(),
             input.sink.can_use_suggested_fee_recipient_as_coinbase(),
             Some(input.sink.clone()),
+            input.root_calculator.clone(),
         );
 
         let order_intake_consumer = OrderIntakeStore::new(input.input);
@@ -136,6 +140,8 @@ where
             conflict_resolving_pool,
             results_aggregator,
             block_building_result_assembler,
+
+            phantom: std::marker::PhantomData,
         }
     }
 
@@ -178,9 +184,10 @@ where
 /// # Type Parameters
 /// * `DB`: The database type, which must implement Database, Clone, and have a static lifetime.
 //TODO: update the docs above
-pub fn run_parallel_builder<P>(input: LiveBuilderInput<P>, config: &ParallelBuilderConfig)
+pub fn run_parallel_builder<P, C>(input: LiveBuilderInput<P, C>, config: &ParallelBuilderConfig)
 where
     P: StateProviderFactory + Clone + 'static,
+    C: StateRootCalculator + Clone + Send + Sync + 'static,
 {
     let cancel_for_results_aggregator = input.cancel.clone();
     let cancel_for_block_building_result_assembler = input.cancel.clone();
@@ -261,12 +268,13 @@ fn run_order_intake(
     }
 }
 
-pub fn parallel_build_backtest<P>(
-    input: BacktestSimulateBlockInput<'_, P>,
+pub fn parallel_build_backtest<P, C>(
+    input: BacktestSimulateBlockInput<'_, P, C>,
     config: ParallelBuilderConfig,
 ) -> Result<(Block, CachedReads)>
 where
     P: StateProviderFactory + Clone + 'static,
+    C: StateRootCalculator + Clone + Send + Sync + 'static,
 {
     let start_time = Instant::now();
 
@@ -326,6 +334,7 @@ where
         String::from("backtest_builder"),
         true,
         None,
+        input.root_calculator.clone(),
     );
     let assembler_duration = assembler_start.elapsed();
 
@@ -389,15 +398,16 @@ impl ParallelBuildingAlgorithm {
     }
 }
 
-impl<P> BlockBuildingAlgorithm<P> for ParallelBuildingAlgorithm
+impl<P, C> BlockBuildingAlgorithm<P, C> for ParallelBuildingAlgorithm
 where
     P: StateProviderFactory + Clone + 'static,
+    C: StateRootCalculator + Clone + Send + Sync + 'static,
 {
     fn name(&self) -> String {
         self.name.clone()
     }
 
-    fn build_blocks(&self, input: BlockBuildingAlgorithmInput<P>) {
+    fn build_blocks(&self, input: BlockBuildingAlgorithmInput<P, C>) {
         let live_input = LiveBuilderInput {
             provider: input.provider,
             root_hash_config: self.root_hash_config.clone(),
@@ -407,6 +417,7 @@ where
             builder_name: self.name.clone(),
             cancel: input.cancel,
             phantom: Default::default(),
+            root_calculator: input.root_calculator,
         };
         run_parallel_builder(live_input, &self.config);
     }

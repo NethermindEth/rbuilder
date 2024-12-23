@@ -126,6 +126,7 @@ where
                     builder_name: builder_name.clone(),
                     sim_orders: &sim_orders,
                     provider: provider_factory.clone(),
+                    root_calculator: provider_factory.clone(),
                     cached_reads: None,
                 };
                 let build_res = config.build_backtest_block(builder_name, input);

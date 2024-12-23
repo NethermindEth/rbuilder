@@ -32,7 +32,7 @@ use crate::{
     },
     mev_boost::BLSBlockSigner,
     primitives::mev_boost::{MevBoostRelay, RelayConfig},
-    roothash::RootHashConfig,
+    roothash::{RootHashConfig, StateRootCalculator},
     utils::{build_info::rbuilder_version, ProviderFactoryReopener, Signer},
     validation_api_client::ValidationAPIClient,
 };
@@ -290,13 +290,15 @@ impl LiveBuilderConfig for Config {
     fn base_config(&self) -> &BaseConfig {
         &self.base_config
     }
-    async fn new_builder<P>(
+    async fn new_builder<P, C>(
         &self,
         provider: P,
         cancellation_token: tokio_util::sync::CancellationToken,
-    ) -> eyre::Result<super::LiveBuilder<P, MevBoostSlotDataGenerator>>
+        root_calculator: C,
+    ) -> eyre::Result<super::LiveBuilder<P, C, MevBoostSlotDataGenerator>>
     where
         P: StateProviderFactory + HeaderProvider + Clone + 'static,
+        C: StateRootCalculator + Clone + Send + Sync + 'static,
     {
         let (sink_sealed_factory, relays) = self.l1_config.create_relays_sealed_sink_factory(
             self.base_config.chain_spec()?,
@@ -332,6 +334,7 @@ impl LiveBuilderConfig for Config {
                 sink_factory,
                 payload_event,
                 provider,
+                root_calculator,
             )
             .await?;
         let root_hash_config = self.base_config.live_root_hash_config()?;
@@ -343,13 +346,14 @@ impl LiveBuilderConfig for Config {
         rbuilder_version()
     }
 
-    fn build_backtest_block<P>(
+    fn build_backtest_block<P, C>(
         &self,
         building_algorithm_name: &str,
-        input: BacktestSimulateBlockInput<'_, P>,
+        input: BacktestSimulateBlockInput<'_, P, C>,
     ) -> eyre::Result<(Block, CachedReads)>
     where
         P: StateProviderFactory + Clone + 'static,
+        C: StateRootCalculator + Clone + Send + Sync + 'static,
     {
         let builder_cfg = self.builder(building_algorithm_name)?;
         match builder_cfg.builder {
@@ -357,7 +361,7 @@ impl LiveBuilderConfig for Config {
                 crate::building::builders::ordering_builder::backtest_simulate_block(config, input)
             }
             SpecificBuilderConfig::ParallelBuilder(config) => {
-                parallel_build_backtest::<P>(input, config)
+                parallel_build_backtest::<P, C>(input, config)
             }
         }
     }
@@ -504,12 +508,13 @@ pub fn coinbase_signer_from_secret_key(secret_key: &str) -> eyre::Result<Signer>
     Ok(Signer::try_from_secret(secret_key)?)
 }
 
-pub fn create_builders<P>(
+pub fn create_builders<P, C>(
     configs: Vec<BuilderConfig>,
     root_hash_config: RootHashConfig,
-) -> Vec<Arc<dyn BlockBuildingAlgorithm<P>>>
+) -> Vec<Arc<dyn BlockBuildingAlgorithm<P, C>>>
 where
     P: StateProviderFactory + Clone + 'static,
+    C: StateRootCalculator + Clone + Send + Sync + 'static,
 {
     configs
         .into_iter()
@@ -517,12 +522,13 @@ where
         .collect()
 }
 
-fn create_builder<P>(
+fn create_builder<P, C>(
     cfg: BuilderConfig,
     root_hash_config: &RootHashConfig,
-) -> Arc<dyn BlockBuildingAlgorithm<P>>
+) -> Arc<dyn BlockBuildingAlgorithm<P, C>>
 where
     P: StateProviderFactory + Clone + 'static,
+    C: StateRootCalculator + Clone + Send + Sync + 'static,
 {
     match cfg.builder {
         SpecificBuilderConfig::OrderingBuilder(order_cfg) => Arc::new(

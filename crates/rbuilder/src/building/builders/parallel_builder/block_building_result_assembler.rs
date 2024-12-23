@@ -20,11 +20,11 @@ use crate::{
         },
         BlockBuildingContext,
     },
-    roothash::RootHashConfig,
+    roothash::{RootHashConfig, StateRootCalculator},
 };
 
 /// Assembles block building results from the best orderings of order groups.
-pub struct BlockBuildingResultAssembler<P> {
+pub struct BlockBuildingResultAssembler<P, C> {
     provider: P,
     ctx: BlockBuildingContext,
     cancellation_token: CancellationToken,
@@ -40,11 +40,14 @@ pub struct BlockBuildingResultAssembler<P> {
     last_version: Option<u64>,
     //TODO: delete me?
     phantom: PhantomData<P>,
+
+    root_calculator: C,
 }
 
-impl<P> BlockBuildingResultAssembler<P>
+impl<P, C> BlockBuildingResultAssembler<P, C>
 where
     P: StateProviderFactory + Clone + 'static,
+    C: StateRootCalculator + Send + Sync + Clone + 'static,
 {
     /// Creates a new `BlockBuildingResultAssembler`.
     ///
@@ -65,6 +68,7 @@ where
         builder_name: String,
         can_use_suggested_fee_recipient_as_coinbase: bool,
         sink: Option<Arc<dyn UnfinishedBlockBuildingSink>>,
+        root_calculator: C,
     ) -> Self {
         Self {
             provider,
@@ -78,6 +82,7 @@ where
             builder_name,
             sink,
             best_results,
+            root_calculator,
             run_id: 0,
             last_version: None,
             phantom: PhantomData,
@@ -202,6 +207,7 @@ where
 
         let mut block_building_helper = BlockBuildingHelperFromProvider::new(
             self.provider.clone(),
+            self.root_calculator.clone(),
             self.root_hash_config.clone(),
             ctx,
             self.cached_reads.clone(),
@@ -270,6 +276,7 @@ where
     ) -> eyre::Result<Box<dyn BlockBuildingHelper>> {
         let mut block_building_helper = BlockBuildingHelperFromProvider::new(
             self.provider.clone(),
+            self.root_calculator.clone(),
             self.root_hash_config.clone(), // Adjust as needed for backtest
             self.ctx.clone(),
             None, // No cached reads for backtest start

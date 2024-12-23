@@ -1,4 +1,7 @@
-use crate::telemetry::{inc_provider_bad_reopen_counter, inc_provider_reopen_counter};
+use crate::{
+    roothash::StateRootCalculator,
+    telemetry::{inc_provider_bad_reopen_counter, inc_provider_reopen_counter},
+};
 use alloy_consensus::Header;
 use alloy_eips::{BlockNumHash, BlockNumberOrTag};
 use alloy_primitives::{BlockHash, BlockNumber};
