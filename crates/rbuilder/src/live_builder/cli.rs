@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 
+use alloy_rpc_client::RpcClient;
 use clap::Parser;
 use reth::revm::cached::CachedReads;
 use reth_provider::{HeaderProvider, StateProviderFactory};
@@ -8,12 +9,14 @@ use std::fmt::Debug;
 use sysperf::{format_results, gather_system_info, run_all_benchmarks};
 use tokio::signal::ctrl_c;
 use tokio_util::sync::CancellationToken;
+use url::Url;
 
 use crate::{
     building::builders::{BacktestSimulateBlockInput, Block},
     live_builder::{
         base_config::load_config_toml_and_env, payload_events::MevBoostSlotDataGenerator,
     },
+    providers::remote_provider::RemoteProviderFactory,
     roothash::StateRootCalculator,
     telemetry,
     utils::build_info::Version,
@@ -114,7 +117,8 @@ where
         config.base_config().log_enable_dynamic,
     )
     .await?;
-    let provider = config.base_config().create_provider_factory()?;
+    let _provider = config.base_config().create_provider_factory()?;
+    let provider = RemoteProviderFactory::new(RpcClient::new_http(Url::parse("")?));
     let builder = config.new_builder(provider, cancel.clone()).await?;
 
     let ctrlc = tokio::spawn(async move {

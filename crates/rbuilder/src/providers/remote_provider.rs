@@ -23,6 +23,9 @@ use reth_trie::{
 };
 use revm_primitives::{Address, B256};
 
+use crate::roothash::StateRootCalculator;
+
+#[derive(Clone)]
 pub struct RemoteProviderFactory<T> {
     remote_provider: RootProvider<T>,
 }
@@ -31,8 +34,7 @@ impl<T> RemoteProviderFactory<T>
 where
     T: Transport + Clone,
 {
-    pub fn new(client: T, is_local: bool) -> Self {
-        let client = RpcClient::new(client, is_local);
+    pub fn new(client: RpcClient<T>) -> Self {
         let provider = ProviderBuilder::new().on_client(client);
         Self {
             remote_provider: provider,
@@ -369,6 +371,12 @@ where
         _target: HashedPostState,
     ) -> ProviderResult<HashMap<B256, Bytes>> {
         unimplemented!()
+    }
+}
+
+impl<T> StateRootCalculator for RemoteProviderFactory<T> {
+    fn calculate_state_root(&self) -> Result<B256, crate::roothash::RootHashError> {
+        todo!()
     }
 }
 
