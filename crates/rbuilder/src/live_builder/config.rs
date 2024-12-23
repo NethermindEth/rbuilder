@@ -32,7 +32,7 @@ use crate::{
     },
     mev_boost::BLSBlockSigner,
     primitives::mev_boost::{MevBoostRelay, RelayConfig},
-    roothash::RootHashConfig,
+    roothash::{RootHashConfig, StateRootCalculator},
     utils::{build_info::rbuilder_version, ProviderFactoryReopener, Signer},
     validation_api_client::ValidationAPIClient,
 };
@@ -296,7 +296,7 @@ impl LiveBuilderConfig for Config {
         cancellation_token: tokio_util::sync::CancellationToken,
     ) -> eyre::Result<super::LiveBuilder<P, MevBoostSlotDataGenerator>>
     where
-        P: StateProviderFactory + HeaderProvider + Clone + 'static,
+        P: StateProviderFactory + HeaderProvider + StateRootCalculator + Clone + 'static,
     {
         let (sink_sealed_factory, relays) = self.l1_config.create_relays_sealed_sink_factory(
             self.base_config.chain_spec()?,
@@ -349,7 +349,7 @@ impl LiveBuilderConfig for Config {
         input: BacktestSimulateBlockInput<'_, P>,
     ) -> eyre::Result<(Block, CachedReads)>
     where
-        P: StateProviderFactory + Clone + 'static,
+        P: StateProviderFactory + StateRootCalculator + Clone + 'static,
     {
         let builder_cfg = self.builder(building_algorithm_name)?;
         match builder_cfg.builder {
@@ -509,7 +509,7 @@ pub fn create_builders<P>(
     root_hash_config: RootHashConfig,
 ) -> Vec<Arc<dyn BlockBuildingAlgorithm<P>>>
 where
-    P: StateProviderFactory + Clone + 'static,
+    P: StateProviderFactory + StateRootCalculator + Clone + 'static,
 {
     configs
         .into_iter()
@@ -522,7 +522,7 @@ fn create_builder<P>(
     root_hash_config: &RootHashConfig,
 ) -> Arc<dyn BlockBuildingAlgorithm<P>>
 where
-    P: StateProviderFactory + Clone + 'static,
+    P: StateProviderFactory + StateRootCalculator + Clone + 'static,
 {
     match cfg.builder {
         SpecificBuilderConfig::OrderingBuilder(order_cfg) => Arc::new(

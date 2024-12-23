@@ -14,6 +14,7 @@ use crate::{
     live_builder::{
         base_config::load_config_toml_and_env, payload_events::MevBoostSlotDataGenerator,
     },
+    roothash::StateRootCalculator,
     telemetry,
     utils::build_info::Version,
 };
@@ -56,7 +57,7 @@ pub trait LiveBuilderConfig: Debug + DeserializeOwned + Sync {
         cancellation_token: CancellationToken,
     ) -> impl std::future::Future<Output = eyre::Result<LiveBuilder<P, MevBoostSlotDataGenerator>>> + Send
     where
-        P: StateProviderFactory + HeaderProvider + Clone + 'static;
+        P: StateProviderFactory + StateRootCalculator + HeaderProvider + Clone + 'static;
 
     /// Patch until we have a unified way of backtesting using the exact algorithms we use on the LiveBuilder.
     /// building_algorithm_name will come from the specific configuration.
@@ -66,7 +67,7 @@ pub trait LiveBuilderConfig: Debug + DeserializeOwned + Sync {
         input: BacktestSimulateBlockInput<'_, P>,
     ) -> eyre::Result<(Block, CachedReads)>
     where
-        P: StateProviderFactory + Clone + 'static;
+        P: StateProviderFactory + StateRootCalculator + Clone + 'static;
 }
 
 /// print_version_info func that will be called on command Cli::Version

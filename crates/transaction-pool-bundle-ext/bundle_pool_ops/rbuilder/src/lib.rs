@@ -26,6 +26,7 @@ use rbuilder::{
         SlotSource,
     },
     primitives::{Bundle, BundleReplacementKey, Order},
+    roothash::StateRootCalculator,
     telemetry,
 };
 use reth_db_api::Database;
@@ -89,12 +90,9 @@ impl SlotSource for OurSlotSource {
 }
 
 impl BundlePoolOps {
-    pub async fn new<P, DB>(
-        provider: P,
-        rbuilder_config_path: impl AsRef<Path>,
-    ) -> Result<Self, Error>
+    pub async fn new<P>(provider: P, rbuilder_config_path: impl AsRef<Path>) -> Result<Self, Error>
     where
-        P: StateProviderFactory + HeaderProvider + Clone + 'static,
+        P: StateProviderFactory + StateRootCalculator + HeaderProvider + Clone + 'static,
     {
         // Create the payload source to trigger new block building
         let cancellation_token = CancellationToken::new();

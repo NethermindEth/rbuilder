@@ -20,7 +20,7 @@ use crate::{
         },
         BlockBuildingContext,
     },
-    roothash::RootHashConfig,
+    roothash::{RootHashConfig, StateRootCalculator},
 };
 
 /// Assembles block building results from the best orderings of order groups.
@@ -44,7 +44,7 @@ pub struct BlockBuildingResultAssembler<P> {
 
 impl<P> BlockBuildingResultAssembler<P>
 where
-    P: StateProviderFactory + Clone + 'static,
+    P: StateProviderFactory + StateRootCalculator + Clone + 'static,
 {
     /// Creates a new `BlockBuildingResultAssembler`.
     ///

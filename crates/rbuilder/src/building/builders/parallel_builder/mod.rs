@@ -33,7 +33,7 @@ use crate::{
         BacktestSimulateBlockInput, Block, BlockBuildingAlgorithm, BlockBuildingAlgorithmInput,
         LiveBuilderInput,
     },
-    roothash::RootHashConfig,
+    roothash::{RootHashConfig, StateRootCalculator},
 };
 use reth::revm::cached::CachedReads;
 use reth_db::database::Database;
@@ -83,7 +83,7 @@ struct ParallelBuilder<P> {
 
 impl<P> ParallelBuilder<P>
 where
-    P: StateProviderFactory + Clone + 'static,
+    P: StateProviderFactory + StateRootCalculator + Clone + 'static,
 {
     /// Creates a ParallelBuilder.
     /// Sets up the various components and communication channels.
@@ -180,7 +180,7 @@ where
 //TODO: update the docs above
 pub fn run_parallel_builder<P>(input: LiveBuilderInput<P>, config: &ParallelBuilderConfig)
 where
-    P: StateProviderFactory + Clone + 'static,
+    P: StateProviderFactory + StateRootCalculator + Clone + 'static,
 {
     let cancel_for_results_aggregator = input.cancel.clone();
     let cancel_for_block_building_result_assembler = input.cancel.clone();
@@ -266,7 +266,7 @@ pub fn parallel_build_backtest<P>(
     config: ParallelBuilderConfig,
 ) -> Result<(Block, CachedReads)>
 where
-    P: StateProviderFactory + Clone + 'static,
+    P: StateProviderFactory + StateRootCalculator + Clone + 'static,
 {
     let start_time = Instant::now();
 
@@ -391,7 +391,7 @@ impl ParallelBuildingAlgorithm {
 
 impl<P> BlockBuildingAlgorithm<P> for ParallelBuildingAlgorithm
 where
-    P: StateProviderFactory + Clone + 'static,
+    P: StateProviderFactory + StateRootCalculator + Clone + 'static,
 {
     fn name(&self) -> String {
         self.name.clone()

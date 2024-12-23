@@ -6,6 +6,7 @@ use crate::{
         BlockData, HistoricalDataStorage,
     },
     live_builder::{base_config::load_config_toml_and_env, cli::LiveBuilderConfig},
+    roothash::StateRootCalculator,
 };
 use alloy_primitives::utils::format_ether;
 use clap::Parser;
@@ -107,7 +108,7 @@ where
     Ok(())
 }
 
-fn process_redisribution<P, DB, ConfigType>(
+fn process_redisribution<P, ConfigType>(
     block_data: BlockData,
     csv_writer: Option<&mut CSVResultWriter>,
     json_accum: Option<&mut Vec<RedistributionBlockOutput>>,
@@ -116,12 +117,7 @@ fn process_redisribution<P, DB, ConfigType>(
     distribute_to_mempool_txs: bool,
 ) -> eyre::Result<()>
 where
-    DB: Database + Clone + 'static,
-    P: DatabaseProviderFactory<DB = DB, Provider: BlockReader>
-        + StateProviderFactory
-        + HeaderProvider
-        + Clone
-        + 'static,
+    P: StateProviderFactory + StateRootCalculator + HeaderProvider + Clone + 'static,
     ConfigType: LiveBuilderConfig,
 {
     let block_number = block_data.block_number;

@@ -14,7 +14,7 @@ use crate::{
         BlockBuildingContext, BlockOrders, ExecutionError, Sorting,
     },
     primitives::{AccountNonce, OrderId},
-    roothash::RootHashConfig,
+    roothash::{RootHashConfig, StateRootCalculator},
 };
 use ahash::{HashMap, HashSet};
 use reth::revm::cached::CachedReads;
@@ -63,7 +63,7 @@ impl OrderingBuilderConfig {
 
 pub fn run_ordering_builder<P>(input: LiveBuilderInput<P>, config: &OrderingBuilderConfig)
 where
-    P: StateProviderFactory + Clone + 'static,
+    P: StateProviderFactory + StateRootCalculator + Clone + 'static,
 {
     let mut order_intake_consumer = OrderIntakeConsumer::new(
         input.provider.clone(),
@@ -131,7 +131,7 @@ pub fn backtest_simulate_block<P>(
     input: BacktestSimulateBlockInput<'_, P>,
 ) -> eyre::Result<(Block, CachedReads)>
 where
-    P: StateProviderFactory + Clone + 'static,
+    P: StateProviderFactory + StateRootCalculator + Clone + 'static,
 {
     let use_suggested_fee_recipient_as_coinbase = ordering_config.coinbase_payment;
     let state_provider = input
@@ -186,7 +186,7 @@ pub struct OrderingBuilderContext<P> {
 
 impl<P> OrderingBuilderContext<P>
 where
-    P: StateProviderFactory + Clone + 'static,
+    P: StateProviderFactory + StateRootCalculator + Clone + 'static,
 {
     pub fn new(
         provider: P,
@@ -349,7 +349,7 @@ impl OrderingBuildingAlgorithm {
 
 impl<P> BlockBuildingAlgorithm<P> for OrderingBuildingAlgorithm
 where
-    P: StateProviderFactory + Clone + 'static,
+    P: StateProviderFactory + StateRootCalculator + Clone + 'static,
 {
     fn name(&self) -> String {
         self.name.clone()

@@ -34,7 +34,7 @@ use rbuilder::{
         mev_boost::{MevBoostRelay, RelayConfig},
         SimulatedOrder,
     },
-    roothash::RootHashConfig,
+    roothash::{RootHashConfig, StateRootCalculator},
     utils::{ProviderFactoryReopener, Signer},
 };
 use reth_chainspec::MAINNET;
@@ -205,7 +205,7 @@ impl DummyBuildingAlgorithm {
         ctx: &BlockBuildingContext,
     ) -> eyre::Result<Box<dyn BlockBuildingHelper>>
     where
-        P: StateProviderFactory + Clone + 'static,
+        P: StateProviderFactory + StateRootCalculator + Clone + 'static,
     {
         let mut block_building_helper = BlockBuildingHelperFromProvider::new(
             provider.clone(),
@@ -228,7 +228,7 @@ impl DummyBuildingAlgorithm {
 
 impl<P> BlockBuildingAlgorithm<P> for DummyBuildingAlgorithm
 where
-    P: StateProviderFactory + Clone + 'static,
+    P: StateProviderFactory + StateRootCalculator + Clone + 'static,
 {
     fn name(&self) -> String {
         BUILDER_NAME.to_string()

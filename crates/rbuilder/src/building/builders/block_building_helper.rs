@@ -20,7 +20,7 @@ use crate::{
         PartialBlock, Sorting,
     },
     primitives::SimulatedOrder,
-    roothash::RootHashConfig,
+    roothash::{RootHashConfig, StateRootCalculator},
     telemetry,
 };
 
@@ -289,7 +289,7 @@ where
 
 impl<P> BlockBuildingHelper for BlockBuildingHelperFromProvider<P>
 where
-    P: StateProviderFactory + Clone + 'static,
+    P: StateProviderFactory + StateRootCalculator + Clone + 'static,
 {
     /// Forwards to partial_block and updates trace.
     fn commit_order(
@@ -353,52 +353,51 @@ where
 
         let sim_gas_used = self.partial_block.tracer.used_gas;
         let block_number = self.building_context().block();
-        unreachable!();
-        //
+
         //TODO: fix me
-        //let finalized_block = match self.partial_block.finalize(
-        //    &mut self.block_state,
-        //    &self.building_ctx,
-        //    self.provider.clone(),
-        //    self.root_hash_config,
-        //) {
-        //    Ok(finalized_block) => finalized_block,
-        //    Err(err) => {
-        //        if err.is_consistent_db_view_err() {
-        //            let last_block_number = self.provider.last_block_number().unwrap_or_default();
-        //            debug!(
-        //                block_number,
-        //                last_block_number, "Can't build on this head, cancelling slot"
-        //            );
-        //            self.cancel_on_fatal_error.cancel();
-        //        }
-        //        return Err(BlockBuildingHelperError::FinalizeError(err));
-        //    }
-        //};
-        //self.built_block_trace.update_orders_sealed_at();
-        //self.built_block_trace.root_hash_time = finalized_block.root_hash_time;
-        //
-        //self.built_block_trace.finalize_time = start_time.elapsed();
-        //
-        //Self::trace_finalized_block(
-        //    &finalized_block,
-        //    &self.builder_name,
-        //    &self.building_ctx,
-        //    &self.built_block_trace,
-        //    sim_gas_used,
-        //);
-        //
-        //let block = Block {
-        //    trace: self.built_block_trace,
-        //    sealed_block: finalized_block.sealed_block,
-        //    txs_blobs_sidecars: finalized_block.txs_blob_sidecars,
-        //    builder_name: self.builder_name.clone(),
-        //    execution_requests: finalized_block.execution_requests,
-        //};
-        //Ok(FinalizeBlockResult {
-        //    block,
-        //    cached_reads: finalized_block.cached_reads,
-        //})
+        let finalized_block = match self.partial_block.finalize(
+            &mut self.block_state,
+            &self.building_ctx,
+            self.provider.clone(),
+            self.root_hash_config,
+        ) {
+            Ok(finalized_block) => finalized_block,
+            Err(err) => {
+                if err.is_consistent_db_view_err() {
+                    let last_block_number = self.provider.last_block_number().unwrap_or_default();
+                    debug!(
+                        block_number,
+                        last_block_number, "Can't build on this head, cancelling slot"
+                    );
+                    self.cancel_on_fatal_error.cancel();
+                }
+                return Err(BlockBuildingHelperError::FinalizeError(err));
+            }
+        };
+        self.built_block_trace.update_orders_sealed_at();
+        self.built_block_trace.root_hash_time = finalized_block.root_hash_time;
+
+        self.built_block_trace.finalize_time = start_time.elapsed();
+
+        Self::trace_finalized_block(
+            &finalized_block,
+            &self.builder_name,
+            &self.building_ctx,
+            &self.built_block_trace,
+            sim_gas_used,
+        );
+
+        let block = Block {
+            trace: self.built_block_trace,
+            sealed_block: finalized_block.sealed_block,
+            txs_blobs_sidecars: finalized_block.txs_blob_sidecars,
+            builder_name: self.builder_name.clone(),
+            execution_requests: finalized_block.execution_requests,
+        };
+        Ok(FinalizeBlockResult {
+            block,
+            cached_reads: finalized_block.cached_reads,
+        })
     }
 
     fn clone_cached_reads(&self) -> CachedReads {

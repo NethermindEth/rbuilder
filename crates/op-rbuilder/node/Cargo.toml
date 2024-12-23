@@ -7,6 +7,7 @@ edition = "2021"
 op-rbuilder-payload-builder = { path = "../payload_builder" }
 transaction-pool-bundle-ext = { path = "../../transaction-pool-bundle-ext" }
 rbuilder-bundle-pool-operations = { path = "../../transaction-pool-bundle-ext/bundle_pool_ops/rbuilder" }
+rbuilder = { path = "../../rbuilder" }
 
 # alloy
 alloy-consensus.workspace = true

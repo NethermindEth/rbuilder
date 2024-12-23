@@ -7,6 +7,7 @@ use crate::{
     },
     live_builder::cli::LiveBuilderConfig,
     primitives::{OrderId, SimulatedOrder},
+    roothash::StateRootCalculator,
     utils::{clean_extradata, Signer},
 };
 use ahash::HashSet;
@@ -107,7 +108,7 @@ where
 }
 
 #[allow(clippy::too_many_arguments)]
-pub fn backtest_simulate_block<P, DB, ConfigType>(
+pub fn backtest_simulate_block<P, ConfigType>(
     block_data: BlockData,
     provider: P,
     chain_spec: Arc<ChainSpec>,
@@ -118,12 +119,7 @@ pub fn backtest_simulate_block<P, DB, ConfigType>(
     sbundle_mergeabe_signers: &[Address],
 ) -> eyre::Result<BlockBacktestValue>
 where
-    DB: Database + Clone + 'static,
-    P: DatabaseProviderFactory<DB = DB, Provider: BlockReader>
-        + StateProviderFactory
-        + HeaderProvider
-        + Clone
-        + 'static,
+    P: StateProviderFactory + HeaderProvider + StateRootCalculator + Clone + 'static,
     ConfigType: LiveBuilderConfig,
 {
     let BacktestBlockInput {

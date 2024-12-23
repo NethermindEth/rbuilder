@@ -8,6 +8,7 @@
 use clap::{Args, Parser};
 use rbuilder::{
     live_builder::{base_config::load_config_toml_and_env, cli::LiveBuilderConfig, config::Config},
+    roothash::StateRootCalculator,
     telemetry,
 };
 use reth::{chainspec::EthereumChainSpecParser, cli::Cli};
@@ -16,7 +17,7 @@ use reth_node_builder::{
     engine_tree_config::{
         TreeConfig, DEFAULT_MEMORY_BLOCK_BUFFER_TARGET, DEFAULT_PERSISTENCE_THRESHOLD,
     },
-    EngineNodeLauncher,
+    EngineNodeLauncher, NodeTypesWithDB,
 };
 use reth_node_ethereum::{node::EthereumAddOns, EthereumNode};
 use reth_provider::{
@@ -127,6 +128,7 @@ where
     P: DatabaseProviderFactory<DB = DB, Provider: BlockReader>
         + StateProviderFactory
         + HeaderProvider
+        + StateRootCalculator
         + Clone
         + 'static,
 {
