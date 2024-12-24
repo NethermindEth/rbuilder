@@ -1,4 +1,4 @@
-use std::{cell::RefCell, marker::PhantomData, rc::Rc, sync::Arc, thread, time::Duration};
+use std::{cell::RefCell, rc::Rc, sync::Arc, thread, time::Duration};
 
 use crate::{
     building::{
@@ -10,7 +10,6 @@ use crate::{
     },
     live_builder::{payload_events::MevBoostSlotData, simulation::SlotOrderSimResults},
     primitives::{OrderId, SimulatedOrder},
-    roothash::run_trie_prefetcher,
 };
 use reth_provider::StateProviderFactory;
 use revm_primitives::Address;
@@ -33,10 +32,8 @@ pub struct BlockBuildingPool<P> {
     sink_factory: Box<dyn UnfinishedBlockBuildingSinkFactory>,
     orderpool_subscriber: order_input::OrderPoolSubscriber,
     order_simulation_pool: OrderSimulationPool<P>,
-    run_sparse_trie_prefetcher: bool,
+    _run_sparse_trie_prefetcher: bool,
     sbundle_merger_selected_signers: Arc<Vec<Address>>,
-    //TODO: remove me?
-    phantom: PhantomData<P>,
 }
 
 impl<P> BlockBuildingPool<P>
@@ -58,9 +55,8 @@ where
             sink_factory,
             orderpool_subscriber,
             order_simulation_pool,
-            run_sparse_trie_prefetcher,
             sbundle_merger_selected_signers,
-            phantom: PhantomData,
+            _run_sparse_trie_prefetcher: run_sparse_trie_prefetcher,
         }
     }
 

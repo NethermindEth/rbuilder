@@ -1,13 +1,11 @@
 use std::{
     cmp::max,
-    marker::PhantomData,
     time::{Duration, Instant},
 };
 
-use alloy_primitives::{utils::format_ether, Uint, U256};
+use alloy_primitives::{utils::format_ether, U256};
 use reth::revm::cached::CachedReads;
-use reth_db::Database;
-use reth_provider::{BlockReader, DatabaseProviderFactory, StateProviderFactory};
+use reth_provider::StateProviderFactory;
 use time::OffsetDateTime;
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, trace};
@@ -106,8 +104,6 @@ where
     root_hash_config: RootHashConfig,
     /// Token to cancel in case of fatal error (if we believe that it's impossible to build for this block).
     cancel_on_fatal_error: CancellationToken,
-    //TODO: delete me?
-    phantom: PhantomData<P>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -151,7 +147,7 @@ pub struct FinalizeBlockResult {
 
 impl<P> BlockBuildingHelperFromProvider<P>
 where
-    P: StateProviderFactory + Clone + 'static,
+    P: StateProviderFactory + StateRootCalculator + Clone + 'static,
 {
     /// allow_tx_skip: see [`PartialBlockFork`]
     /// Performs initialization:
@@ -204,7 +200,6 @@ where
             provider,
             root_hash_config,
             cancel_on_fatal_error,
-            phantom: PhantomData,
         })
     }
 
@@ -262,9 +257,7 @@ where
                 &self.building_ctx,
                 &mut self.block_state,
             ) {
-                //TODO: fix me
-                //Ok(()) => (payout_tx_value, self.true_block_value()?),
-                Ok(()) => (payout_tx_value, Uint::default()),
+                Ok(()) => (payout_tx_value, self.true_block_value()?),
                 Err(err) => return Err(err.into()),
             }
         } else {
@@ -354,7 +347,6 @@ where
         let sim_gas_used = self.partial_block.tracer.used_gas;
         let block_number = self.building_context().block();
 
-        //TODO: fix me
         let finalized_block = match self.partial_block.finalize(
             &mut self.block_state,
             &self.building_ctx,

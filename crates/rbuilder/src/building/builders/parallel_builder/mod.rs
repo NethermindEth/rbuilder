@@ -36,8 +36,7 @@ use crate::{
     roothash::{RootHashConfig, StateRootCalculator},
 };
 use reth::revm::cached::CachedReads;
-use reth_db::database::Database;
-use reth_provider::{BlockReader, DatabaseProviderFactory, StateProviderFactory};
+use reth_provider::StateProviderFactory;
 
 use self::{
     block_building_result_assembler::BlockBuildingResultAssembler,
@@ -176,8 +175,7 @@ where
 /// * `config`: Configuration parameters for the parallel builder.
 ///
 /// # Type Parameters
-/// * `DB`: The database type, which must implement Database, Clone, and have a static lifetime.
-//TODO: update the docs above
+/// * `P`: The Provider type, which must implement StateProviderFactory, StateRootCalculator, Clone, and have a static lifetime.
 pub fn run_parallel_builder<P>(input: LiveBuilderInput<P>, config: &ParallelBuilderConfig)
 where
     P: StateProviderFactory + StateRootCalculator + Clone + 'static,

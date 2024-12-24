@@ -14,13 +14,11 @@ use jsonrpsee::RpcModule;
 use lazy_static::lazy_static;
 use reth::chainspec::chain_value_parser;
 use reth_chainspec::ChainSpec;
-use reth_db::{Database, DatabaseEnv};
+use reth_db::DatabaseEnv;
 use reth_node_api::NodeTypesWithDBAdapter;
 use reth_node_ethereum::EthereumNode;
 use reth_primitives::StaticFileSegment;
-use reth_provider::{
-    DatabaseProviderFactory, HeaderProvider, StateProviderFactory, StaticFileProviderFactory,
-};
+use reth_provider::{HeaderProvider, StateProviderFactory, StaticFileProviderFactory};
 use serde::{Deserialize, Deserializer};
 use serde_with::{serde_as, DeserializeAs};
 use sqlx::PgPool;

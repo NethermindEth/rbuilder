@@ -5,15 +5,10 @@ use eth_sparse_mpt::reth_sparse_trie::{
     calculate_root_hash_with_sparse_trie, trie_fetcher::FetchNodeError, SparseTrieError,
     SparseTrieSharedCache,
 };
-use reth::builder::BuilderContext;
 use reth::providers::{providers::ConsistentDbView, ExecutionOutcome};
-use reth_db::transaction::{DbTx, DbTxMut};
 use reth_errors::ProviderError;
-use reth_node_api::{FullNodeTypes, NodeTypesWithDB};
-use reth_provider::{
-    providers::ProviderNodeTypes, BlockReader, DatabaseProvider, DatabaseProviderFactory,
-    FullProvider, ProviderFactory, StaticFileProviderFactory,
-};
+use reth_node_api::NodeTypesWithDB;
+use reth_provider::{providers::ProviderNodeTypes, BlockReader, DatabaseProviderFactory};
 use reth_trie::TrieInput;
 use reth_trie_parallel::root::{ParallelStateRoot, ParallelStateRootError};
 use tracing::trace;

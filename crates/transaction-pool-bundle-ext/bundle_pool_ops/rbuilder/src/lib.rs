@@ -29,9 +29,8 @@ use rbuilder::{
     roothash::StateRootCalculator,
     telemetry,
 };
-use reth_db_api::Database;
 use reth_primitives::TransactionSigned;
-use reth_provider::{BlockReader, DatabaseProviderFactory, HeaderProvider, StateProviderFactory};
+use reth_provider::{HeaderProvider, StateProviderFactory};
 use tokio::{
     sync::{
         mpsc::{self, error::SendError},

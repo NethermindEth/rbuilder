@@ -14,9 +14,8 @@ use alloy_consensus::{Header, EMPTY_OMMER_ROOT_HASH};
 use alloy_primitives::{Address, Bytes, Sealable, U256};
 pub use block_orders::BlockOrders;
 use eth_sparse_mpt::SparseTrieSharedCache;
-use reth_db::Database;
 use reth_primitives::BlockBody;
-use reth_provider::{BlockReader, DatabaseProviderFactory, StateProviderFactory};
+use reth_provider::StateProviderFactory;
 
 use crate::{
     primitives::{Order, OrderId, SimValue, SimulatedOrder, TransactionSignedEcRecoveredWithBlobs},

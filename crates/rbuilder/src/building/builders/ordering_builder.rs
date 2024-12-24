@@ -18,13 +18,9 @@ use crate::{
 };
 use ahash::{HashMap, HashSet};
 use reth::revm::cached::CachedReads;
-use reth_db::database::Database;
-use reth_provider::{BlockReader, DatabaseProviderFactory, StateProviderFactory};
+use reth_provider::StateProviderFactory;
 use serde::Deserialize;
-use std::{
-    marker::PhantomData,
-    time::{Duration, Instant},
-};
+use std::time::{Duration, Instant};
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info_span, trace};
 
@@ -179,9 +175,6 @@ pub struct OrderingBuilderContext<P> {
     // scratchpad
     failed_orders: HashSet<OrderId>,
     order_attempts: HashMap<OrderId, usize>,
-
-    //TODO: delete me?
-    phantom: PhantomData<P>,
 }
 
 impl<P> OrderingBuilderContext<P>
@@ -204,7 +197,6 @@ where
             cached_reads: None,
             failed_orders: HashSet::default(),
             order_attempts: HashMap::default(),
-            phantom: PhantomData,
         }
     }
 

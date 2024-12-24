@@ -48,14 +48,11 @@ use ethereum_consensus::{
 use eyre::Context;
 use reth::revm::cached::CachedReads;
 use reth_chainspec::{Chain, ChainSpec, NamedChain};
-use reth_db::{Database, DatabaseEnv};
+use reth_db::DatabaseEnv;
 use reth_node_api::NodeTypesWithDBAdapter;
 use reth_node_ethereum::EthereumNode;
 use reth_primitives::StaticFileSegment;
-use reth_provider::{
-    BlockReader, DatabaseProviderFactory, HeaderProvider, StateProviderFactory,
-    StaticFileProviderFactory,
-};
+use reth_provider::{HeaderProvider, StateProviderFactory, StaticFileProviderFactory};
 use serde::Deserialize;
 use serde_with::{serde_as, OneOrMany};
 use std::{

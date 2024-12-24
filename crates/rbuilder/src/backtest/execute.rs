@@ -14,8 +14,7 @@ use ahash::HashSet;
 use alloy_primitives::{Address, U256};
 use reth::revm::cached::CachedReads;
 use reth_chainspec::ChainSpec;
-use reth_db::Database;
-use reth_provider::{BlockReader, DatabaseProviderFactory, HeaderProvider, StateProviderFactory};
+use reth_provider::{HeaderProvider, StateProviderFactory};
 use serde::{Deserialize, Serialize};
 use std::{cell::RefCell, rc::Rc, sync::Arc};
 

@@ -17,7 +17,7 @@ use reth_node_builder::{
     engine_tree_config::{
         TreeConfig, DEFAULT_MEMORY_BLOCK_BUFFER_TARGET, DEFAULT_PERSISTENCE_THRESHOLD,
     },
-    EngineNodeLauncher, NodeTypesWithDB,
+    EngineNodeLauncher,
 };
 use reth_node_ethereum::{node::EthereumAddOns, EthereumNode};
 use reth_provider::{

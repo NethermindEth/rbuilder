@@ -38,10 +38,10 @@ use rbuilder::{
     utils::{ProviderFactoryReopener, Signer},
 };
 use reth_chainspec::MAINNET;
-use reth_db::{database::Database, DatabaseEnv};
+use reth_db::DatabaseEnv;
 use reth_node_api::NodeTypesWithDBAdapter;
 use reth_node_ethereum::EthereumNode;
-use reth_provider::{BlockReader, DatabaseProviderFactory, StateProviderFactory};
+use reth_provider::StateProviderFactory;
 use tokio::{
     signal::ctrl_c,
     sync::{broadcast, mpsc},

@@ -5,9 +5,8 @@ use super::{
 use ahash::HashMap;
 use alloy_primitives::utils::format_ether;
 use reth::revm::cached::CachedReads;
-use reth_db::Database;
-use reth_provider::{BlockReader, DatabaseProviderFactory, StateProviderFactory};
-use std::{marker::PhantomData, sync::Arc, time::Instant};
+use reth_provider::StateProviderFactory;
+use std::{sync::Arc, time::Instant};
 use time::OffsetDateTime;
 use tokio_util::sync::CancellationToken;
 use tracing::{info_span, trace};
@@ -38,8 +37,6 @@ pub struct BlockBuildingResultAssembler<P> {
     best_results: Arc<BestResults>,
     run_id: u64,
     last_version: Option<u64>,
-    //TODO: delete me?
-    phantom: PhantomData<P>,
 }
 
 impl<P> BlockBuildingResultAssembler<P>
@@ -80,7 +77,6 @@ where
             best_results,
             run_id: 0,
             last_version: None,
-            phantom: PhantomData,
         }
     }
 

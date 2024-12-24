@@ -11,8 +11,7 @@ use crate::{
 use alloy_primitives::utils::format_ether;
 use clap::Parser;
 use csv_output::{CSVOutputRow, CSVResultWriter};
-use reth_db::Database;
-use reth_provider::{BlockReader, DatabaseProviderFactory, HeaderProvider, StateProviderFactory};
+use reth_provider::{HeaderProvider, StateProviderFactory};
 use std::{io, path::PathBuf};
 use tracing::info;
 

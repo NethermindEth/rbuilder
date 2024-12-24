@@ -24,8 +24,7 @@ use alloy_primitives::{utils::format_ether, Address, B256, I256, U256};
 pub use cli::run_backtest_redistribute;
 use rayon::prelude::*;
 use reth_chainspec::ChainSpec;
-use reth_db::Database;
-use reth_provider::{BlockReader, DatabaseProviderFactory, HeaderProvider, StateProviderFactory};
+use reth_provider::{HeaderProvider, StateProviderFactory};
 use serde::{Deserialize, Serialize};
 use std::{
     cmp::{max, min},
