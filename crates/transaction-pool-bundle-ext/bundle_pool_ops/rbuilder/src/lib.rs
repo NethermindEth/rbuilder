@@ -6,6 +6,11 @@
 use core::fmt;
 use std::{fmt::Formatter, path::Path, sync::Arc, time::Duration};
 
+//NOTE: without this linter complies that reth_db_api is unused
+// but we cannot remove it because it is required by "reth-db-api/optimism"
+// which linter doesn't pick up
+use reth_db_api as _;
+
 use alloy_primitives::U256;
 use alloy_rpc_types_beacon::events::PayloadAttributesEvent;
 use derive_more::From;
