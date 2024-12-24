@@ -1,16 +1,19 @@
 mod prefetcher;
 
 use alloy_primitives::B256;
-use reth::builder::BuilderContext;
 use eth_sparse_mpt::reth_sparse_trie::{
     calculate_root_hash_with_sparse_trie, trie_fetcher::FetchNodeError, SparseTrieError,
     SparseTrieSharedCache,
 };
+use reth::builder::BuilderContext;
 use reth::providers::{providers::ConsistentDbView, ExecutionOutcome};
 use reth_db::transaction::{DbTx, DbTxMut};
 use reth_errors::ProviderError;
 use reth_node_api::{FullNodeTypes, NodeTypesWithDB};
-use reth_provider::{providers::ProviderNodeTypes, BlockReader, DatabaseProvider, DatabaseProviderFactory, FullProvider, ProviderFactory, StaticFileProviderFactory};
+use reth_provider::{
+    providers::ProviderNodeTypes, BlockReader, DatabaseProvider, DatabaseProviderFactory,
+    FullProvider, ProviderFactory, StaticFileProviderFactory,
+};
 use reth_trie::TrieInput;
 use reth_trie_parallel::root::{ParallelStateRoot, ParallelStateRootError};
 use tracing::trace;
@@ -145,20 +148,32 @@ where
 }
 
 pub trait StateRootCalculator {
-    fn calculate_state_root(&self) -> Result<B256, RootHashError>;
+    fn calculate_state_root(
+        &self,
+        parent_hash: B256,
+        outcome: &ExecutionOutcome,
+        sparse_trie_shared_cache: SparseTrieSharedCache,
+        config: RootHashConfig,
+    ) -> Result<B256, RootHashError>;
 }
 
 impl<N> StateRootCalculator for ProviderFactoryReopener<N>
 where
     N: NodeTypesWithDB + ProviderNodeTypes + Clone,
 {
-    fn calculate_state_root(&self) -> Result<B256, RootHashError> {
+    fn calculate_state_root(
+        &self,
+        parent_hash: B256,
+        outcome: &ExecutionOutcome,
+        sparse_trie_shared_cache: SparseTrieSharedCache,
+        config: RootHashConfig,
+    ) -> Result<B256, RootHashError> {
         calculate_state_root(
             self.check_consistency_and_reopen_if_needed().unwrap(),
-            todo!(),
-            todo!(),
-            todo!(),
-            todo!(),
+            parent_hash,
+            outcome,
+            sparse_trie_shared_cache,
+            config,
         )
     }
 }
@@ -167,8 +182,20 @@ impl<N> StateRootCalculator for reth_provider::providers::BlockchainProvider<N>
 where
     N: NodeTypesWithDB + ProviderNodeTypes + Clone,
 {
-    fn calculate_state_root(&self) -> Result<B256, RootHashError> {
-        calculate_state_root(self.clone(), todo!(), todo!(), todo!(), todo!())
+    fn calculate_state_root(
+        &self,
+        parent_hash: B256,
+        outcome: &ExecutionOutcome,
+        sparse_trie_shared_cache: SparseTrieSharedCache,
+        config: RootHashConfig,
+    ) -> Result<B256, RootHashError> {
+        calculate_state_root(
+            self.clone(),
+            parent_hash,
+            outcome,
+            sparse_trie_shared_cache,
+            config,
+        )
     }
 }
 
@@ -176,13 +203,19 @@ impl<N> StateRootCalculator for reth_provider::providers::BlockchainProvider2<N>
 where
     N: NodeTypesWithDB + ProviderNodeTypes + Clone,
 {
-    fn calculate_state_root(&self) -> Result<B256, RootHashError> {
-        calculate_state_root(self.clone(), todo!(), todo!(), todo!(), todo!())
-    }
-}
-
-impl<T: DbTx , N: reth_node_api::NodeTypes>  StateRootCalculator for DatabaseProvider<T, N>{
-    fn calculate_state_root(&self) -> Result<B256, RootHashError> {
-        todo!()
+    fn calculate_state_root(
+        &self,
+        parent_hash: B256,
+        outcome: &ExecutionOutcome,
+        sparse_trie_shared_cache: SparseTrieSharedCache,
+        config: RootHashConfig,
+    ) -> Result<B256, RootHashError> {
+        calculate_state_root(
+            self.clone(),
+            parent_hash,
+            outcome,
+            sparse_trie_shared_cache,
+            config,
+        )
     }
 }

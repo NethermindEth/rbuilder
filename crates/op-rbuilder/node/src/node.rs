@@ -4,6 +4,7 @@
 //! and overrides the Pool and Payload Builders.
 
 use alloy_consensus::Header;
+use rbuilder::roothash::StateRootCalculator;
 use rbuilder_bundle_pool_operations::BundlePoolOps;
 use reth_basic_payload_builder::{BasicPayloadJobGenerator, BasicPayloadJobGeneratorConfig};
 use reth_evm::ConfigureEvm;
@@ -31,7 +32,6 @@ use reth_transaction_pool::{
 };
 use reth_trie_db::MerklePatriciaTrie;
 use std::{path::PathBuf, sync::Arc};
-use rbuilder::roothash::StateRootCalculator;
 use transaction_pool_bundle_ext::{
     BundlePoolOperations, BundleSupportedPool, TransactionPoolBundleExt,
 };
@@ -78,8 +78,8 @@ impl OpRbuilderNode {
         Node: FullNodeTypes<
             Types: NodeTypesWithEngine<Engine = OpEngineTypes, ChainSpec = OpChainSpec>,
         >,
-        Node::Provider:  StateRootCalculator,
-        <<Node as FullNodeTypes>::Provider as DatabaseProviderFactory>::Provider: BlockReader + StateRootCalculator,
+        Node::Provider: StateRootCalculator,
+        <<Node as FullNodeTypes>::Provider as DatabaseProviderFactory>::Provider: BlockReader,
     {
         let OpRbuilderArgs {
             disable_txpool_gossip,
@@ -104,8 +104,8 @@ impl OpRbuilderNode {
 impl<N> Node<N> for OpRbuilderNode
 where
     N: FullNodeTypes<Types: NodeTypesWithEngine<Engine = OpEngineTypes, ChainSpec = OpChainSpec>>,
-    N::Provider:  StateRootCalculator,
-    <<N as FullNodeTypes>::Provider as DatabaseProviderFactory>::Provider: BlockReader + StateRootCalculator,
+    N::Provider: StateRootCalculator,
+    <<N as FullNodeTypes>::Provider as DatabaseProviderFactory>::Provider: BlockReader,
 {
     type ComponentsBuilder = ComponentsBuilder<
         N,
@@ -165,14 +165,12 @@ pub type OpRbuilderTransactionPool<Client, S> = BundleSupportedPool<
 impl<Node> PoolBuilder<Node> for OpRbuilderPoolBuilder
 where
     Node: FullNodeTypes<Types: NodeTypes<ChainSpec = OpChainSpec>>,
-    Node::Provider:  StateRootCalculator,
-    <<Node as FullNodeTypes>::Provider as DatabaseProviderFactory>::Provider:
-        BlockReader ,
+    Node::Provider: StateRootCalculator,
+    <<Node as FullNodeTypes>::Provider as DatabaseProviderFactory>::Provider: BlockReader,
 {
     type Pool = OpRbuilderTransactionPool<Node::Provider, DiskFileBlobStore>;
 
-    async fn build_pool(self, ctx: &BuilderContext<Node>) -> eyre::Result<Self::Pool>
-        {
+    async fn build_pool(self, ctx: &BuilderContext<Node>) -> eyre::Result<Self::Pool> {
         let data_dir = ctx.config().datadir();
         let blob_store = DiskFileBlobStore::open(data_dir.blobstore(), Default::default())?;
 
