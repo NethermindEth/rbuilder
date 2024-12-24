@@ -6,6 +6,8 @@ edition = "2021"
 [dependencies]
 transaction-pool-bundle-ext = { path = "../.." }
 rbuilder = { path = "../../../rbuilder" }
+eth-sparse-mpt = {path = "../../../eth-sparse-mpt/"}
+
 
 alloy-primitives.workspace = true
 alloy-rpc-types-beacon.workspace = true

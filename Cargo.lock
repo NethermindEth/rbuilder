@@ -7838,6 +7838,7 @@ dependencies = [
  "alloy-primitives 0.8.12",
  "alloy-rpc-types-beacon",
  "derive_more 1.0.0",
+ "eth-sparse-mpt",
  "eyre",
  "rbuilder",
  "reth-db-api",
@@ -10140,6 +10141,7 @@ name = "reth-rbuilder"
 version = "0.1.0"
 dependencies = [
  "clap 4.5.21",
+ "eth-sparse-mpt",
  "eyre",
  "libc",
  "rbuilder",

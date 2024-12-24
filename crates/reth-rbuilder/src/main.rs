@@ -8,10 +8,10 @@
 use clap::{Args, Parser};
 use rbuilder::{
     live_builder::{base_config::load_config_toml_and_env, cli::LiveBuilderConfig, config::Config},
-    roothash::StateRootCalculator,
+    roothash::{RootHashConfig, RootHashError, StateRootCalculator},
     telemetry,
 };
-use reth::{chainspec::EthereumChainSpecParser, cli::Cli};
+use reth::{chainspec::EthereumChainSpecParser, cli::Cli, revm::primitives::B256};
 use reth_db_api::Database;
 use reth_node_builder::{
     engine_tree_config::{
@@ -22,11 +22,14 @@ use reth_node_builder::{
 use reth_node_ethereum::{node::EthereumAddOns, EthereumNode};
 use reth_provider::{
     providers::{BlockchainProvider, BlockchainProvider2},
-    BlockReader, DatabaseProviderFactory, HeaderProvider, StateProviderFactory,
+    BlockReader, DatabaseProviderFactory, ExecutionOutcome, HeaderProvider, StateProviderFactory,
 };
 use std::{path::PathBuf, process};
 use tokio::task;
 use tracing::{error, info, warn};
+use eth_sparse_mpt::reth_sparse_trie::{
+    SparseTrieSharedCache,
+};
 
 // Prefer jemalloc for performance reasons.
 #[cfg(all(feature = "jemalloc", unix))]
@@ -172,7 +175,13 @@ where
 struct RethRootCalculator;
 
 impl StateRootCalculator for RethRootCalculator {
-    fn calculate(&self) -> Result<reth::revm::primitives::B256, rbuilder::roothash::RootHashError> {
-        todo!()
+    fn calculate(
+        &self,
+        _parent_hash: B256,
+        _outcome: &ExecutionOutcome,
+        _sparse_trie_shared_cache: SparseTrieSharedCache,
+        _config: RootHashConfig,
+    ) -> Result<B256, RootHashError> {
+        todo!();
     }
 }

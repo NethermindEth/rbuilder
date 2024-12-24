@@ -6,7 +6,7 @@
 use core::fmt;
 use std::{fmt::Formatter, path::Path, sync::Arc, time::Duration};
 
-use alloy_primitives::U256;
+use alloy_primitives::{B256, U256};
 use alloy_rpc_types_beacon::events::PayloadAttributesEvent;
 use derive_more::From;
 use rbuilder::{
@@ -26,12 +26,14 @@ use rbuilder::{
         SlotSource,
     },
     primitives::{Bundle, BundleReplacementKey, Order},
-    roothash::StateRootCalculator,
+    roothash::{RootHashConfig, RootHashError, StateRootCalculator},
     telemetry,
 };
 use reth_db_api::Database;
 use reth_primitives::TransactionSigned;
-use reth_provider::{BlockReader, DatabaseProviderFactory, HeaderProvider, StateProviderFactory};
+use reth_provider::{
+    BlockReader, DatabaseProviderFactory, ExecutionOutcome, HeaderProvider, StateProviderFactory,
+};
 use tokio::{
     sync::{
         mpsc::{self, error::SendError},
@@ -43,6 +45,10 @@ use tokio::{
 use tokio_util::sync::CancellationToken;
 use tracing::error;
 use transaction_pool_bundle_ext::BundlePoolOperations;
+use eth_sparse_mpt::reth_sparse_trie::{
+        SparseTrieSharedCache,
+};
+
 
 /// [`BundlePoolOperations`] implementation which uses components of the
 /// [`rbuilder`] under the hood to handle classic [`EthSendBundle`]s.
@@ -178,7 +184,13 @@ impl BundlePoolOps {
 #[derive(Clone)]
 struct BundlePoolOpsRootCalculator;
 impl StateRootCalculator for BundlePoolOpsRootCalculator {
-    fn calculate(&self) -> Result<alloy_primitives::B256, rbuilder::roothash::RootHashError> {
+    fn calculate(
+        &self,
+        parent_hash: B256,
+        outcome: &ExecutionOutcome,
+        sparse_trie_shared_cache: SparseTrieSharedCache,
+        config: RootHashConfig,
+    ) -> Result<B256, RootHashError> {
         todo!()
     }
 }

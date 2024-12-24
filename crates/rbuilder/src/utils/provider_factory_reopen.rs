@@ -1,5 +1,5 @@
 use crate::{
-    roothash::StateRootCalculator,
+    roothash::{RootHashError, StateRootCalculator},
     telemetry::{inc_provider_bad_reopen_counter, inc_provider_reopen_counter},
 };
 use alloy_consensus::Header;

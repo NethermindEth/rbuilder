@@ -9,7 +9,6 @@ use itertools::Itertools;
 use rbuilder::{
     building::{BlockBuildingContext, BlockState, PartialBlock, PartialBlockFork},
     live_builder::{base_config::load_config_toml_and_env, cli::LiveBuilderConfig, config::Config},
-    roothash::RootCalculator,
     utils::{extract_onchain_block_txs, find_suggested_fee_recipient, http_provider},
 };
 use reth::{providers::BlockNumReader, revm::cached::CachedReads};

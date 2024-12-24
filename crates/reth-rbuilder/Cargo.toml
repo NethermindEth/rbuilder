@@ -5,6 +5,7 @@ edition.workspace = true
 
 [dependencies]
 rbuilder = { path = "../rbuilder" }
+eth-sparse-mpt = {path = "../eth-sparse-mpt/"}
 
 reth.workspace = true
 reth-node-builder.workspace = true

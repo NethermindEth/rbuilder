@@ -81,58 +81,6 @@ impl RootHashConfig {
     }
 }
 
-pub struct RootCalculator<
-    P: DatabaseProviderFactory<Provider: BlockReader> + Send + Sync + Clone + 'static,
-> {
-    provider: P,
-    parent_hash: B256,
-    outcome: ExecutionOutcome,
-    sparse_trie_shared_cache: SparseTrieSharedCache,
-    config: RootHashConfig,
-}
-
-impl<P> RootCalculator<P>
-where
-    P: DatabaseProviderFactory<Provider: BlockReader> + Send + Sync + Clone + 'static,
-{
-    #[allow(clippy::too_many_arguments)]
-    pub fn calculate_state_root(&self) -> Result<B256, RootHashError> {
-        let provider = self.provider.clone();
-        let consistent_db_view = match self.config.mode {
-            RootHashMode::CorrectRoot => ConsistentDbView::new(provider, Some(self.parent_hash)),
-            RootHashMode::IgnoreParentHash => ConsistentDbView::new_with_latest_tip(provider)
-                .map_err(ParallelStateRootError::Provider)?,
-            RootHashMode::SkipRootHash => {
-                return Ok(B256::ZERO);
-            }
-        };
-
-        let reference_root_hash = if self.config.compare_sparse_trie_output {
-            calculate_parallel_root_hash(&self.outcome, consistent_db_view.clone())?
-        } else {
-            B256::ZERO
-        };
-
-        let root = if self.config.use_sparse_trie {
-            let (root, metrics) = calculate_root_hash_with_sparse_trie(
-                consistent_db_view,
-                &self.outcome,
-                self.sparse_trie_shared_cache.clone(),
-            );
-            trace!(?metrics, "Sparse trie metrics");
-            root?
-        } else {
-            calculate_parallel_root_hash(&self.outcome, consistent_db_view)?
-        };
-
-        if self.config.compare_sparse_trie_output && reference_root_hash != root {
-            return Err(RootHashError::Verification);
-        }
-
-        Ok(root)
-    }
-}
-
 fn calculate_parallel_root_hash<P>(
     outcome: &ExecutionOutcome,
     consistent_db_view: ConsistentDbView<P>,
@@ -150,22 +98,57 @@ where
 }
 
 pub trait StateRootCalculator {
-    fn calculate(&self) -> Result<B256, RootHashError>;
+    fn calculate(
+        &self,
+        parent_hash: B256,
+        outcome: &ExecutionOutcome,
+        sparse_trie_shared_cache: SparseTrieSharedCache,
+        config: RootHashConfig,
+    ) -> Result<B256, RootHashError>;
 }
 
 impl<N> StateRootCalculator for ProviderFactoryReopener<N>
 where
     N: NodeTypesWithDB + ProviderNodeTypes + Clone,
 {
-    fn calculate(&self) -> Result<B256, RootHashError> {
-        let root_calculator = RootCalculator {
-            provider: self.check_consistency_and_reopen_if_needed().unwrap(),
-            parent_hash: todo!(),
-            outcome: todo!(),
-            sparse_trie_shared_cache: todo!(),
-            config: todo!(),
+    fn calculate(
+        &self,
+        parent_hash: B256,
+        outcome: &ExecutionOutcome,
+        sparse_trie_shared_cache: SparseTrieSharedCache,
+        config: RootHashConfig,
+    ) -> Result<B256, RootHashError> {
+        let consistent_db_view = match config.mode {
+            RootHashMode::CorrectRoot => ConsistentDbView::new(self.clone(), Some(parent_hash)),
+            RootHashMode::IgnoreParentHash => ConsistentDbView::new_with_latest_tip(self.clone())
+                .map_err(ParallelStateRootError::Provider)?,
+            RootHashMode::SkipRootHash => {
+                return Ok(B256::ZERO);
+            }
         };
 
-        root_calculator.calculate_state_root()
+        let reference_root_hash = if config.compare_sparse_trie_output {
+            calculate_parallel_root_hash(outcome, consistent_db_view.clone())?
+        } else {
+            B256::ZERO
+        };
+
+        let root = if config.use_sparse_trie {
+            let (root, metrics) = calculate_root_hash_with_sparse_trie(
+                consistent_db_view,
+                outcome,
+                sparse_trie_shared_cache,
+            );
+            trace!(?metrics, "Sparse trie metrics");
+            root?
+        } else {
+            calculate_parallel_root_hash(outcome, consistent_db_view)?
+        };
+
+        if config.compare_sparse_trie_output && reference_root_hash != root {
+            return Err(RootHashError::Verification);
+        }
+
+        Ok(root)
     }
 }

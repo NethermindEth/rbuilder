@@ -20,7 +20,7 @@ use reth_provider::{BlockReader, DatabaseProviderFactory, StateProviderFactory};
 
 use crate::{
     primitives::{Order, OrderId, SimValue, SimulatedOrder, TransactionSignedEcRecoveredWithBlobs},
-    roothash::{RootCalculator, RootHashConfig, RootHashError, StateRootCalculator},
+    roothash::{RootHashConfig, RootHashError, StateRootCalculator},
     utils::{a2r_withdrawal, calc_gas_limit, timestamp_as_u64, Signer},
 };
 use ahash::HashSet;
@@ -688,14 +688,12 @@ impl<Tracer: SimulationTracer> PartialBlock<Tracer> {
 
         // calculate the state root
         let start = Instant::now();
-        //let root_calculator = RootCalculator::new(
-        //    provider,
-        //    ctx.attributes.parent,
-        //    execution_outcome,
-        //    ctx.shared_sparse_mpt_cache.clone(),
-        //    root_hash_config,
-        //);
-        let state_root = root_calculator.calculate()?;
+        let state_root = root_calculator.calculate(
+            ctx.attributes.parent,
+            &execution_outcome,
+            ctx.shared_sparse_mpt_cache.clone(),
+            root_hash_config,
+        )?;
         let root_hash_time = start.elapsed();
 
         // create the block header
