@@ -1,5 +1,6 @@
 use std::ops::RangeBounds;
 
+use crate::roothash::{RootHashConfig, StateRootCalculator};
 use alloy_consensus::Header;
 use alloy_eips::{BlockId, BlockNumberOrTag};
 use alloy_primitives::{
@@ -9,6 +10,8 @@ use alloy_primitives::{
 use alloy_provider::{Provider, ProviderBuilder, RootProvider};
 use alloy_rpc_client::RpcClient;
 use alloy_transport::{Transport, TransportError};
+use eth_sparse_mpt::SparseTrieSharedCache;
+use reth::providers::ExecutionOutcome;
 use reth_chainspec::ChainInfo;
 use reth_errors::{ProviderError, ProviderResult};
 use reth_primitives::{Account, Bytecode, SealedHeader};
@@ -22,8 +25,6 @@ use reth_trie::{
     TrieInput,
 };
 use revm_primitives::{Address, B256};
-
-use crate::roothash::StateRootCalculator;
 
 #[derive(Clone)]
 pub struct RemoteProviderFactory<T> {
@@ -375,7 +376,13 @@ where
 }
 
 impl<T> StateRootCalculator for RemoteProviderFactory<T> {
-    fn calculate_state_root(&self) -> Result<B256, crate::roothash::RootHashError> {
+    fn calculate_state_root(
+        &self,
+        _parent_hash: B256,
+        _outcome: &ExecutionOutcome,
+        _sparse_trie_shared_cache: SparseTrieSharedCache,
+        _config: RootHashConfig,
+    ) -> Result<B256, crate::roothash::RootHashError> {
         todo!()
     }
 }
