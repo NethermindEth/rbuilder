@@ -386,7 +386,7 @@ impl<T> StateRootCalculator for RemoteProviderFactory<T> {
         _sparse_trie_shared_cache: SparseTrieSharedCache,
         _config: RootHashConfig,
     ) -> Result<B256, crate::roothash::RootHashError> {
-        todo!()
+        Ok(B256::default())
     }
 }
 
