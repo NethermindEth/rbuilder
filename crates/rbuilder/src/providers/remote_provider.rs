@@ -71,8 +71,11 @@ where
         unimplemented!()
     }
 
-    fn history_by_block_number(&self, _block: BlockNumber) -> ProviderResult<StateProviderBox> {
-        unimplemented!()
+    fn history_by_block_number(&self, block: BlockNumber) -> ProviderResult<StateProviderBox> {
+        Ok(RemoteStateProvider::boxed(
+            self.remote_provider.clone(),
+            BlockId::Number(block.into()),
+        ))
     }
 
     /// Returns a historical [StateProvider] indexed by the given block hash.
