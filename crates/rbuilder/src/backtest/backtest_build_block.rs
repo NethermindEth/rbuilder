@@ -7,6 +7,8 @@
 
 use ahash::HashMap;
 use alloy_primitives::utils::format_ether;
+use alloy_rpc_client::RpcClient;
+use url::Url;
 
 use crate::{
     backtest::{
@@ -20,6 +22,7 @@ use crate::{
     building::builders::BacktestSimulateBlockInput,
     live_builder::{base_config::load_config_toml_and_env, cli::LiveBuilderConfig},
     primitives::{Order, OrderId, SimulatedOrder},
+    providers::remote_provider::RemoteProviderFactory,
     utils::timestamp_as_u64,
 };
 use clap::Parser;
@@ -88,7 +91,10 @@ where
         print_order_and_timestamp(&block_data.available_orders, &block_data);
     }
 
-    let provider_factory = config.base_config().create_provider_factory()?;
+    //let provider_factory = config.base_config().create_provider_factory()?;
+    let provider_factory = RemoteProviderFactory::new(RpcClient::new_http(Url::parse(
+        &config.base_config().backtest_fetch_eth_rpc_url,
+    )?));
     let chain_spec = config.base_config().chain_spec()?;
 
     if cli.sim_landed_block {
