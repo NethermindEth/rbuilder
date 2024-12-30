@@ -29,6 +29,7 @@ use revm_primitives::{Address, B256};
 #[derive(Clone)]
 pub struct RemoteProviderFactory<T> {
     remote_provider: RootProvider<T>,
+    handle: tokio::runtime::Handle,
 }
 
 impl<T> RemoteProviderFactory<T>
@@ -37,20 +38,13 @@ where
 {
     pub fn new(client: RpcClient<T>) -> Self {
         let provider = ProviderBuilder::new().on_client(client);
+        let handle = tokio::runtime::Handle::current();
         Self {
+            handle,
             remote_provider: provider,
         }
     }
 }
-
-// TODO:
-// Check if calls to the functions below are always used from within a tokio context
-// I'm using futures::executor, instead of the tokio runtime
-// This is because I'm unsure if the code here is always called from withing tokio context/runtime
-// Tokio is indeed used, but some code is executed from within sys threads instead of Tokio -
-// calling tokio::Handle::block_on() will result in a panic in this scenario
-// Downside of the futures::executor is that it adds overhead of yet another executor which is not
-// "in sync" with the tokio one
 
 impl<T> StateProviderFactory for RemoteProviderFactory<T>
 where
@@ -61,6 +55,7 @@ where
         Ok(RemoteStateProvider::boxed(
             self.remote_provider.clone(),
             BlockId::Number(BlockNumberOrTag::Latest),
+            self.handle.clone(),
         ))
     }
 
@@ -75,6 +70,7 @@ where
         Ok(RemoteStateProvider::boxed(
             self.remote_provider.clone(),
             BlockId::Number(block.into()),
+            self.handle.clone(),
         ))
     }
 
@@ -85,6 +81,7 @@ where
         Ok(RemoteStateProvider::boxed(
             self.remote_provider.clone(),
             BlockId::Hash(block.into()),
+            self.handle.clone(),
         ))
     }
 
@@ -200,19 +197,29 @@ where
 
 pub struct RemoteStateProvider<T> {
     remote_provider: RootProvider<T>,
+    handle: tokio::runtime::Handle,
     block_id: BlockId,
 }
 
 impl<T> RemoteStateProvider<T> {
-    pub fn new(remote_provider: RootProvider<T>, block_id: BlockId) -> Self {
+    pub fn new(
+        remote_provider: RootProvider<T>,
+        block_id: BlockId,
+        handle: tokio::runtime::Handle,
+    ) -> Self {
         Self {
+            handle,
             remote_provider,
             block_id,
         }
     }
 
-    pub fn boxed(remote_provider: RootProvider<T>, block_id: BlockId) -> Box<Self> {
-        Box::new(Self::new(remote_provider, block_id))
+    pub fn boxed(
+        remote_provider: RootProvider<T>,
+        block_id: BlockId,
+        handle: tokio::runtime::Handle,
+    ) -> Box<Self> {
+        Box::new(Self::new(remote_provider, block_id, handle))
     }
 }
 
@@ -226,10 +233,14 @@ where
         account: Address,
         storage_key: StorageKey,
     ) -> ProviderResult<Option<StorageValue>> {
-        let storage = futures::executor::block_on(async {
-            self.remote_provider
-                .get_storage_at(account, storage_key.into())
-                .await
+        println!("Storage");
+        let storage = tokio::task::block_in_place(move || {
+            self.handle.block_on(async move {
+                self.remote_provider
+                    .get_storage_at(account, storage_key.into())
+                    .block_id(self.block_id)
+                    .await
+            })
         })
         .map_err(transport_to_provider_error)?;
 
@@ -241,15 +252,17 @@ where
 
     ///Get account code by its hash
     fn bytecode_by_hash(&self, code_hash: B256) -> ProviderResult<Option<Bytecode>> {
-        let bytecode = futures::executor::block_on(async {
-            self.remote_provider
-                .get_code_at(Address::from_word(code_hash))
-                .block_id(self.block_id)
-                .await
+        let bytes = tokio::task::block_in_place(move || {
+            self.handle.block_on(async move {
+                self.remote_provider
+                    .get_code_at(Address::from_word(code_hash))
+                    .block_id(self.block_id)
+                    .await
+            })
         })
         .map_err(transport_to_provider_error)?;
 
-        Ok(Some(Bytecode::new_raw(bytecode)))
+        Ok(Some(Bytecode::new_raw(bytes)))
     }
 }
 
@@ -280,17 +293,19 @@ where
     /// Get basic account information.
     /// Returns `None` if the account doesn't exist.
     fn basic_account(&self, address: Address) -> ProviderResult<Option<Account>> {
-        let account = futures::executor::block_on(async {
-            let account = self
-                .remote_provider
-                .get_proof(address, Vec::new())
-                .block_id(self.block_id)
-                .await?;
+        let account = tokio::task::block_in_place(move || {
+            self.handle.block_on(async move {
+                let account = self
+                    .remote_provider
+                    .get_proof(address, Vec::new())
+                    .block_id(self.block_id)
+                    .await?;
 
-            Ok(Account {
-                nonce: account.nonce,
-                bytecode_hash: account.code_hash.into(),
-                balance: account.balance,
+                Ok(Account {
+                    nonce: account.nonce,
+                    bytecode_hash: account.code_hash.into(),
+                    balance: account.balance,
+                })
             })
         })
         .map_err(transport_to_provider_error)?;
