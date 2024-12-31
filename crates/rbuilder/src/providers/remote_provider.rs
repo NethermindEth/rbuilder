@@ -1,4 +1,4 @@
-use std::ops::RangeBounds;
+use std::{ops::RangeBounds, sync::Arc};
 
 use crate::roothash::{RootHashConfig, StateRootCalculator};
 use alloy_consensus::Header;
@@ -10,6 +10,7 @@ use alloy_primitives::{
 use alloy_provider::{Provider, ProviderBuilder, RootProvider};
 use alloy_rpc_client::RpcClient;
 use alloy_transport::{Transport, TransportError};
+use dashmap::DashMap;
 use eth_sparse_mpt::SparseTrieSharedCache;
 use reth::providers::ExecutionOutcome;
 use reth_chainspec::ChainInfo;
@@ -199,6 +200,7 @@ pub struct RemoteStateProvider<T> {
     remote_provider: RootProvider<T>,
     handle: tokio::runtime::Handle,
     block_id: BlockId,
+    cache: DashMap<B256, Address>,
 }
 
 impl<T> RemoteStateProvider<T> {
@@ -211,6 +213,7 @@ impl<T> RemoteStateProvider<T> {
             handle,
             remote_provider,
             block_id,
+            cache: DashMap::new(),
         }
     }
 
@@ -233,7 +236,6 @@ where
         account: Address,
         storage_key: StorageKey,
     ) -> ProviderResult<Option<StorageValue>> {
-        println!("Storage");
         let storage = tokio::task::block_in_place(move || {
             self.handle.block_on(async move {
                 self.remote_provider
@@ -247,17 +249,25 @@ where
         Ok(Some(storage))
     }
 
-    // TODO: C/P from Ferran's PR (https://github.com/flashbots/rbuilder/pull/144),
-    // but I'm not sure this is actually correct, code_hash shouldn't be the same thing as Address
-
     ///Get account code by its hash
+    /// NOTE: this assumes that, usually, firstly basic_account is called (which has bytecode_hash)
+    /// and only then `bytecode_hash` is called
     fn bytecode_by_hash(&self, code_hash: B256) -> ProviderResult<Option<Bytecode>> {
         let bytes = tokio::task::block_in_place(move || {
             self.handle.block_on(async move {
-                self.remote_provider
-                    .get_code_at(Address::from_word(code_hash))
-                    .block_id(self.block_id)
-                    .await
+                if let Some(address) = self.cache.get(&code_hash) {
+                    self.remote_provider
+                        .get_code_at(*address)
+                        .block_id(self.block_id)
+                        .await
+                } else {
+                    //TODO: Placeholder till we have proper RPC call
+                    println!("Uncached");
+                    self.remote_provider
+                        .get_code_at(Address::from_word(code_hash))
+                        .block_id(self.block_id)
+                        .await
+                }
             })
         })
         .map_err(transport_to_provider_error)?;
@@ -310,6 +320,8 @@ where
                     .get_proof(address, Vec::new())
                     .block_id(self.block_id)
                     .await?;
+
+                self.cache.insert(account.code_hash, address);
 
                 Ok(Account {
                     nonce: account.nonce,
