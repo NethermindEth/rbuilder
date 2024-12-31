@@ -269,11 +269,21 @@ where
 // Required by the StateProvider
 impl<T> BlockHashReader for RemoteStateProvider<T>
 where
-    T: Send + Sync,
+    T: Transport + Clone,
 {
     /// Get the hash of the block with the given number. Returns `None` if no block with this number exists
-    fn block_hash(&self, _number: BlockNumber) -> ProviderResult<Option<B256>> {
-        todo!()
+    fn block_hash(&self, number: BlockNumber) -> ProviderResult<Option<B256>> {
+        let block = tokio::task::block_in_place(move || {
+            self.handle.block_on(async move {
+                self.remote_provider
+                    .get_block_by_number(BlockNumberOrTag::Number(number), false.into())
+                    .await
+            })
+        })
+        .map_err(transport_to_provider_error)?
+        .map(|b| b.header.hash);
+
+        Ok(block)
     }
 
     fn canonical_hashes_range(
