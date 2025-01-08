@@ -469,8 +469,8 @@ where
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct AccountDiff {
-    pub nonce: U256,
-    pub balance: U256,
+    pub nonce: Option<U256>,
+    pub balance: Option<U256>,
     pub code: Option<Bytes>,
     pub self_destructed: bool,
     pub changed_slots: HashMap<U256, U256>,
@@ -481,8 +481,9 @@ pub struct AccountDiff {
 impl From<BundleAccount> for AccountDiff {
     //TODO: clean this up
     fn from(value: BundleAccount) -> Self {
-        let was_destroyed = value.was_destroyed();
-        let changed_slots = value
+        let mut result = Self::default();
+        result.self_destructed = value.was_destroyed();
+        result.changed_slots = value
             .storage
             .iter()
             .filter_map(|(k, v)| {
@@ -492,16 +493,17 @@ impl From<BundleAccount> for AccountDiff {
                 Some((*k, v.present_value))
             })
             .collect();
-        let info = value.info.unwrap();
 
-        Self {
-            nonce: U256::from(info.nonce),
-            balance: info.balance,
-            code: info.code.map(|b| b.bytes()),
-            self_destructed: was_destroyed,
-            changed: value.status.is_modified_and_not_destroyed(),
-            changed_slots,
+        if value.info.is_none() {
+            return result;
         }
+
+        let info = value.info.unwrap();
+        result.nonce = Some(U256::from(info.nonce));
+        result.balance = Some(info.balance);
+        result.code = info.code.map(|b| b.bytes());
+
+        result
     }
 }
 
