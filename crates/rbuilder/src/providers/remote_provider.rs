@@ -253,24 +253,33 @@ where
     /// NOTE: this assumes that, usually, firstly basic_account is called (which has bytecode_hash)
     /// and only then `bytecode_hash` is called
     fn bytecode_by_hash(&self, code_hash: B256) -> ProviderResult<Option<Bytecode>> {
-        let bytes = tokio::task::block_in_place(move || {
+        let bytes = match tokio::task::block_in_place(move || {
             self.handle.block_on(async move {
-                if let Some(address) = self.cache.get(&code_hash) {
-                    self.remote_provider
-                        .get_code_at(*address)
-                        .block_id(self.block_id)
-                        .await
-                } else {
-                    //TODO: Placeholder till we have proper RPC call
-                    println!("Uncached");
-                    self.remote_provider
-                        .get_code_at(Address::from_word(code_hash))
-                        .block_id(self.block_id)
-                        .await
-                }
+                self.remote_provider
+                    .client()
+                    .request::<_, Bytes>("rbuilder_getCodeByHash", code_hash)
+                    .await
+                //if let Some(address) = self.cache.get(&code_hash) {
+                //    self.remote_provider
+                //        .get_code_at(*address)
+                //        .block_id(self.block_id)
+                //        .await
+                //} else {
+                //    //TODO: Placeholder till we have proper RPC call
+                //    println!("Uncached");
+                //self.remote_provider
+                //    .get_code_at(Address::from_word(code_hash))
+                //    .block_id(self.block_id)
+                //    .await
+                //}
             })
-        })
-        .map_err(transport_to_provider_error)?;
+        }) {
+            Ok(r) => r,
+            Err(e) => {
+                println!("Err: {e}");
+                return Err(transport_to_provider_error(e));
+            }
+        };
 
         Ok(Some(Bytecode::new_raw(bytes)))
     }
