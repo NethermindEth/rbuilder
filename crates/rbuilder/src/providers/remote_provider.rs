@@ -481,27 +481,25 @@ pub struct AccountDiff {
 impl From<BundleAccount> for AccountDiff {
     //TODO: clean this up
     fn from(value: BundleAccount) -> Self {
-        let mut result = Self::default();
-        result.self_destructed = value.was_destroyed();
-        result.changed_slots = value
-            .storage
-            .iter()
-            .filter_map(|(k, v)| {
-                //if !v.is_changed() {
-                //    return None;
-                //}
-                Some((*k, v.present_value))
-            })
-            .collect();
-
-        if value.info.is_none() {
-            return result;
-        }
-
-        let info = value.info.unwrap();
-        result.nonce = Some(U256::from(info.nonce));
-        result.balance = Some(info.balance);
-        result.code = info.code.map(|b| b.bytes());
+        Self {
+            self_destructed: value.was_destroyed(),
+            changed_slots: value
+                .storage
+                .iter()
+                .filter_map(|(k, v)| {
+                    //if !v.is_changed() {
+                    //    return None;
+                    //}
+                    Some((*k, v.present_value))
+                })
+                .collect(),
+            balance: value.info.map(|i| i.balance),
+            nonce: value.info.map(|i| U256::from(i.nonce)),
+            code: value.info.map_or(None, |i| i.code.map(|c| c.bytes())),
+            //TODO: implement this if it will bring perf improvements there is status flag and check for
+            //value.is_info_changed
+            changed: false,
+        };
 
         result
     }
