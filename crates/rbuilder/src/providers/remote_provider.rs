@@ -12,6 +12,7 @@ use alloy_rpc_client::RpcClient;
 use alloy_transport::{Transport, TransportError};
 use dashmap::DashMap;
 use eth_sparse_mpt::SparseTrieSharedCache;
+use foldhash::HashMapExt;
 use reth::providers::ExecutionOutcome;
 use reth_chainspec::ChainInfo;
 use reth_errors::{ProviderError, ProviderResult};
@@ -25,7 +26,9 @@ use reth_trie::{
     updates::TrieUpdates, AccountProof, HashedPostState, HashedStorage, MultiProof, StorageProof,
     TrieInput,
 };
+use revm::db::{BundleAccount, BundleState};
 use revm_primitives::{Address, B256};
+use serde::{Deserialize, Serialize};
 
 #[derive(Clone)]
 pub struct RemoteProviderFactory<T> {
@@ -257,7 +260,7 @@ where
             self.handle.block_on(async move {
                 self.remote_provider
                     .client()
-                    .request::<_, Bytes>("rbuilder_getCodeByHash", code_hash)
+                    .request::<_, Bytes>("rbuilder_getCodeByHash", (code_hash,))
                     .await
                 //if let Some(address) = self.cache.get(&code_hash) {
                 //    self.remote_provider
@@ -267,10 +270,10 @@ where
                 //} else {
                 //    //TODO: Placeholder till we have proper RPC call
                 //    println!("Uncached");
-                //self.remote_provider
-                //    .get_code_at(Address::from_word(code_hash))
-                //    .block_id(self.block_id)
-                //    .await
+                //    self.remote_provider
+                //        .get_code_at(Address::from_word(code_hash))
+                //        .block_id(self.block_id)
+                //        .await
                 //}
             })
         }) {
@@ -430,26 +433,75 @@ where
 {
     fn calculate_state_root(
         &self,
-        _parent_hash: B256,
-        _outcome: &ExecutionOutcome,
+        parent_hash: B256,
+        outcome: &ExecutionOutcome,
         _sparse_trie_shared_cache: SparseTrieSharedCache,
         _config: RootHashConfig,
     ) -> Result<B256, crate::roothash::RootHashError> {
-        //let block = self
-        //    .client()
-        //    .request::<_, Option<N::BlockResponse>>("eth_getBlockByNumber", (number, full))
-        //    .await?
-        //    .map(|mut block| {
-        //        if !full {
-        //            // this ensures an empty response for `Hashes` has the expected form
-        //            // this is required because deserializing [] is ambiguous
-        //            block.transactions_mut().convert_to_hashes();
-        //        }
-        //        block
-        //    });
-        let _ = self.remote_provider.client().request::<_, B256>("", ());
+        let account_diff: HashMap<Address, AccountDiff> = outcome
+            .bundle
+            .state
+            .iter()
+            .map(|(address, diff)| (*address, diff.clone().into()))
+            .collect();
 
-        Ok(B256::default())
+        let hash = match tokio::task::block_in_place(move || {
+            self.handle.block_on(async move {
+                self.remote_provider
+                    .client()
+                    .request::<_, B256>(
+                        "rbuilder_calculateStateRoot",
+                        (BlockId::Hash(parent_hash.into()), account_diff),
+                    )
+                    .await
+            })
+        }) {
+            Ok(r) => r,
+            Err(e) => {
+                println!("Err: {e}");
+                return Err(crate::roothash::RootHashError::Verification);
+            }
+        };
+
+        Ok(hash)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct AccountDiff {
+    pub nonce: U256,
+    pub balance: U256,
+    pub code: Option<Bytes>,
+    pub self_destructed: bool,
+    pub changed_slots: HashMap<U256, U256>,
+    #[serde(skip)]
+    pub changed: bool,
+}
+
+impl From<BundleAccount> for AccountDiff {
+    //TODO: clean this up
+    fn from(value: BundleAccount) -> Self {
+        let was_destroyed = value.was_destroyed();
+        let changed_slots = value
+            .storage
+            .iter()
+            .filter_map(|(k, v)| {
+                //if !v.is_changed() {
+                //    return None;
+                //}
+                Some((*k, v.present_value))
+            })
+            .collect();
+        let info = value.info.unwrap();
+
+        Self {
+            nonce: U256::from(info.nonce),
+            balance: info.balance,
+            code: info.code.map(|b| b.bytes()),
+            self_destructed: was_destroyed,
+            changed: value.status.is_modified_and_not_destroyed(),
+            changed_slots,
+        }
     }
 }
 
