@@ -474,34 +474,47 @@ pub struct AccountDiff {
     pub code: Option<Bytes>,
     pub self_destructed: bool,
     pub changed_slots: HashMap<U256, U256>,
+    pub code_hash: Option<B256>,
     #[serde(skip)]
     pub changed: bool,
 }
 
 impl From<BundleAccount> for AccountDiff {
-    //TODO: clean this up
     fn from(value: BundleAccount) -> Self {
-        Self {
-            self_destructed: value.was_destroyed(),
-            changed_slots: value
-                .storage
-                .iter()
-                .filter_map(|(k, v)| {
-                    //if !v.is_changed() {
-                    //    return None;
-                    //}
-                    Some((*k, v.present_value))
-                })
-                .collect(),
-            balance: value.info.map(|i| i.balance),
-            nonce: value.info.map(|i| U256::from(i.nonce)),
-            code: value.info.map_or(None, |i| i.code.map(|c| c.bytes())),
-            //TODO: implement this if it will bring perf improvements there is status flag and check for
-            //value.is_info_changed
-            changed: false,
-        };
+        let self_destructed = value.was_destroyed();
+        let changed_slots = value
+            .storage
+            .iter()
+            .filter_map(|(k, v)| {
+                if !v.is_changed() {
+                    return None;
+                }
+                Some((*k, v.present_value))
+            })
+            .collect();
 
-        result
+        match value.info {
+            Some(info) => Self {
+                changed_slots,
+                self_destructed,
+                balance: Some(info.balance),
+                nonce: Some(U256::from(info.nonce)),
+                code_hash: Some(info.code_hash),
+                code: info.code.map(|c| c.bytes()),
+                //TODO: implement this if it will bring perf improvements there is status flag and check for
+                //value.is_info_changed
+                changed: false,
+            },
+            None => Self {
+                changed_slots,
+                self_destructed,
+                balance: None,
+                nonce: None,
+                code_hash: None,
+                code: None,
+                changed: false,
+            },
+        }
     }
 }
 
