@@ -18,11 +18,17 @@ use crate::{
         BacktestResultsStorage, BlockData, HistoricalDataStorage, StoredBacktestResult,
     },
     live_builder::{base_config::load_config_toml_and_env, cli::LiveBuilderConfig},
+    providers::remote_provider::RemoteProviderFactory,
 };
 use alloy_primitives::{utils::format_ether, Address, U256};
+use alloy_rpc_client::RpcClient;
 use clap::Parser;
+use rand::rngs::OsRng;
 use rayon::prelude::*;
+use revm_primitives::hex;
+use secp256k1::SecretKey;
 use std::{
+    env,
     fs::File,
     io::{self, Write},
     path::{Path, PathBuf},
@@ -31,6 +37,7 @@ use time::format_description::well_known::Rfc3339;
 use tokio::{signal::ctrl_c, sync::mpsc};
 use tokio_util::sync::CancellationToken;
 use tracing::warn;
+use url::Url;
 
 #[derive(Parser, Debug, Clone)]
 struct Cli {
@@ -76,6 +83,10 @@ where
     let config: ConfigType = load_config_toml_and_env(cli.config.clone())?;
     config.base_config().setup_tracing_subscriber()?;
 
+    if let Err(_) = config.base_config().coinbase_signer() {
+        add_env_coinbase_signer();
+    }
+
     let builders_names = config.base_config().backtest_builders.clone();
 
     let mut historical_data_storage =
@@ -111,7 +122,9 @@ where
         result
     };
 
-    let provider_factory = config.base_config().create_provider_factory()?;
+    let provider_factory = RemoteProviderFactory::new(RpcClient::new_http(Url::parse(
+        &config.base_config().backtest_fetch_eth_rpc_url,
+    )?));
     let chain_spec = config.base_config().chain_spec()?;
 
     let mut profits = Vec::new();
@@ -272,10 +285,11 @@ fn print_backtest_value(mut output: BlockBacktestValue) {
     );
     for b in output.builder_outputs {
         println!(
-            "  bldr:  {} {} {}",
+            "  bldr:  {} {} {} {}",
             format_ether(b.our_bid_value),
             b.orders_included,
-            b.builder_name
+            b.builder_name,
+            b.root_hash
         );
     }
 
@@ -431,4 +445,18 @@ fn spawn_block_fetcher(
     });
 
     receiver
+}
+
+// Generate a random private key
+fn generate_private_key() -> String {
+    let mut rng = OsRng;
+    let secret_key = SecretKey::new(&mut rng);
+    let hex_secret_key = hex::encode(secret_key.secret_bytes());
+    hex_secret_key
+}
+
+// Add COINBASE_SECRET_KEY as an environment variable during runtime
+fn add_env_coinbase_signer() {
+    let private_key = generate_private_key();
+    env::set_var("COINBASE_SECRET_KEY", private_key);
 }

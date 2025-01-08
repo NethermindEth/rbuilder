@@ -6,6 +6,7 @@
 //! backtest-build-block --config /home/happy_programmer/config.toml --builders mgp-ordering --builders mp-ordering 19380913 --show-orders --show-missing
 
 use ahash::HashMap;
+use alloy_consensus::BlockHeader;
 use alloy_primitives::utils::format_ether;
 use alloy_rpc_client::RpcClient;
 use rand::rngs::OsRng;
@@ -148,6 +149,11 @@ where
                 }
                 let (block, _) = build_res.ok()?;
                 println!("Built block {} with builder: {:?}", cli.block, builder_name);
+                println!(
+                    "Built block {} with calculated state root {:?}",
+                    cli.block,
+                    block.sealed_block.header.state_root()
+                );
                 println!("Builder profit: {}", format_ether(block.trace.bid_value));
                 println!(
                     "Number of used orders: {}",
@@ -220,8 +226,10 @@ async fn read_block_data(
     }
 
     println!(
-        "Block: {} {:?}",
-        block_data.block_number, block_data.onchain_block.header.hash
+        "Block: {} header hash: {:?} state root: {:?}",
+        block_data.block_number,
+        block_data.onchain_block.header.hash,
+        block_data.onchain_block.header.state_root
     );
     println!(
         "bid value: {}",

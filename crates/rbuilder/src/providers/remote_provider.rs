@@ -415,7 +415,10 @@ where
     }
 }
 
-impl<T> StateRootCalculator for RemoteProviderFactory<T> {
+impl<T> StateRootCalculator for RemoteProviderFactory<T>
+where
+    T: Transport + Clone,
+{
     fn calculate_state_root(
         &self,
         _parent_hash: B256,
@@ -423,6 +426,20 @@ impl<T> StateRootCalculator for RemoteProviderFactory<T> {
         _sparse_trie_shared_cache: SparseTrieSharedCache,
         _config: RootHashConfig,
     ) -> Result<B256, crate::roothash::RootHashError> {
+        //let block = self
+        //    .client()
+        //    .request::<_, Option<N::BlockResponse>>("eth_getBlockByNumber", (number, full))
+        //    .await?
+        //    .map(|mut block| {
+        //        if !full {
+        //            // this ensures an empty response for `Hashes` has the expected form
+        //            // this is required because deserializing [] is ambiguous
+        //            block.transactions_mut().convert_to_hashes();
+        //        }
+        //        block
+        //    });
+        let _ = self.remote_provider.client().request::<_, B256>("", ());
+
         Ok(B256::default())
     }
 }

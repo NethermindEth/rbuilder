@@ -11,6 +11,7 @@ use crate::{
     utils::{clean_extradata, Signer},
 };
 use ahash::HashSet;
+use alloy_consensus::BlockHeader;
 use alloy_primitives::{Address, U256};
 use reth::revm::cached::CachedReads;
 use reth_chainspec::ChainSpec;
@@ -27,6 +28,7 @@ pub struct BacktestBuilderOutput {
     pub included_orders: Vec<OrderId>,
     #[serde(default)]
     pub included_order_profits: Vec<U256>,
+    pub root_hash: String,
 }
 
 /// Result of a backtest simulation usually stored for later comparison
@@ -196,6 +198,7 @@ where
                 .iter()
                 .map(|o| o.coinbase_profit)
                 .collect(),
+            root_hash: block.sealed_block.state_root().to_string(),
         });
     }
 
