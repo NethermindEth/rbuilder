@@ -474,6 +474,7 @@ pub struct AccountDiff {
     pub code: Option<Bytes>,
     pub self_destructed: bool,
     pub changed_slots: HashMap<U256, U256>,
+    #[serde(skip)]
     pub code_hash: Option<B256>,
     #[serde(skip)]
     pub changed: bool,
