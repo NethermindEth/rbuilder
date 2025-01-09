@@ -381,6 +381,7 @@ impl CSVResultWriter {
         line.push_str("block_number,winning_bid_value,simulated_orders_count");
         for builder_name in &self.builder_names {
             line.push_str(&format!(",{}", builder_name));
+            line.push_str(&format!(",{}_sroot", builder_name));
         }
         writeln!(self.file, "{}", line)?;
         self.file.flush()
@@ -395,13 +396,15 @@ impl CSVResultWriter {
             value.simulated_orders_count
         ));
         for builder in &self.builder_names {
-            let builder_res = value
+            let (value, root_hash) = value
                 .builder_outputs
                 .iter()
                 .find(|b| b.builder_name == *builder)
-                .map(|b| b.our_bid_value)
+                .map(|b| (b.our_bid_value, b.root_hash.clone()))
                 .unwrap_or_default();
-            line.push_str(&format!(",{}", format_ether(builder_res)));
+
+            line.push_str(&format!(",{}", format_ether(value)));
+            line.push_str(&format!(",{}", root_hash));
         }
         writeln!(self.file, "{}", line)?;
         self.file.flush()
