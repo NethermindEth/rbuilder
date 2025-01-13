@@ -117,8 +117,9 @@ where
         config.base_config().log_enable_dynamic,
     )
     .await?;
-    let _provider = config.base_config().create_provider_factory()?;
-    let provider = RemoteProviderFactory::new(RpcClient::new_http(Url::parse("")?));
+    //   let _provider = config.base_config().create_provider_factory()?;
+    let provider =
+        RemoteProviderFactory::new(RpcClient::new_http(Url::parse("http://localhost:8545")?));
     let builder = config.new_builder(provider, cancel.clone()).await?;
 
     let ctrlc = tokio::spawn(async move {
