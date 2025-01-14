@@ -4,7 +4,7 @@ use crate::{
     telemetry::add_txfetcher_time_to_query,
 };
 use alloy_primitives::{hex, Bytes, FixedBytes};
-use alloy_provider::{IpcConnect, Provider, ProviderBuilder, RootProvider};
+use alloy_provider::{IpcConnect, Provider, ProviderBuilder, RootProvider, WsConnect};
 use alloy_pubsub::PubSubFrontend;
 use futures::StreamExt;
 use std::{pin::pin, time::Instant};
@@ -24,8 +24,8 @@ pub async fn subscribe_to_txpool_with_blobs(
     results: mpsc::Sender<ReplaceableOrderPoolCommand>,
     global_cancel: CancellationToken,
 ) -> eyre::Result<JoinHandle<()>> {
-    let ipc = IpcConnect::new(config.ipc_path);
-    let provider = ProviderBuilder::new().on_ipc(ipc).await?;
+    let ws = WsConnect::new("ws://localhost:8545");
+    let provider = ProviderBuilder::new().on_ws(ws).await.unwrap();
 
     let handle = tokio::spawn(async move {
         info!("Subscribe to txpool with blobs: started");
