@@ -163,15 +163,33 @@ where
 
 impl<T> HeaderProvider for RemoteProviderFactory<T>
 where
-    T: Send + Sync,
+    T: Transport + Clone,
 {
     /// Get header by block hash
-    fn header(&self, _block_hash: &BlockHash) -> ProviderResult<Option<Header>> {
-        todo!()
+    fn header(&self, block_hash: &BlockHash) -> ProviderResult<Option<Header>> {
+        let block = tokio::task::block_in_place(move || {
+            self.handle.block_on(async move {
+                self.remote_provider
+                    .get_block_by_hash(*block_hash, false.into())
+                    .await
+            })
+        })
+        .map_err(transport_to_provider_error)?;
+
+        Ok(block.map(|b| b.header.inner))
     }
 
-    fn header_by_number(&self, _num: u64) -> ProviderResult<Option<Header>> {
-        unimplemented!()
+    fn header_by_number(&self, num: u64) -> ProviderResult<Option<Header>> {
+        let block = tokio::task::block_in_place(move || {
+            self.handle.block_on(async move {
+                self.remote_provider
+                    .get_block_by_number(num.into(), false.into())
+                    .await
+            })
+        })
+        .map_err(transport_to_provider_error)?;
+
+        Ok(block.map(|b| b.header.inner))
     }
 
     fn header_td(&self, _hash: &BlockHash) -> ProviderResult<Option<U256>> {
