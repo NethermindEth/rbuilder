@@ -7,10 +7,18 @@
 
 use ahash::HashMap;
 use alloy_consensus::BlockHeader;
+use alloy_consensus::Transaction;
 use alloy_primitives::utils::format_ether;
+use alloy_provider::{Provider, ProviderBuilder};
 use alloy_rpc_client::RpcClient;
+use alloy_rpc_types::simulate::SimulatedBlock;
+use alloy_rpc_types::TransactionInput;
+use alloy_rpc_types::{
+    simulate::{SimBlock, SimulatePayload},
+    TransactionRequest,
+};
 use rand::rngs::OsRng;
-use revm_primitives::hex;
+use revm_primitives::{hex, TxKind};
 use secp256k1::SecretKey;
 use url::Url;
 
@@ -96,9 +104,11 @@ where
     }
 
     //let provider_factory = config.base_config().create_provider_factory()?;
-    let provider_factory = RemoteProviderFactory::new(RpcClient::new_http(Url::parse(
+    let rpc = RpcClient::new_http(Url::parse(
         &config.base_config().backtest_fetch_eth_rpc_url,
-    )?));
+    )?);
+    let provider = ProviderBuilder::new().on_client(rpc.clone());
+    let provider_factory = RemoteProviderFactory::new(rpc);
     let chain_spec = config.base_config().chain_spec()?;
 
     if cli.sim_landed_block {
@@ -150,10 +160,13 @@ where
                 let (block, _) = build_res.ok()?;
                 println!("Built block {} with builder: {:?}", cli.block, builder_name);
                 println!(
-                    "Built block {} with calculated state root {:?}",
+                    "Built block {} with header hash {:?}, parent hash {:?}, calculated state root {:?}",
                     cli.block,
+                    block.sealed_block.header.hash(),
+                    block.sealed_block.header.header().parent_hash,
                     block.sealed_block.header.state_root()
                 );
+                println!("The header: {:?}", block.sealed_block.header);
                 println!("Builder profit: {}", format_ether(block.trace.bid_value));
                 println!(
                     "Number of used orders: {}",
@@ -182,6 +195,113 @@ where
                         }
                     }
                 }
+
+
+                let calls = block
+                    .trace
+                    .included_orders
+                    .iter()
+                    .flat_map(|o| {
+                        let requests: Vec<TransactionRequest> = o
+                            .order
+                            .list_txs()
+                            .iter()
+                            .map(|(tx, this_is)| {
+                                let sender = tx.signer();
+                                let hash = &tx.hash();
+                                let tx = &tx.as_ref().transaction;
+                                let to = Some(tx.to().into());
+                                let gas = tx.gas_limit();
+                                let value = tx.value();
+                                let input = tx.input().clone();
+                                let nonce = tx.nonce();
+                                let chain_id = tx.chain_id();
+                                let access_list = tx.access_list().cloned();
+                                let max_fee_per_blob_gas = tx.max_fee_per_blob_gas();
+                                let authorization_list =
+                                    tx.authorization_list().map(|l| l.to_vec());
+                                let blob_versioned_hashes =
+                                    tx.blob_versioned_hashes().map(Vec::from);
+                                let tx_type = tx.ty();
+
+                                // fees depending on the transaction type
+                                let (gas_price, max_fee_per_gas) = if tx.is_dynamic_fee() {
+                                    (None, Some(tx.max_fee_per_gas()))
+                                } else {
+                                    (Some(tx.max_fee_per_gas()), None)
+                                };
+                                let max_priority_fee_per_gas =
+                                    tx.max_priority_fee_per_gas();
+
+                                TransactionRequest {
+                                    from: Some(sender),
+                                    to,
+                                    gas_price,
+                                    max_fee_per_gas,
+                                    max_priority_fee_per_gas,
+                                    gas: Some(gas),
+                                    value: Some(value),
+                                    input: TransactionInput::new(input),
+                                    nonce: Some(nonce),
+                                    chain_id,
+                                    access_list,
+                                    max_fee_per_blob_gas,
+                                    blob_versioned_hashes,
+                                    transaction_type: Some(tx_type),
+                                    sidecar: None,
+                                    authorization_list,
+                                }
+                            })
+                        .collect();
+
+                        requests
+                    })
+                .collect::<Vec<_>>();
+
+
+                println!("Call count is {:?}", calls.len());
+
+                let block_state_calls = vec![SimBlock {
+                        state_overrides: None,
+                        block_overrides: Some(alloy_rpc_types::BlockOverrides {
+                            coinbase: Some(ctx.block_env.coinbase),
+                            number: Some(ctx.block_env.number),
+                            time: Some(ctx.block_env.timestamp).map(|u| u.to()),
+                            gas_limit: Some(ctx.block_env.gas_limit).map(|u| u.to()),
+                            base_fee: Some(ctx.block_env.basefee),
+                            difficulty: Some(ctx.block_env.difficulty),
+                            random: ctx.block_env.prevrandao,
+                            // blob_excess_gas_and_price: Some(ctx.block_env.blob_excess_gas_and_price),
+                            ..Default::default()
+                        }),
+                        calls,
+                }];
+                let simulate_payload = SimulatePayload {
+                    block_state_calls,
+                    trace_transfers: false,
+                    validation: false,
+                    return_full_transactions: false,
+                };
+
+
+                let cloned_provider = provider.clone();
+                let future = async move {
+                    let res: Vec<SimulatedBlock> =
+                        cloned_provider.simulate(&simulate_payload).number(cli.block - 1).await?;
+
+                    for block in res {
+                        println!(
+                            "The the header is {:?}",
+                            block.inner.header,
+                        );
+                    }
+
+                    return eyre::Ok({});
+                };
+
+                // Come one.. just print it
+                futures::executor::block_on(future).unwrap();
+
                 Some((builder_name.clone(), block.trace.bid_value))
             })
             .max_by_key(|(_, value)| *value);
