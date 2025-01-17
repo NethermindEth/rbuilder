@@ -287,7 +287,10 @@ where
                 let cloned_provider = provider.clone();
                 let future = async move {
                     let res: Vec<SimulatedBlock> =
-                        cloned_provider.simulate(&simulate_payload).number(cli.block - 1).await?;
+                        match cloned_provider.simulate(&simulate_payload).number(cli.block - 1).await {
+                        Ok(blocks) => blocks,
+                        Err(e) => {println!("Provider error: {}", e); return eyre::Ok(())}
+                    };
 
                     for block in res {
                         println!(
@@ -296,11 +299,11 @@ where
                         );
                     }
 
-                    return eyre::Ok({});
+                    eyre::Ok(())
                 };
 
                 // Come one.. just print it
-                futures::executor::block_on(future).unwrap();
+                let _ =futures::executor::block_on(future);
 
                 Some((builder_name.clone(), block.trace.bid_value))
             })
