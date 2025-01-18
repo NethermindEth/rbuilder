@@ -26,7 +26,7 @@ use reth_trie::{
     updates::TrieUpdates, AccountProof, HashedPostState, HashedStorage, MultiProof, StorageProof,
     TrieInput,
 };
-use revm::db::{BundleAccount, BundleState};
+use revm::db::{AccountStatus, BundleAccount, BundleState};
 use revm_primitives::{Address, B256};
 use serde::{Deserialize, Serialize};
 
@@ -503,13 +503,17 @@ pub struct AccountDiff {
 
 impl From<BundleAccount> for AccountDiff {
     fn from(value: BundleAccount) -> Self {
-        let self_destructed = value.was_destroyed();
+        let self_destructed = matches!(
+            value.status,
+            AccountStatus::Destroyed | AccountStatus::DestroyedAgain
+        );
         let changed_slots = value
             .storage
             .iter()
             .map(|(k, v)| (*k, v.present_value))
             .collect();
 
+        // maybe we skip none values?
         match value.info {
             Some(info) => Self {
                 changed_slots,
