@@ -463,7 +463,13 @@ where
             .bundle
             .state
             .iter()
-            .map(|(address, diff)| (*address, diff.clone().into()))
+            .filter_map(|(address, diff)| {
+                if let Ok(diff) = diff.clone().try_into() {
+                    Some((*address, diff))
+                } else {
+                    None
+                }
+            })
             .collect();
 
         let hash = match tokio::task::block_in_place(move || {
@@ -501,21 +507,22 @@ pub struct AccountDiff {
     pub changed: bool,
 }
 
-impl From<BundleAccount> for AccountDiff {
-    fn from(value: BundleAccount) -> Self {
-        let self_destructed = matches!(
-            value.status,
-            AccountStatus::Destroyed | AccountStatus::DestroyedAgain
-        );
+impl TryFrom<BundleAccount> for AccountDiff {
+    type Error = String;
+    fn try_from(value: BundleAccount) -> Result<Self, Self::Error> {
+        //let self_destructed = matches!(
+        //    value.status,
+        //    AccountStatus::Destroyed | AccountStatus::DestroyedAgain
+        //);
+        let self_destructed = value.was_destroyed();
         let changed_slots = value
             .storage
             .iter()
             .map(|(k, v)| (*k, v.present_value))
             .collect();
 
-        // maybe we skip none values?
-        match value.info {
-            Some(info) => Self {
+        if let Some(info) = value.info {
+            Ok(Self {
                 changed_slots,
                 self_destructed,
                 balance: Some(info.balance),
@@ -525,16 +532,9 @@ impl From<BundleAccount> for AccountDiff {
                 //TODO: implement this if it will bring perf improvements there is status flag and check for
                 //value.is_info_changed
                 changed: false,
-            },
-            None => Self {
-                changed_slots,
-                self_destructed,
-                balance: None,
-                nonce: None,
-                code_hash: None,
-                code: None,
-                changed: false,
-            },
+            })
+        } else {
+            Err("empty".into())
         }
     }
 }
