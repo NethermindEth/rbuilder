@@ -507,6 +507,8 @@ impl From<BundleAccount> for AccountDiff {
             value.status,
             AccountStatus::Destroyed | AccountStatus::DestroyedAgain
         );
+        let self_destructed = value.was_destroyed();
+
         let changed_slots = value
             .storage
             .iter()
