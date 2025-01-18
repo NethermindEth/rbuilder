@@ -101,7 +101,7 @@ impl ValidationAPIClient {
                 tokio::select! {
                     _ = cancellation_token.cancelled() => {
                     }
-                    result = provider.raw_request::<_, serde_json::Value>(std::borrow::Cow::Borrowed(method), (request, )) => {
+                    result = provider.raw_request::<_, serde_json::Value>(std::borrow::Cow::Borrowed(method), vec![request]) => {
                         _ = result_sender.send((i, result)).await;
                     }
                 }
