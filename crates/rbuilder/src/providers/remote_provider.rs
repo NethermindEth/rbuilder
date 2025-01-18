@@ -176,7 +176,10 @@ where
         })
         .map_err(transport_to_provider_error)?;
 
-        Ok(block.map(|b| b.header.inner))
+        Ok(block.map(|b| {
+            println!("block: {}", b.header.number);
+            b.header.inner
+        }))
     }
 
     fn header_by_number(&self, num: u64) -> ProviderResult<Option<Header>> {
