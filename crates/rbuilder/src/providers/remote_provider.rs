@@ -1,11 +1,10 @@
-use std::{ops::RangeBounds, sync::Arc};
+use std::{collections::HashMap, ops::RangeBounds, sync::Arc};
 
 use crate::roothash::{RootHashConfig, StateRootCalculator};
 use alloy_consensus::Header;
 use alloy_eips::{BlockId, BlockNumberOrTag};
 use alloy_primitives::{
-    map::{HashMap, HashSet},
-    BlockHash, BlockNumber, Bytes, StorageKey, StorageValue, U256,
+    map::HashSet, BlockHash, BlockNumber, Bytes, StorageKey, StorageValue, U256,
 };
 use alloy_provider::{Provider, ProviderBuilder, RootProvider};
 use alloy_rpc_client::RpcClient;
@@ -434,7 +433,14 @@ where
     fn multiproof(
         &self,
         _input: TrieInput,
-        _targets: HashMap<B256, HashSet<B256>>,
+        _targets: std::collections::HashMap<
+            alloy_primitives::FixedBytes<32>,
+            std::collections::HashSet<
+                alloy_primitives::FixedBytes<32>,
+                foldhash::fast::RandomState,
+            >,
+            foldhash::fast::RandomState,
+        >,
     ) -> ProviderResult<MultiProof> {
         unimplemented!()
     }
@@ -443,7 +449,14 @@ where
         &self,
         _input: TrieInput,
         _target: HashedPostState,
-    ) -> ProviderResult<HashMap<B256, Bytes>> {
+    ) -> std::result::Result<
+        std::collections::HashMap<
+            alloy_primitives::FixedBytes<32>,
+            alloy_primitives::Bytes,
+            foldhash::fast::RandomState,
+        >,
+        reth_errors::ProviderError,
+    > {
         unimplemented!()
     }
 }
@@ -459,6 +472,10 @@ where
         _sparse_trie_shared_cache: SparseTrieSharedCache,
         _config: RootHashConfig,
     ) -> Result<B256, crate::roothash::RootHashError> {
+        let hashed_state = outcome.hash_state_slow();
+        let accounts_diff: HashMap<Address, AccountDiff> =
+            HashMap::with_capacity(hashed_state.accounts.len());
+
         let account_diff: HashMap<Address, AccountDiff> = outcome
             .bundle
             .state
@@ -503,10 +520,6 @@ pub struct AccountDiff {
 
 impl From<BundleAccount> for AccountDiff {
     fn from(value: BundleAccount) -> Self {
-        let self_destructed = matches!(
-            value.status,
-            AccountStatus::Destroyed | AccountStatus::DestroyedAgain
-        );
         let self_destructed = value.was_destroyed();
 
         let changed_slots = value
@@ -515,7 +528,6 @@ impl From<BundleAccount> for AccountDiff {
             .map(|(k, v)| (*k, v.present_value))
             .collect();
 
-        // maybe we skip none values?
         match value.info {
             Some(info) => Self {
                 changed_slots,
@@ -530,7 +542,7 @@ impl From<BundleAccount> for AccountDiff {
             },
             None => Self {
                 changed_slots,
-                self_destructed,
+                self_destructed: true,
                 balance: None,
                 nonce: None,
                 code_hash: None,
