@@ -512,6 +512,7 @@ pub struct AccountDiff {
     pub code: Option<Bytes>,
     pub self_destructed: bool,
     pub changed_slots: HashMap<U256, U256>,
+    pub delete: bool,
     #[serde(skip)]
     pub code_hash: Option<B256>,
     #[serde(skip)]
@@ -522,11 +523,15 @@ impl From<BundleAccount> for AccountDiff {
     fn from(value: BundleAccount) -> Self {
         let self_destructed = value.was_destroyed();
 
-        let changed_slots = value
-            .storage
-            .iter()
-            .map(|(k, v)| (*k, v.present_value))
-            .collect();
+        let changed_slots = if self_destructed {
+            HashMap::new()
+        } else {
+            value
+                .storage
+                .iter()
+                .map(|(k, v)| (*k, v.present_value))
+                .collect()
+        };
 
         match value.info {
             Some(info) => Self {
@@ -539,15 +544,17 @@ impl From<BundleAccount> for AccountDiff {
                 //TODO: implement this if it will bring perf improvements there is status flag and check for
                 //value.is_info_changed
                 changed: false,
+                delete: false,
             },
             None => Self {
                 changed_slots,
-                self_destructed: true,
+                self_destructed,
                 balance: None,
                 nonce: None,
                 code_hash: None,
                 code: None,
                 changed: false,
+                delete: true,
             },
         }
     }
