@@ -258,13 +258,8 @@ where
         build_start: Instant,
     ) -> eyre::Result<()> {
         let mut order_attempts: HashMap<OrderId, usize> = HashMap::default();
-        let mut count = 0;
         // @Perf when gas left is too low we should break.
-
         while let Some(sim_order) = block_orders.pop_order() {
-            if count > 0 {
-                break;
-            }
             if let Some(deadline) = self.config.build_duration_deadline() {
                 if build_start.elapsed() > deadline {
                     break;
@@ -290,7 +285,6 @@ where
                         })
                         .collect();
                     block_orders.update_onchain_nonces(&nonces_updated);
-                    count += 1;
                 }
                 Err(err) => {
                     if let ExecutionError::LowerInsertedValue { inplace, .. } = &err {
