@@ -472,7 +472,7 @@ where
         _sparse_trie_shared_cache: SparseTrieSharedCache,
         _config: RootHashConfig,
     ) -> Result<B256, crate::roothash::RootHashError> {
-        let state = outcome.bundle.to_plain_state(OriginalValuesKnown::Yes);
+        let state = outcome.bundle.to_plain_state(OriginalValuesKnown::No);
         let mut account_diff: HashMap<Address, AccountDiff> = HashMap::new();
 
         for (address, val) in state.accounts.iter() {
