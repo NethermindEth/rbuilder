@@ -525,7 +525,7 @@ impl From<BundleAccount> for AccountDiff {
             .storage
             .iter()
             .map(|(k, v)| {
-                println!("Storage: K: {:?}, V: {:?}", k, v.present_value);
+                // println!("Storage: K: {:?}, V: {:?}", k, v.present_value);
                 (*k, v.present_value)
             })
             .collect();
