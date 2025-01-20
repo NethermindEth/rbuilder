@@ -548,11 +548,7 @@ impl From<BundleAccount> for AccountDiff {
                 Self {
                     changed_slots,
                     self_destructed,
-                    balance: if info.balance == U256::ZERO {
-                        None
-                    } else {
-                        Some(info.balance)
-                    },
+                    balance: Some(info.balance),
                     nonce: Some(U256::from(info.nonce)),
                     code_hash: Some(info.code_hash),
                     code,
@@ -562,7 +558,7 @@ impl From<BundleAccount> for AccountDiff {
                 }
             }
             None => {
-                println!("Account is none");
+                println!("!!!!!!!! Account is none !!!!!!!!");
 
                 Self {
                     changed_slots,
