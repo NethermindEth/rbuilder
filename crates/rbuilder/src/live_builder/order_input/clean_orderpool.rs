@@ -3,7 +3,7 @@ use crate::{
     live_builder::order_input::orderpool::OrderPool,
     telemetry::{set_current_block, set_ordepool_count},
 };
-use alloy_provider::{IpcConnect, Provider, ProviderBuilder};
+use alloy_provider::{IpcConnect, Provider, ProviderBuilder, WsConnect};
 use futures::StreamExt;
 use parking_lot::Mutex;
 use reth_provider::StateProviderFactory;
@@ -23,8 +23,8 @@ pub async fn spawn_clean_orderpool_job<P>(
 where
     P: StateProviderFactory + 'static,
 {
-    let ipc = IpcConnect::new(config.ipc_path);
-    let provider = ProviderBuilder::new().on_ipc(ipc).await?;
+    let ws = WsConnect::new("ws://localhost:8545");
+    let provider = ProviderBuilder::new().on_ws(ws).await.unwrap();
 
     let handle = tokio::spawn(async move {
         info!("Clean orderpool job: started");
