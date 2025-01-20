@@ -507,7 +507,7 @@ pub struct AccountDiff {
     pub balance: Option<U256>,
     pub code: Option<Bytes>,
     pub self_destructed: bool,
-    pub changed_slots: HashMap<U256, U256>,
+    pub changed_slots: HashMap<U256, Vec<u8>>,
     pub code_hash: Option<B256>,
     #[serde(skip)]
     pub changed: bool,
@@ -525,7 +525,7 @@ impl From<BundleAccount> for AccountDiff {
             .iter()
             .map(|(k, v)| {
                 // println!("Storage: K: {:?}, V: {:?}", k, v.present_value);
-                (*k, v.present_value)
+                (*k, v.present_value.to_be_bytes_vec())
             })
             .collect();
 
