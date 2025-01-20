@@ -505,7 +505,7 @@ where
 pub struct AccountDiff {
     pub nonce: Option<U256>,
     pub balance: Option<U256>,
-    pub code: Option<Vec<u8>>,
+    pub code: Option<Bytes>,
     pub self_destructed: bool,
     pub changed_slots: HashMap<U256, U256>,
     #[serde(skip)]
@@ -532,7 +532,7 @@ impl From<BundleAccount> for AccountDiff {
 
         match value.info {
             Some(info) => {
-                let code = info.code.map(|c| c.original_byte_slice().into());
+                let code = info.code.map(|c| c.original_bytes());
                 //println!("Balance {}", info.balance);
                 //println!("Nonce {}", info.nonce);
                 //println!(
