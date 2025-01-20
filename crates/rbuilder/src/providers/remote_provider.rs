@@ -472,10 +472,6 @@ where
         _sparse_trie_shared_cache: SparseTrieSharedCache,
         _config: RootHashConfig,
     ) -> Result<B256, crate::roothash::RootHashError> {
-        let hashed_state = outcome.hash_state_slow();
-        let accounts_diff: HashMap<Address, AccountDiff> =
-            HashMap::with_capacity(hashed_state.accounts.len());
-
         let account_diff: HashMap<Address, AccountDiff> = outcome
             .bundle
             .state
@@ -525,18 +521,14 @@ impl From<BundleAccount> for AccountDiff {
             println!("!!!!! SELF DESTRUCTED !!!!!");
         }
 
-        let changed_slots = if self_destructed {
-            HashMap::new()
-        } else {
-            value
-                .storage
-                .iter()
-                .map(|(k, v)| {
-                    println!("Storage: K: {:?}, V: {:?}", k, v.present_value);
-                    (*k, v.present_value)
-                })
-                .collect()
-        };
+        let changed_slots = value
+            .storage
+            .iter()
+            .map(|(k, v)| {
+                println!("Storage: K: {:?}, V: {:?}", k, v.present_value);
+                (*k, v.present_value)
+            })
+            .collect();
 
         match value.info {
             Some(info) => {
@@ -567,7 +559,6 @@ impl From<BundleAccount> for AccountDiff {
                     //TODO: implement this if it will bring perf improvements there is status flag and check for
                     //value.is_info_changed
                     changed: false,
-                    delete: false,
                 }
             }
             None => {
@@ -581,7 +572,6 @@ impl From<BundleAccount> for AccountDiff {
                     code_hash: None,
                     code: None,
                     changed: false,
-                    delete: true,
                 }
             }
         }
