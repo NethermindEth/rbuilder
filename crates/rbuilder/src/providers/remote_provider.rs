@@ -512,9 +512,6 @@ pub struct AccountDiff {
     pub code: Option<Bytes>,
     pub self_destructed: bool,
     pub changed_slots: HashMap<U256, U256>,
-
-    ////
-    pub delete: bool,
     #[serde(skip)]
     pub code_hash: Option<B256>,
     #[serde(skip)]
@@ -544,18 +541,18 @@ impl From<BundleAccount> for AccountDiff {
         match value.info {
             Some(info) => {
                 let code = info.code.map(|c| c.bytes());
-                println!("Balance {}", info.balance);
-                println!("Nonce {}", info.nonce);
-                println!(
-                    "Code hash {}",
-                    if code.is_some() {
-                        "has code"
-                    } else {
-                        "no code"
-                    }
-                );
-                println!("Code hash: {}", info.code_hash);
-
+                //println!("Balance {}", info.balance);
+                //println!("Nonce {}", info.nonce);
+                //println!(
+                //    "Code hash {}",
+                //    if code.is_some() {
+                //        "has code"
+                //    } else {
+                //        "no code"
+                //    }
+                //);
+                //println!("Code hash: {}", info.code_hash);
+                //
                 Self {
                     changed_slots,
                     self_destructed,
