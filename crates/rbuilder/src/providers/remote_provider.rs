@@ -554,7 +554,7 @@ impl From<BundleAccount> for AccountDiff {
                         "no code"
                     }
                 );
-                println!("Code {:?}", code);
+                println!("Code hash: {}", info.code_hash);
 
                 Self {
                     changed_slots,
