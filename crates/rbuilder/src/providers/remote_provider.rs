@@ -1,7 +1,7 @@
 use std::{collections::HashMap, ops::RangeBounds, sync::Arc};
 
 use crate::roothash::{RootHashConfig, StateRootCalculator};
-use alloy_consensus::Header;
+use alloy_consensus::{constants::KECCAK_EMPTY, Header};
 use alloy_eips::{BlockId, BlockNumberOrTag};
 use alloy_primitives::{
     map::HashSet, BlockHash, BlockNumber, Bytes, StorageKey, StorageValue, U256,
@@ -531,7 +531,11 @@ impl From<BundleAccount> for AccountDiff {
 
         match value.info {
             Some(info) => {
-                let code = info.code.map(|c| c.bytes());
+                let code = if info.code_hash == KECCAK_EMPTY {
+                    None
+                } else {
+                    info.code.map(|c| c.bytes())
+                };
                 //println!("Balance {}", info.balance);
                 //println!("Nonce {}", info.nonce);
                 //println!(
