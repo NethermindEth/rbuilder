@@ -512,6 +512,8 @@ pub struct AccountDiff {
     pub code: Option<Bytes>,
     pub self_destructed: bool,
     pub changed_slots: HashMap<U256, U256>,
+
+    ////
     pub delete: bool,
     #[serde(skip)]
     pub code_hash: Option<B256>,
@@ -522,6 +524,9 @@ pub struct AccountDiff {
 impl From<BundleAccount> for AccountDiff {
     fn from(value: BundleAccount) -> Self {
         let self_destructed = value.was_destroyed();
+        if self_destructed {
+            println!("!!!!! SELF DESTRUCTED !!!!!");
+        }
 
         let changed_slots = if self_destructed {
             HashMap::new()
