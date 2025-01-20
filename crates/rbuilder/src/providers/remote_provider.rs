@@ -508,7 +508,6 @@ pub struct AccountDiff {
     pub code: Option<Bytes>,
     pub self_destructed: bool,
     pub changed_slots: HashMap<U256, U256>,
-    #[serde(skip)]
     pub code_hash: Option<B256>,
     #[serde(skip)]
     pub changed: bool,
@@ -548,7 +547,11 @@ impl From<BundleAccount> for AccountDiff {
                 Self {
                     changed_slots,
                     self_destructed,
-                    balance: Some(info.balance),
+                    balance: if info.balance == U256::ZERO {
+                        None
+                    } else {
+                        Some(info.balance)
+                    },
                     nonce: Some(U256::from(info.nonce)),
                     code_hash: Some(info.code_hash),
                     code,
