@@ -18,15 +18,15 @@ use reth_errors::{ProviderError, ProviderResult};
 use reth_primitives::{Account, Bytecode, SealedHeader};
 use reth_provider::{
     AccountReader, BlockHashReader, BlockIdReader, BlockNumReader, HeaderProvider,
-    StateProofProvider, StateProvider, StateProviderBox, StateProviderFactory, StateRootProvider,
-    StorageRootProvider,
+    OriginalValuesKnown, StateProofProvider, StateProvider, StateProviderBox, StateProviderFactory,
+    StateRootProvider, StorageRootProvider,
 };
 use reth_trie::{
     updates::TrieUpdates, AccountProof, HashedPostState, HashedStorage, MultiProof, StorageProof,
     TrieInput,
 };
 use revm::db::{AccountStatus, BundleAccount, BundleState};
-use revm_primitives::{Address, B256};
+use revm_primitives::{AccountInfo, Address, B256};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone)]
@@ -472,12 +472,39 @@ where
         _sparse_trie_shared_cache: SparseTrieSharedCache,
         _config: RootHashConfig,
     ) -> Result<B256, crate::roothash::RootHashError> {
-        let account_diff: HashMap<Address, AccountDiff> = outcome
-            .bundle
-            .state
-            .iter()
-            .map(|(address, diff)| (*address, diff.clone().into()))
-            .collect();
+        let state = outcome.bundle.to_plain_state(OriginalValuesKnown::Yes);
+        let mut account_diff: HashMap<Address, AccountDiff> = HashMap::new();
+
+        for (address, val) in state.accounts.iter() {
+            if val.is_none() {
+                continue;
+            }
+
+            let mut val: AccountDiff = val.clone().unwrap().into();
+            if let Some(storage) = state.storage.iter().find(|a| *address == a.address) {
+                val.self_destructed = storage.wipe_storage;
+                val.changed_slots = storage.storage.clone().into_iter().collect();
+            }
+
+            if val.code_hash.is_some() {
+                if let Some((_, code)) = state
+                    .contracts
+                    .iter()
+                    .find(|(k, _)| *k == val.code_hash.unwrap())
+                {
+                    val.code = Some(code.bytes());
+                }
+            }
+
+            account_diff.insert(*address, val);
+        }
+
+        //let account_diff: HashMap<Address, AccountDiff> = outcome
+        //    .bundle
+        //    .to_plain_state(OriginalValuesKnown::Yes)
+        //    .iter()
+        //    .map(|(address, diff)| (*address, diff.clone().into()))
+        //    .collect();
 
         let hash = match tokio::task::block_in_place(move || {
             self.handle.block_on(async move {
@@ -513,68 +540,86 @@ pub struct AccountDiff {
     pub changed: bool,
 }
 
-impl From<BundleAccount> for AccountDiff {
-    fn from(value: BundleAccount) -> Self {
-        let self_destructed = value.was_destroyed();
-        if self_destructed {
-            println!("!!!!! SELF DESTRUCTED !!!!!");
+impl From<AccountInfo> for AccountDiff {
+    fn from(value: AccountInfo) -> Self {
+        let code = value.code.map(|c| c.bytes());
+
+        Self {
+            changed_slots: HashMap::new(),
+            self_destructed: false,
+            //balance: if info.balance == U256::ZERO {
+            //    None
+            //} else {
+            //    Some(info.balance)
+            //},
+            balance: Some(value.balance),
+            nonce: Some(U256::from(value.nonce)),
+            code_hash: Some(value.code_hash),
+            code,
+            //TODO: implement this if it will bring perf improvements there is status flag and check for
+            //value.is_info_changed
+            changed: false,
         }
+        //let self_destructed = value.was_destroyed();
+        //if self_destructed {
+        //    println!("!!!!! SELF DESTRUCTED !!!!!");
+        //}
+        //
+        //let changed_slots = value
+        //    .storage
+        //    .iter()
+        //    .map(|(k, v)| {
+        //        // println!("Storage: K: {:?}, V: {:?}", k, v.present_value);
+        //        (*k, v.present_value)
+        //    })
+        //    .collect();
 
-        let changed_slots = value
-            .storage
-            .iter()
-            .map(|(k, v)| {
-                // println!("Storage: K: {:?}, V: {:?}", k, v.present_value);
-                (*k, v.present_value)
-            })
-            .collect();
-
-        match value.info {
-            Some(info) => {
-                let code = info.code.map(|c| c.bytes());
-                //println!("Balance {}", info.balance);
-                //println!("Nonce {}", info.nonce);
-                //println!(
-                //    "Code hash {}",
-                //    if code.is_some() {
-                //        "has code"
-                //    } else {
-                //        "no code"
-                //    }
-                //);
-                //println!("Code hash: {}", info.code_hash);
-                //
-                Self {
-                    changed_slots,
-                    self_destructed,
-                    //balance: if info.balance == U256::ZERO {
-                    //    None
-                    //} else {
-                    //    Some(info.balance)
-                    //},
-                    balance: Some(info.balance),
-                    nonce: Some(U256::from(info.nonce)),
-                    code_hash: Some(info.code_hash),
-                    code,
-                    //TODO: implement this if it will bring perf improvements there is status flag and check for
-                    //value.is_info_changed
-                    changed: false,
-                }
-            }
-            None => {
-                println!("!!!!!!!! Account is none !!!!!!!!");
-
-                Self {
-                    changed_slots,
-                    self_destructed,
-                    balance: None,
-                    nonce: None,
-                    code_hash: None,
-                    code: None,
-                    changed: false,
-                }
-            }
-        }
+        //match value{
+        //    Some(info) => {
+        //        let code = info.code.map(|c| c.bytes());
+        //        //println!("Balance {}", info.balance);
+        //        //println!("Nonce {}", info.nonce);
+        //        //println!(
+        //        //    "Code hash {}",
+        //        //    if code.is_some() {
+        //        //        "has code"
+        //        //    } else {
+        //        //        "no code"
+        //        //    }
+        //        //);
+        //        //println!("Code hash: {}", info.code_hash);
+        //        //
+        //        Self {
+        //            changed_slots,
+        //            self_destructed,
+        //            //balance: if info.balance == U256::ZERO {
+        //            //    None
+        //            //} else {
+        //            //    Some(info.balance)
+        //            //},
+        //            balance: Some(info.balance),
+        //            nonce: Some(U256::from(info.nonce)),
+        //            code_hash: Some(info.code_hash),
+        //            code,
+        //            //TODO: implement this if it will bring perf improvements there is status flag and check for
+        //            //value.is_info_changed
+        //            changed: false,
+        //        }
+        //    }
+        //    None => {
+        //        println!("!!!!!!!! Account is none !!!!!!!!");
+        //
+        //        Self {
+        //            changed_slots,
+        //            self_destructed,
+        //            balance: None,
+        //            nonce: None,
+        //            code_hash: None,
+        //            code: None,
+        //            changed: false,
+        //        }
+        //    }
+        //}
     }
 }
 
