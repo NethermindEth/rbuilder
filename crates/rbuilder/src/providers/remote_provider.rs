@@ -534,33 +534,48 @@ impl From<BundleAccount> for AccountDiff {
             value
                 .storage
                 .iter()
-                .map(|(k, v)| (*k, v.present_value))
+                .map(|(k, v)| {
+                    println!("Storage: K{}:V{}", k, v.present_value);
+                    (*k, v.present_value)
+                })
                 .collect()
         };
 
         match value.info {
-            Some(info) => Self {
-                changed_slots,
-                self_destructed,
-                balance: Some(info.balance),
-                nonce: Some(U256::from(info.nonce)),
-                code_hash: Some(info.code_hash),
-                code: info.code.map(|c| c.bytes()),
-                //TODO: implement this if it will bring perf improvements there is status flag and check for
-                //value.is_info_changed
-                changed: false,
-                delete: false,
-            },
-            None => Self {
-                changed_slots,
-                self_destructed,
-                balance: None,
-                nonce: None,
-                code_hash: None,
-                code: None,
-                changed: false,
-                delete: true,
-            },
+            Some(info) => {
+                let code = info.code.map(|c| c.bytes());
+                println!("Balance {}", info.balance);
+                println!("Nonce {}", info.nonce);
+                println!("Code hash {}", info.code_hash);
+                println!("Code {:?}", code);
+
+                Self {
+                    changed_slots,
+                    self_destructed,
+                    balance: Some(info.balance),
+                    nonce: Some(U256::from(info.nonce)),
+                    code_hash: Some(info.code_hash),
+                    code: code,
+                    //TODO: implement this if it will bring perf improvements there is status flag and check for
+                    //value.is_info_changed
+                    changed: false,
+                    delete: false,
+                }
+            }
+            None => {
+                println!("Account is none");
+
+                Self {
+                    changed_slots,
+                    self_destructed,
+                    balance: None,
+                    nonce: None,
+                    code_hash: None,
+                    code: None,
+                    changed: false,
+                    delete: true,
+                }
+            }
         }
     }
 }
