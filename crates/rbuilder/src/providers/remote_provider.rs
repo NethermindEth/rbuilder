@@ -481,6 +481,18 @@ where
 
         let hash = match tokio::task::block_in_place(move || {
             self.handle.block_on(async move {
+                let block = self
+                    .remote_provider
+                    .get_block_by_number(BlockNumberOrTag::Latest, false.into())
+                    .await;
+                if let Ok(Some(b)) = block {
+                    if b.header.hash != parent_hash {
+                        panic!("Parent hash does not match")
+                    }
+                } else {
+                    println!("Errr fethcing hash");
+                }
+
                 self.remote_provider
                     .client()
                     .request::<_, B256>(
