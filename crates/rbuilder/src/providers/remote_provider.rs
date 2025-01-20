@@ -546,16 +546,27 @@ impl From<BundleAccount> for AccountDiff {
                 let code = info.code.map(|c| c.bytes());
                 println!("Balance {}", info.balance);
                 println!("Nonce {}", info.nonce);
-                println!("Code hash {}", info.code_hash);
+                println!(
+                    "Code hash {}",
+                    if code.is_some() {
+                        "has code"
+                    } else {
+                        "no code"
+                    }
+                );
                 println!("Code {:?}", code);
 
                 Self {
                     changed_slots,
                     self_destructed,
-                    balance: Some(info.balance),
+                    balance: if info.balance == U256::ZERO {
+                        None
+                    } else {
+                        Some(info.balance)
+                    },
                     nonce: Some(U256::from(info.nonce)),
                     code_hash: Some(info.code_hash),
-                    code: code,
+                    code,
                     //TODO: implement this if it will bring perf improvements there is status flag and check for
                     //value.is_info_changed
                     changed: false,
