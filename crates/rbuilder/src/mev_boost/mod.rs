@@ -15,6 +15,7 @@ use reqwest::{
     header::{HeaderMap, HeaderValue, AUTHORIZATION, CONTENT_ENCODING, CONTENT_TYPE},
     Body, Response, StatusCode,
 };
+use revm_primitives::FixedBytes;
 use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, DisplayFromStr};
 use ssz::Encode;
@@ -628,6 +629,26 @@ impl SubmitBlockRequest {
             SubmitBlockRequest::Capella(req) => req.0.message.clone(),
             SubmitBlockRequest::Deneb(req) => req.0.message.clone(),
             SubmitBlockRequest::Electra(req) => req.0.message.clone(),
+        }
+    }
+
+    pub fn state_root(&self) -> FixedBytes<32> {
+        match self {
+            SubmitBlockRequest::Capella(req) => req.0.execution_payload.payload_inner.state_root,
+            SubmitBlockRequest::Deneb(req) => {
+                req.0
+                    .execution_payload
+                    .payload_inner
+                    .payload_inner
+                    .state_root
+            }
+            SubmitBlockRequest::Electra(req) => {
+                req.0
+                    .execution_payload
+                    .payload_inner
+                    .payload_inner
+                    .state_root
+            }
         }
     }
 }
