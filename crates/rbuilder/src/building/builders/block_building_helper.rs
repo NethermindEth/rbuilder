@@ -386,6 +386,8 @@ where
             builder_name: self.builder_name.clone(),
             execution_requests: finalized_block.execution_requests,
         };
+
+        println!("3. Finalized hash {}", block.sealed_block.header.state_root);
         Ok(FinalizeBlockResult {
             block,
             cached_reads: finalized_block.cached_reads,
