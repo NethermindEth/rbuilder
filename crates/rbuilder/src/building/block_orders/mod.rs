@@ -13,6 +13,7 @@ use crate::{
     primitives::{AccountNonce, OrderId, SimulatedOrder},
 };
 use ahash::HashMap;
+use rand::Rng as _;
 use reth_errors::ProviderResult;
 use reth_provider::StateProviderBox;
 
@@ -139,6 +140,13 @@ impl BlockOrders {
 
     pub fn pop_order(&mut self) -> Option<SimulatedOrder> {
         self.prioritized_order_store.pop_order()
+    }
+
+    pub fn random_order(&mut self) -> Option<SimulatedOrder> {
+        let all = self.prioritized_order_store.get_all_orders();
+        let random_index = rand::thread_rng().gen_range(0..all.len());
+
+        Some(all[random_index].clone())
     }
 
     pub fn update_onchain_nonces(&mut self, new_nonces: &[AccountNonce]) {
