@@ -79,11 +79,6 @@ impl ValidationAPIClient {
             SubmitBlockRequest::Deneb(_) => "flashbots_validateBuilderSubmissionV3",
             SubmitBlockRequest::Electra(_) => "flashbots_validateBuilderSubmissionV4",
         };
-
-        println!(
-            "Sending request, exec payload state root: {}",
-            req.state_root()
-        );
         let request = ValidRequest {
             req: req.clone(),
             registered_gas_limit,
