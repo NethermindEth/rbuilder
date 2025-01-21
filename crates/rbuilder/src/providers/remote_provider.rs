@@ -55,9 +55,20 @@ where
 {
     /// Storage provider for latest block.
     fn latest(&self) -> ProviderResult<StateProviderBox> {
+        let block = tokio::task::block_in_place(move || {
+            self.handle.block_on(async move {
+                self.remote_provider
+                    .get_block_by_number(BlockNumberOrTag::Latest, false.into())
+                    .await
+            })
+        })
+        .map_err(transport_to_provider_error)?
+        .expect("Block should've been found");
+
+        println!("Block: {}", block.header.number);
         Ok(RemoteStateProvider::boxed(
             self.remote_provider.clone(),
-            BlockId::Number(BlockNumberOrTag::Latest),
+            BlockId::Number(BlockNumberOrTag::Number(block.header.number)),
             self.handle.clone(),
         ))
     }
@@ -169,7 +180,7 @@ where
         let block = tokio::task::block_in_place(move || {
             self.handle.block_on(async move {
                 self.remote_provider
-                    .get_block_by_hash(*block_hash, false.into())
+                    .get_block_number(*block_hash, false.into())
                     .await
             })
         })
@@ -497,7 +508,6 @@ where
             }
         };
 
-        println!("STATE ROOT: {hash}");
         Ok(hash)
     }
 }
@@ -526,11 +536,12 @@ impl From<BundleAccount> for AccountDiff {
             .iter()
             .filter_map(|(k, v)| {
                 // println!("Storage: K: {:?}, V: {:?}", k, v.present_value);
-                if v.present_value.is_zero() {
-                    None
-                } else {
-                    Some((*k, v.present_value))
-                }
+                //if v.present_value.is_zero() {
+                //    None
+                //} else {
+                //    Some((*k, v.present_value))
+                //}
+                Some((*k, v.present_value))
             })
             .collect();
 
