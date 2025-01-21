@@ -497,6 +497,7 @@ where
             }
         };
 
+        println!("STATE ROOT: {hash}");
         Ok(hash)
     }
 }
