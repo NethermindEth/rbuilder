@@ -144,6 +144,10 @@ impl BlockOrders {
 
     pub fn random_order(&mut self) -> Option<SimulatedOrder> {
         let all = self.prioritized_order_store.get_all_orders();
+        if all.len() == 0 {
+            return None;
+        }
+
         let random_index = rand::thread_rng().gen_range(0..all.len());
 
         Some(all[random_index].clone())
