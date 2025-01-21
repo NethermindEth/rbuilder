@@ -523,9 +523,13 @@ impl From<BundleAccount> for AccountDiff {
         let changed_slots = value
             .storage
             .iter()
-            .map(|(k, v)| {
+            .filter_map(|(k, v)| {
                 // println!("Storage: K: {:?}, V: {:?}", k, v.present_value);
-                (*k, v.present_value)
+                if v.present_value.is_zero() {
+                    None
+                } else {
+                    Some((*k, v.present_value))
+                }
             })
             .collect();
 
