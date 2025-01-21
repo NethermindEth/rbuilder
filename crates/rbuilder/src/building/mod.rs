@@ -749,7 +749,6 @@ impl<Tracer: SimulationTracer> PartialBlock<Tracer> {
             requests_hash,
         };
 
-        println!("2. Header {}", header.state_root);
         // seal the block
         let block = Block {
             header,
