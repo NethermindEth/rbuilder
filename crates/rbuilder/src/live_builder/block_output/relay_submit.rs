@@ -246,7 +246,6 @@ async fn run_submit_to_relays_job(
         };
 
         if config.dry_run {
-            println!("Dry run: {}", block.sealed_block.header.state_root);
             validate_block(
                 &slot_data,
                 &normal_signed_submission,
