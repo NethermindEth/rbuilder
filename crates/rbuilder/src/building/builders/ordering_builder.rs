@@ -258,13 +258,8 @@ where
         build_start: Instant,
     ) -> eyre::Result<()> {
         let mut order_attempts: HashMap<OrderId, usize> = HashMap::default();
-        let mut count = 0;
         // @Perf when gas left is too low we should break.
-
-        while let Some(sim_order) = block_orders.random_order() {
-            if count > 0 {
-                break;
-            }
+        while let Some(sim_order) = block_orders.pop_order() {
             if let Some(deadline) = self.config.build_duration_deadline() {
                 if build_start.elapsed() > deadline {
                     break;
@@ -277,7 +272,6 @@ where
             let mut execution_error = None;
             let mut reinserted = false;
             let success = commit_result.is_ok();
-            count += 1;
             match commit_result {
                 Ok(res) => {
                     gas_used = res.gas_used;
