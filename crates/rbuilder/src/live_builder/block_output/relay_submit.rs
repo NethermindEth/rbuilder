@@ -23,7 +23,7 @@ use reth_primitives::SealedBlock;
 use std::sync::Arc;
 use tokio::{sync::Notify, time::Instant};
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, error, event, info_span, trace, warn, Instrument, Level};
+use tracing::{debug, error, event, info, info_span, trace, warn, Instrument, Level};
 
 use super::{
     bid_observer::BidObserver,
@@ -389,10 +389,9 @@ async fn validate_block(
         .await
     {
         Ok(()) => {
-            trace!(
+            info!(
                 time_ms = start.elapsed().as_millis(),
-                validation_use,
-                "Validation passed"
+                validation_use, "Validation passed"
             );
             true
         }
