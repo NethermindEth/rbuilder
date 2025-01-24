@@ -7,6 +7,8 @@
 
 use ahash::HashMap;
 use alloy_primitives::utils::format_ether;
+use alloy_rpc_client::RpcClient;
+use url::Url;
 
 use crate::{
     backtest::{
@@ -16,7 +18,7 @@ use crate::{
     building::{builders::BacktestSimulateBlockInput, BlockBuildingContext},
     live_builder::cli::LiveBuilderConfig,
     primitives::{Order, OrderId, SimulatedOrder},
-    provider::StateProviderFactory,
+    provider::{remote_state_provider::RemoteStateProviderFactory, StateProviderFactory},
 };
 use clap::Parser;
 use std::path::PathBuf;
