@@ -23,8 +23,12 @@ pub async fn spawn_clean_orderpool_job<P>(
 where
     P: StateProviderFactory + 'static,
 {
-    let ws = WsConnect::new("ws://localhost:8545");
-    let provider = ProviderBuilder::new().on_ws(ws).await.unwrap();
+    let ipc_path = config.ipc_path;
+    let ipc = IpcConnect::new(ipc_path);
+    let provider = ProviderBuilder::new()
+        .on_ipc(ipc)
+        .await
+        .expect("connection to ipc should workd");
 
     let handle = tokio::spawn(async move {
         info!("Clean orderpool job: started");
