@@ -390,9 +390,7 @@ pub async fn run_submit_to_relays_job_and_metrics(
 }
 
 fn log_validation_error(err: ValidationError, level: Level, validation_use: &str) {
-    println!("!!!! validation error !!!!");
     dynamic_event!(level,err = ?err, validation_use,"Validation failed");
-    println!("!!!!!!!");
 }
 
 /// Validates the blocks handling any logging.

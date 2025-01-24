@@ -120,8 +120,11 @@ impl ValidationAPIClient {
                 }
                 Err(RpcError::ErrorResp(err)) => {
                     if is_error_critical(&err.message) {
-                        error!(err = ?err, "Validation node returned error");
+                        //error!(err = ?err, "Validation node returned error");
                         // this should mean that block did not pass validation
+                        println!("!!!!!!!!! ERROR !!!!!!!!!!");
+                        println!("{}", err.message);
+                        println!("!!!!!!!!!!!!!!!!!!!");
                         add_block_validation_time(start.elapsed());
                         return Err(ValidationError::ValidationFailed(err));
                     } else {
