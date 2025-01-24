@@ -235,11 +235,11 @@ where
 {
     /// Get basic account information.
     /// Returns `None` if the account doesn't exist.
-    fn basic_account(&self, address: &Address) -> ProviderResult<Option<Account>> {
+    fn basic_account(&self, address: Address) -> ProviderResult<Option<Account>> {
         //TODO: is this the best way to fetch all requited account data at once?
         let future = self
             .remote_provider
-            .get_proof(*address, Vec::new())
+            .get_proof(address, Vec::new())
             .block_id(self.block_id)
             .into_future();
 
