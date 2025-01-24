@@ -417,11 +417,7 @@ async fn validate_block(
         .await
     {
         Ok(()) => {
-            trace!(
-                time_ms = start.elapsed().as_millis(),
-                validation_use,
-                "Validation passed"
-            );
+            println!("success Validation time: {}", start.elapsed().as_millis());
             true
         }
         Err(ValidationError::ValidationFailed(err)) => {

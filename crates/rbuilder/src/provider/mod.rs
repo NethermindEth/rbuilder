@@ -8,6 +8,7 @@ use reth_provider::StateProviderBox;
 use tokio::sync::broadcast;
 use tokio_util::sync::CancellationToken;
 
+pub mod remote_provider;
 pub mod reth_prov;
 pub mod state_provider_factory_from_provider_factory;
 
