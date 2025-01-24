@@ -132,45 +132,54 @@ pub fn unix_timestamp_now() -> u64 {
         .unwrap_or_default()
 }
 
-pub fn calc_gas_limit(parent: u64, desired_limit: u64) -> u64 {
-    /* port of this fuction from geth builder
-    func CalcGasLimit(parentGasLimit, desiredLimit uint64) uint64 {
-        delta := parentGasLimit/params.GasLimitBoundDivisor - 1
-        limit := parentGasLimit
-        if desiredLimit < params.MinGasLimit {
-            desiredLimit = params.MinGasLimit
-        }
-        // If we're outside our allowed gas range, we try to hone towards them
-        if limit < desiredLimit {
-            limit = parentGasLimit + delta
-            if limit > desiredLimit {
-                limit = desiredLimit
-            }
-            return limit
-        }
-        if limit > desiredLimit {
-            limit = parentGasLimit - delta
-            if limit < desiredLimit {
-                limit = desiredLimit
-            }
-        }
-        return limit
-    }
-    */
-    let delta = parent / 1024 - 1;
+/// Calculate the gas limit for the next block based on parent and desired gas limits.
+/// Ref: <https://github.com/ethereum/go-ethereum/blob/88cbfab332c96edfbe99d161d9df6a40721bd786/core/block_validator.go#L166>
+//pub fn calc_gas_limit(parent_gas_limit: u64, desired_gas_limit: u64) -> u64 {
+//    let delta = (parent_gas_limit / GAS_LIMIT_BOUND_DIVISOR).saturating_sub(1);
+//    let min_gas_limit = parent_gas_limit - delta;
+//    let max_gas_limit = parent_gas_limit + delta;
+//    desired_gas_limit.clamp(min_gas_limit, max_gas_limit)
+//}
 
-    let desired_limit = max(desired_limit, 5000);
-
-    if parent < desired_limit {
-        return min(parent + delta, desired_limit);
-    }
-
-    if parent > desired_limit {
-        return max(parent - delta, desired_limit);
-    }
-
-    parent
-}
+//pub fn calc_gas_limit(parent: u64, desired_limit: u64) -> u64 {
+//    /* port of this fuction from geth builder
+//    func CalcGasLimit(parentGasLimit, desiredLimit uint64) uint64 {
+//        delta := parentGasLimit/params.GasLimitBoundDivisor - 1
+//        limit := parentGasLimit
+//        if desiredLimit < params.MinGasLimit {
+//            desiredLimit = params.MinGasLimit
+//        }
+//        // If we're outside our allowed gas range, we try to hone towards them
+//        if limit < desiredLimit {
+//            limit = parentGasLimit + delta
+//            if limit > desiredLimit {
+//                limit = desiredLimit
+//            }
+//            return limit
+//        }
+//        if limit > desiredLimit {
+//            limit = parentGasLimit - delta
+//            if limit < desiredLimit {
+//                limit = desiredLimit
+//            }
+//        }
+//        return limit
+//    }
+//    */
+//    let delta = parent / 1024 - 1;
+//
+//    let desired_limit = max(desired_limit, 5000);
+//
+//    if parent < desired_limit {
+//        return min(parent + delta, desired_limit);
+//    }
+//
+//    if parent > desired_limit {
+//        return max(parent - delta, desired_limit);
+//    }
+//
+//    parent
+//}
 
 pub fn int_percentage(value: u64, percentage: usize) -> u64 {
     value * percentage as u64 / 100
@@ -248,6 +257,7 @@ pub fn extract_onchain_block_txs(
 #[cfg(test)]
 mod test {
     use super::*;
+    use alloy_eips::eip1559::calculate_block_gas_limit;
     use serde::{Deserialize, Serialize};
 
     #[test]
@@ -296,7 +306,7 @@ mod test {
         ];
 
         for test in tests {
-            let result = calc_gas_limit(test.parent, test.desired);
+            let result = calculate_block_gas_limit(test.parent, test.desired);
             assert_eq!(result, test.result);
         }
     }
