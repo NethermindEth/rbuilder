@@ -34,6 +34,7 @@ use super::{RootHasher, StateProviderFactory};
 #[derive(Clone)]
 pub struct RemoteStateProviderFactory<T> {
     remote_provider: RootProvider<T>,
+    handle: tokio::runtime::Handle,
 }
 
 impl<T> RemoteStateProviderFactory<T>
@@ -42,8 +43,12 @@ where
 {
     pub fn new(client: RpcClient<T>) -> Self {
         let remote_provider = ProviderBuilder::new().on_client(client);
+        let handle = tokio::runtime::Handle::current();
 
-        Self { remote_provider }
+        Self {
+            remote_provider,
+            handle,
+        }
     }
 }
 
@@ -55,6 +60,7 @@ where
         Ok(RemoteStateProvider::boxed(
             self.remote_provider.clone(),
             BlockId::latest(),
+            self.handle.clone(),
         ))
     }
 
@@ -62,6 +68,7 @@ where
         Ok(RemoteStateProvider::boxed(
             self.remote_provider.clone(),
             BlockId::Number(block.into()),
+            self.handle.clone(),
         ))
     }
 
@@ -69,6 +76,7 @@ where
         Ok(RemoteStateProvider::boxed(
             self.remote_provider.clone(),
             BlockId::Hash(block.into()),
+            self.handle.clone(),
         ))
     }
 
@@ -77,7 +85,7 @@ where
             .remote_provider
             .get_block_by_hash(*block_hash, false.into());
 
-        let header = run_future(future)
+        let header = run_future(self.handle.clone(), future)
             .map_err(transport_to_provider_error)?
             .map(|b| b.header.inner);
 
@@ -89,7 +97,7 @@ where
             .remote_provider
             .get_block_by_number(BlockNumberOrTag::Number(number), false.into());
 
-        let block_hash = run_future(future)
+        let block_hash = run_future(self.handle.clone(), future)
             .map_err(transport_to_provider_error)?
             .map(|b| b.header.hash);
 
@@ -106,7 +114,7 @@ where
             .remote_provider
             .get_block_by_number(num.into(), false.into());
 
-        let header = run_future(future)
+        let header = run_future(self.handle.clone(), future)
             .map_err(transport_to_provider_error)?
             .map(|b| b.header.inner);
 
@@ -116,7 +124,8 @@ where
     fn last_block_number(&self) -> ProviderResult<BlockNumber> {
         let future = self.remote_provider.get_block_number();
 
-        let block_num = run_future(future).map_err(transport_to_provider_error)?;
+        let block_num =
+            run_future(self.handle.clone(), future).map_err(transport_to_provider_error)?;
 
         Ok(block_num)
     }
@@ -124,6 +133,7 @@ where
     fn root_hasher(&self, parent_hash: B256) -> ProviderResult<Box<dyn RootHasher>> {
         Ok(Box::new(StatRootHashCalculator {
             remote_provider: self.remote_provider.clone(),
+            handle: self.handle.clone(),
             parent_hash,
         }))
     }
@@ -132,18 +142,28 @@ where
 pub struct RemoteStateProvider<T> {
     remote_provider: RootProvider<T>,
     block_id: BlockId,
+    handle: tokio::runtime::Handle,
 }
 
 impl<T> RemoteStateProvider<T> {
-    pub fn new(remote_provider: RootProvider<T>, block_id: BlockId) -> Self {
+    pub fn new(
+        remote_provider: RootProvider<T>,
+        block_id: BlockId,
+        handle: tokio::runtime::Handle,
+    ) -> Self {
         Self {
             remote_provider,
             block_id,
+            handle,
         }
     }
 
-    pub fn boxed(remote_provider: RootProvider<T>, block_id: BlockId) -> Box<Self> {
-        Box::new(Self::new(remote_provider, block_id))
+    pub fn boxed(
+        remote_provider: RootProvider<T>,
+        block_id: BlockId,
+        handle: tokio::runtime::Handle,
+    ) -> Box<Self> {
+        Box::new(Self::new(remote_provider, block_id, handle))
     }
 }
 
@@ -163,7 +183,8 @@ where
             .block_id(self.block_id)
             .into_future();
 
-        let storage = run_future(future).map_err(transport_to_provider_error)?;
+        let storage =
+            run_future(self.handle.clone(), future).map_err(transport_to_provider_error)?;
 
         Ok(Some(storage))
     }
@@ -176,7 +197,7 @@ where
             .client()
             .request::<_, Bytes>("rbuilder_getCodeByHash", (code_hash,));
 
-        let bytes = run_future(future).map_err(transport_to_provider_error)?;
+        let bytes = run_future(self.handle.clone(), future).map_err(transport_to_provider_error)?;
 
         Ok(Some(Bytecode::new_raw(bytes)))
     }
@@ -192,7 +213,7 @@ where
             .remote_provider
             .get_block_by_number(BlockNumberOrTag::Number(number), false.into());
 
-        let hash = run_future(future)
+        let hash = run_future(self.handle.clone(), future)
             .map_err(transport_to_provider_error)?
             .map(|b| b.header.hash);
 
@@ -222,7 +243,8 @@ where
             .block_id(self.block_id)
             .into_future();
 
-        let account_proof = run_future(future).map_err(transport_to_provider_error)?;
+        let account_proof =
+            run_future(self.handle.clone(), future).map_err(transport_to_provider_error)?;
 
         Ok(Some(Account {
             nonce: account_proof.nonce,
@@ -333,6 +355,7 @@ where
 pub struct StatRootHashCalculator<T> {
     remote_provider: RootProvider<T>,
     parent_hash: B256,
+    handle: tokio::runtime::Handle,
 }
 
 impl<T> RootHasher for StatRootHashCalculator<T>
@@ -363,7 +386,8 @@ where
             (BlockId::Hash(self.parent_hash.into()), account_diff),
         );
 
-        let hash = run_future(future).map_err(|_| crate::roothash::RootHashError::Verification)?;
+        let hash = run_future(self.handle.clone(), future)
+            .map_err(|_| crate::roothash::RootHashError::Verification)?;
 
         Ok(hash)
     }
@@ -414,11 +438,11 @@ impl From<BundleAccount> for AccountDiff {
 // What's more, rbuilder is executed in async context, so we have situation
 // async -> sync -> async
 // This helper function allows execution in such environment
-fn run_future<F, R>(f: F) -> R
+fn run_future<F, R>(handle: tokio::runtime::Handle, f: F) -> R
 where
     F: Future<Output = R>,
 {
-    tokio::task::block_in_place(|| tokio::runtime::Handle::current().block_on(f))
+    tokio::task::block_in_place(|| handle.block_on(f))
 }
 
 //TODO: this is temp hack, fix it properly
