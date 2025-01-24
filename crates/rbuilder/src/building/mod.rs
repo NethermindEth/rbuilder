@@ -138,12 +138,14 @@ impl BlockBuildingContext {
             )
             .ok()?;
         block_env.coinbase = signer.address;
-        if let Some(desired_limit) = prefer_gas_limit {
-            block_env.gas_limit = U256::from(calculate_block_gas_limit(
-                block_env.gas_limit.to(),
-                desired_limit,
-            ));
-        }
+        //if let Some(desired_limit) = prefer_gas_limit {
+        //    block_env.gas_limit = U256::from(calculate_block_gas_limit(
+        //        block_env.gas_limit.to(),
+        //        desired_limit,
+        //    ));
+        //}
+        //
+        println!("Calculated gas limit {}", block_env.gas_limit);
 
         let excess_blob_gas = if chain_spec.is_cancun_active_at_timestamp(attributes.timestamp) {
             if chain_spec.is_cancun_active_at_timestamp(parent.timestamp) {
