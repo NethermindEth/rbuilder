@@ -57,9 +57,14 @@ where
     T: Transport + Clone + Debug,
 {
     fn latest(&self) -> ProviderResult<StateProviderBox> {
+        let future = self.remote_provider.get_block_number();
+
+        let block_num =
+            run_future(self.handle.clone(), future).map_err(transport_to_provider_error)?;
+
         Ok(RemoteStateProvider::boxed(
             self.remote_provider.clone(),
-            BlockId::latest(),
+            BlockId::Number(block_num.into()),
             self.handle.clone(),
         ))
     }
