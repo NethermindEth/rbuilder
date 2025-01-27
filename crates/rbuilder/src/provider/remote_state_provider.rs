@@ -58,6 +58,8 @@ where
 {
     fn latest(&self) -> ProviderResult<StateProviderBox> {
         println!("latest");
+        let _num = self.best_block_number()?;
+
         Ok(RemoteStateProvider::boxed(
             self.remote_provider.clone(),
             self.future_runner.clone(),
