@@ -273,10 +273,13 @@ where
             .block_id(self.block_id)
             .into_future();
 
-        let account_proof = self
-            .future_runner
-            .run(future)
-            .map_err(transport_to_provider_error)?;
+        let account_proof = match self.future_runner.run(future) {
+            Ok(a) => a,
+            Err(e) => {
+                println!("error: {e}");
+                return Err(transport_to_provider_error(e));
+            }
+        };
 
         println!("Account fetched");
 
