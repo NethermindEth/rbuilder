@@ -278,6 +278,8 @@ where
             .run(future)
             .map_err(transport_to_provider_error)?;
 
+        println!("Account fetched");
+
         Ok(Some(Account {
             nonce: account_proof.nonce,
             bytecode_hash: account_proof.code_hash.into(),
