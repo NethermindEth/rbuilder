@@ -54,7 +54,7 @@ pub async fn subscribe_to_txpool_with_blobs(
                     continue;
                 }
                 Err(err) => {
-                    error!(?tx_hash, ?err, "Failed to get tx pool");
+                    //     error!(?tx_hash, ?err, "Failed to get tx pool");
                     continue;
                 }
             };
