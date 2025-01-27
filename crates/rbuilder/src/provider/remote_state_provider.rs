@@ -50,6 +50,15 @@ where
             future_runner,
         }
     }
+
+    pub fn from_provider(root_provider: RootProvider<T>) -> Self {
+        let future_runner = FutureRunner::new();
+
+        Self {
+            remote_provider: root_provider,
+            future_runner,
+        }
+    }
 }
 
 impl<T> StateProviderFactory for RemoteStateProviderFactory<T>

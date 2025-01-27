@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 
+use alloy_provider::{IpcConnect, ProviderBuilder};
 use alloy_rpc_client::RpcClient;
 use clap::Parser;
 use reth::revm::cached::CachedReads;
@@ -123,8 +124,17 @@ where
     )
     .await?;
     //let provider = config.base_config().create_provider_factory(false)?;
-    let provider =
-        RemoteStateProviderFactory::new(RpcClient::new_http(Url::parse("http://localhost:8545")?));
+
+    let ipc_path = config
+        .base_config()
+        .el_node_ipc_path
+        .clone()
+        .ok_or_else(|| eyre::eyre!("No IPC path configured"))?;
+
+    let ipc = IpcConnect::new(ipc_path);
+    let ipc_provider = ProviderBuilder::new().on_ipc(ipc).await?;
+
+    let provider = RemoteStateProviderFactory::from_provider(ipc_provider);
     let builder = config.new_builder(provider, cancel.clone()).await?;
 
     let ctrlc = tokio::spawn(async move {
