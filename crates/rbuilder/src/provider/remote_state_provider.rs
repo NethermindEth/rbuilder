@@ -31,6 +31,7 @@ use super::{RootHasher, StateProviderFactory};
 
 /// Remote state provider factory allows providing state via remote RPC calls
 /// using either IPC or HTTP/WS
+#[derive(Clone)]
 pub struct RemoteStateProviderFactory<T> {
     remote_provider: RootProvider<T>,
     future_runner: FutureRunner,
