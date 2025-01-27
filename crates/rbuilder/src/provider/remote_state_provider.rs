@@ -508,7 +508,7 @@ impl FutureRunner {
     where
         F: Future<Output = R>,
     {
-        tokio::task::block_in_place(|| self.runtime_handle.block_on(f))
+        tokio::task::block_in_place(move || self.runtime_handle.block_on(async move { f.await }))
     }
 }
 
