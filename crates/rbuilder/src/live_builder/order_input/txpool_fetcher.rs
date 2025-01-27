@@ -24,13 +24,8 @@ pub async fn subscribe_to_txpool_with_blobs(
     results: mpsc::Sender<ReplaceableOrderPoolCommand>,
     global_cancel: CancellationToken,
 ) -> eyre::Result<JoinHandle<()>> {
-    let ipc_path = config.ipc_path;
-
-    let ipc = IpcConnect::new(ipc_path);
-    let provider = ProviderBuilder::new()
-        .on_ipc(ipc)
-        .await
-        .expect("connection to ipc should workd");
+    let ws = WsConnect::new("ws://localhost:8545");
+    let provider = ProviderBuilder::new().on_ws(ws).await.unwrap();
 
     let handle = tokio::spawn(async move {
         info!("Subscribe to txpool with blobs: started");
