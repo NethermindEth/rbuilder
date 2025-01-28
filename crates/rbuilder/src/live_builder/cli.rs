@@ -125,20 +125,16 @@ where
     .await?;
     //let provider = config.base_config().create_provider_factory(false)?;
 
-    //let ipc_path = config
-    //    .base_config()
-    //    .el_node_ipc_path
-    //    .clone()
-    //    .ok_or_else(|| eyre::eyre!("No IPC path configured"))?;
-    //
-    //let ipc = IpcConnect::new(ipc_path);
-    //let ipc_provider = ProviderBuilder::new().on_ipc(ipc).await?;
-    //
+    let ipc_path = config
+        .base_config()
+        .el_node_ipc_path
+        .clone()
+        .ok_or_else(|| eyre::eyre!("No IPC path configured"))?;
 
-    let ws_conn = alloy_provider::WsConnect::new("ws://localhost:8546");
-    let provider = ProviderBuilder::new().on_ws(ws_conn).await.unwrap();
-    let provider = RemoteStateProviderFactory::from_provider(provider);
+    let ipc = IpcConnect::new(ipc_path);
+    let ipc_provider = ProviderBuilder::new().on_ipc(ipc).await?;
 
+    let provider = RemoteStateProviderFactory::from_provider(ipc_provider);
     let builder = config.new_builder(provider, cancel.clone()).await?;
 
     let ctrlc = tokio::spawn(async move {
