@@ -23,7 +23,7 @@ pub async fn spawn_clean_orderpool_job<P>(
 where
     P: StateProviderFactory + 'static,
 {
-    let ws = WsConnect::new("ws://localhost:8545");
+    let ws = WsConnect::new("ws://localhost:8546");
     let provider = ProviderBuilder::new().on_ws(ws).await.unwrap();
 
     let handle = tokio::spawn(async move {
