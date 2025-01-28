@@ -24,6 +24,7 @@ use revm_primitives::{map::B256HashMap, Address, Bytes, HashMap, B256, U256};
 use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast;
 use tokio_util::sync::CancellationToken;
+use tracing::debug;
 
 use crate::live_builder::simulation::SimulatedOrderCommand;
 
@@ -121,7 +122,7 @@ where
     }
 
     fn block_hash(&self, number: BlockNumber) -> ProviderResult<Option<B256>> {
-        println!("block hash 1, {number}");
+        debug!("block hash 1, {number}");
         let future = self
             .remote_provider
             .get_block_by_number(BlockNumberOrTag::Number(number), false.into());
@@ -133,7 +134,7 @@ where
                 return Err(transport_to_provider_error(e));
             }
         };
-        println!("got block hash {block_hash:?}");
+        debug!("got block hash {block_hash:?}");
         //.map_err(transport_to_provider_error)?
         //.map(|b| b.header.hash);
         Ok(block_hash)
@@ -146,7 +147,7 @@ where
     }
 
     fn header_by_number(&self, num: u64) -> ProviderResult<Option<Header>> {
-        println!("header by number");
+        debug!("header by number");
         let future = self
             .remote_provider
             .get_block_by_number(num.into(), false.into());
@@ -260,7 +261,7 @@ where
 {
     /// Get the hash of the block with the given number. Returns `None` if no block with this number exists
     fn block_hash(&self, number: BlockNumber) -> ProviderResult<Option<B256>> {
-        println!("block hash 2, {number}");
+        debug!("block hash 2, {number}");
         let future = self
             .remote_provider
             .get_block_by_number(BlockNumberOrTag::Number(number), false.into());
@@ -272,7 +273,7 @@ where
                 return Err(transport_to_provider_error(e));
             }
         };
-        println!("got block hash {block_hash:?}");
+        debug!("got block hash {block_hash:?}");
         //.map_err(transport_to_provider_error)?
         //.map(|b| b.header.hash);
         Ok(block_hash)
@@ -294,7 +295,7 @@ where
     /// Get basic account information.
     /// Returns `None` if the account doesn't exist.
     fn basic_account(&self, address: &Address) -> ProviderResult<Option<Account>> {
-        println!("account");
+        debug!("account {address}");
         //TODO: is this the best way to fetch all requited account data at once?
         let future = self
             .remote_provider
@@ -309,7 +310,7 @@ where
             }
         };
 
-        println!("Account fetched");
+        debug!("Account fetched {address}");
 
         Ok(Some(Account {
             nonce: account_proof.nonce.try_into().unwrap(),
