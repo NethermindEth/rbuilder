@@ -75,7 +75,6 @@ where
             tokio::time::sleep(max_time_to_build).await;
             cancel.cancel();
         });
-        println!("spawned sleeper");
 
         let (orders_for_block, sink) = OrdersForBlock::new_with_sink();
         // add OrderReplacementManager to manage replacements and cancellations
@@ -91,8 +90,6 @@ where
             orders_for_block,
             block_cancellation.clone(),
         );
-
-        println!("spawned sim job");
         self.start_building_job(
             block_ctx,
             payload,

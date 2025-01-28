@@ -78,13 +78,11 @@ where
 
     fn history_by_block_number(&self, block: BlockNumber) -> ProviderResult<StateProviderBox> {
         println!("history by block num {block}");
-
-        Err(ProviderError::BestBlockNotFound)
-        //Ok(RemoteStateProvider::boxed(
-        //    self.remote_provider.clone(),
-        //    self.future_runner.clone(),
-        //    BlockId::Number(block.into()),
-        //))
+        Ok(RemoteStateProvider::boxed(
+            self.remote_provider.clone(),
+            self.future_runner.clone(),
+            BlockId::Number(block.into()),
+        ))
     }
 
     fn history_by_block_hash(&self, block: BlockHash) -> ProviderResult<StateProviderBox> {
