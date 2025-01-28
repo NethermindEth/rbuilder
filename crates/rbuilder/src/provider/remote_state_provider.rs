@@ -121,7 +121,7 @@ where
     }
 
     fn block_hash(&self, number: BlockNumber) -> ProviderResult<Option<B256>> {
-        println!("block hash");
+        println!("block hash, {number}");
         let future = self
             .remote_provider
             .get_block_by_number(BlockNumberOrTag::Number(number), false.into());
@@ -133,7 +133,7 @@ where
                 return Err(transport_to_provider_error(e));
             }
         };
-        println!("block hash {block_hash:?}");
+        println!("got block hash {block_hash:?}");
         //.map_err(transport_to_provider_error)?
         //.map(|b| b.header.hash);
         Ok(block_hash)
