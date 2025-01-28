@@ -126,12 +126,16 @@ where
             .remote_provider
             .get_block_by_number(BlockNumberOrTag::Number(number), false.into());
 
-        let block_hash = self
-            .future_runner
-            .run(future)
-            .map_err(transport_to_provider_error)?
-            .map(|b| b.header.hash);
-
+        let block_hash = match self.future_runner.run(future) {
+            Ok(b) => b.map(|b| b.header.hash),
+            Err(e) => {
+                println!("error {e}");
+                return Err(transport_to_provider_error(e));
+            }
+        };
+        println!("block hash {block_hash:?}");
+        //.map_err(transport_to_provider_error)?
+        //.map(|b| b.header.hash);
         Ok(block_hash)
     }
 
