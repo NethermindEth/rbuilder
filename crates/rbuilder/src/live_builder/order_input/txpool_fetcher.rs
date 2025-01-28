@@ -24,7 +24,7 @@ pub async fn subscribe_to_txpool_with_blobs(
     results: mpsc::Sender<ReplaceableOrderPoolCommand>,
     global_cancel: CancellationToken,
 ) -> eyre::Result<JoinHandle<()>> {
-    let ws_conn = alloy_provider::WsConnect::new("ws://localhost:8545");
+    let ws_conn = alloy_provider::WsConnect::new("ws://localhost:8546");
     let provider = ProviderBuilder::new().on_ws(ws_conn).await.unwrap();
 
     let handle = tokio::spawn(async move {
