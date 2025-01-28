@@ -35,7 +35,6 @@ use super::{RootHasher, StateProviderFactory};
 #[derive(Clone)]
 pub struct RemoteStateProviderFactory<T> {
     remote_provider: RootProvider<T>,
-    future_runner: FutureRunner,
 }
 
 impl<T> RemoteStateProviderFactory<T>
@@ -44,20 +43,13 @@ where
 {
     pub fn new(client: RpcClient<T>) -> Self {
         let remote_provider = ProviderBuilder::new().on_client(client);
-        let future_runner = FutureRunner::new();
 
-        Self {
-            remote_provider,
-            future_runner,
-        }
+        Self { remote_provider }
     }
 
     pub fn from_provider(root_provider: RootProvider<T>) -> Self {
-        let future_runner = FutureRunner::new();
-
         Self {
             remote_provider: root_provider,
-            future_runner,
         }
     }
 }
@@ -72,7 +64,6 @@ where
 
         Ok(RemoteStateProvider::boxed(
             self.remote_provider.clone(),
-            self.future_runner.clone(),
             BlockId::Number(num.into()),
         ))
     }
@@ -81,7 +72,6 @@ where
         //println!("history by block num {block}");
         Ok(RemoteStateProvider::boxed(
             self.remote_provider.clone(),
-            self.future_runner.clone(),
             BlockId::Number(block.into()),
         ))
     }
@@ -89,51 +79,69 @@ where
     fn history_by_block_hash(&self, block: BlockHash) -> ProviderResult<StateProviderBox> {
         //println!("history by block hash {block}");
 
-        let future = self.remote_provider.get_block_by_hash(block, false.into());
-
-        let _block_hash = match self.future_runner.run(future) {
-            Ok(block) => block,
-            Err(e) => {
-                println!("error {e}");
-                return Err(transport_to_provider_error(e));
-            }
-        };
-
+        //let future = self.remote_provider.get_block_by_hash(block, false.into());
+        //
+        //let _block_hash = match self.future_runner.run(future) {
+        //    Ok(block) => block,
+        //    Err(e) => {
+        //        println!("error {e}");
+        //        return Err(transport_to_provider_error(e));
+        //    }
+        //};
+        //
         Ok(RemoteStateProvider::boxed(
             self.remote_provider.clone(),
-            self.future_runner.clone(),
             BlockId::Hash(block.into()),
         ))
     }
 
     fn header(&self, block_hash: &BlockHash) -> ProviderResult<Option<Header>> {
         //println!("Get header");
-        let future = self
-            .remote_provider
-            .get_block_by_hash(*block_hash, false.into());
-
-        let header = self
-            .future_runner
-            .run(future)
-            .map_err(transport_to_provider_error)?
-            .map(|b| b.header.inner);
+        //let future = self
+        //    .remote_provider
+        //    .get_block_by_hash(*block_hash, false.into());
+        //
+        //let header = self
+        //    .future_runner
+        //    .run(future)
+        //    .map_err(transport_to_provider_error)?
+        //    .map(|b| b.header.inner);
+        //
+        let header = tokio::task::block_in_place(move || {
+            tokio::runtime::Handle::current().block_on(async move {
+                self.remote_provider
+                    .get_block_by_hash(*block_hash, false.into())
+                    .await
+            })
+        })
+        .map_err(transport_to_provider_error)?
+        .map(|b| b.header.inner);
 
         Ok(header)
     }
 
     fn block_hash(&self, number: BlockNumber) -> ProviderResult<Option<B256>> {
         //debug!("block hash 1, {number}");
-        let future = self
-            .remote_provider
-            .get_block_by_number(BlockNumberOrTag::Number(number), false.into());
+        //let future =
+        //
+        //let block_hash = match self.future_runner.run(future) {
+        //    Ok(b) => b.map(|b| b.header.hash),
+        //    Err(e) => {
+        //        println!("error {e}");
+        //        return Err(transport_to_provider_error(e));
+        //    }
+        //};
 
-        let block_hash = match self.future_runner.run(future) {
-            Ok(b) => b.map(|b| b.header.hash),
-            Err(e) => {
-                println!("error {e}");
-                return Err(transport_to_provider_error(e));
-            }
-        };
+        let block_hash = tokio::task::block_in_place(move || {
+            tokio::runtime::Handle::current().block_on(async move {
+                self.remote_provider
+                    .get_block_by_number(BlockNumberOrTag::Number(number), false.into())
+                    .await
+            })
+        })
+        .map_err(transport_to_provider_error)?
+        .map(|b| b.header.hash);
+
         //debug!("got block hash {block_hash:?}");
         //.map_err(transport_to_provider_error)?
         //.map(|b| b.header.hash);
@@ -148,27 +156,46 @@ where
 
     fn header_by_number(&self, num: u64) -> ProviderResult<Option<Header>> {
         //debug!("header by number");
-        let future = self
-            .remote_provider
-            .get_block_by_number(num.into(), false.into());
+        //let future =
+        //self
+        //    .remote_provider
+        //    .get_block_by_number(num.into(), false.into());
+        //
+        //let header = self
+        //    .future_runner
+        //    .run(future)
+        //    .map_err(transport_to_provider_error)?
+        //    .map(|b| b.header.inner);
+        //
 
-        let header = self
-            .future_runner
-            .run(future)
-            .map_err(transport_to_provider_error)?
-            .map(|b| b.header.inner);
+        let header = tokio::task::block_in_place(move || {
+            tokio::runtime::Handle::current().block_on(async move {
+                self.remote_provider
+                    .get_block_by_number(num.into(), false.into())
+                    .await
+            })
+        })
+        .map_err(transport_to_provider_error)?
+        .map(|b| b.header.inner);
 
         Ok(header)
     }
 
     fn last_block_number(&self) -> ProviderResult<BlockNumber> {
         //println!("header by number");
-        let future = self.remote_provider.get_block_number();
+        //        let future =
+        //self.remote_provider.get_block_number();
+        //
+        //        let block_num = self
+        //            .future_runner
+        //            .run(future)
+        //            .map_err(transport_to_provider_error)?;
 
-        let block_num = self
-            .future_runner
-            .run(future)
-            .map_err(transport_to_provider_error)?;
+        let block_num = tokio::task::block_in_place(move || {
+            tokio::runtime::Handle::current()
+                .block_on(async move { self.remote_provider.get_block_number().await })
+        })
+        .map_err(transport_to_provider_error)?;
 
         Ok(block_num)
     }
@@ -176,7 +203,6 @@ where
     fn root_hasher(&self, parent_hash: B256) -> ProviderResult<Box<dyn RootHasher>> {
         Ok(Box::new(StatRootHashCalculator {
             remote_provider: self.remote_provider.clone(),
-            future_runner: self.future_runner.clone(),
             parent_hash,
         }))
     }
@@ -184,31 +210,21 @@ where
 
 pub struct RemoteStateProvider<T> {
     remote_provider: RootProvider<T>,
-    future_runner: FutureRunner,
     block_id: BlockId,
 }
 
 impl<T> RemoteStateProvider<T> {
     /// Crates new instance of state provider
-    fn new(
-        remote_provider: RootProvider<T>,
-        future_runner: FutureRunner,
-        block_id: BlockId,
-    ) -> Self {
+    fn new(remote_provider: RootProvider<T>, block_id: BlockId) -> Self {
         Self {
             remote_provider,
             block_id,
-            future_runner,
         }
     }
 
     /// Crates new instance of state provider on the heap
-    fn boxed(
-        remote_provider: RootProvider<T>,
-        future_runner: FutureRunner,
-        block_id: BlockId,
-    ) -> Box<Self> {
-        Box::new(Self::new(remote_provider, future_runner, block_id))
+    fn boxed(remote_provider: RootProvider<T>, block_id: BlockId) -> Box<Self> {
+        Box::new(Self::new(remote_provider, block_id))
     }
 }
 
@@ -223,16 +239,26 @@ where
         storage_key: StorageKey,
     ) -> ProviderResult<Option<StorageValue>> {
         //println!("storage");
-        let future = self
-            .remote_provider
-            .get_storage_at(account, storage_key.into())
-            .block_id(self.block_id)
-            .into_future();
-
-        let storage = self
-            .future_runner
-            .run(future)
-            .map_err(transport_to_provider_error)?;
+        //let future = self
+        //    .remote_provider
+        //    .get_storage_at(account, storage_key.into())
+        //    .block_id(self.block_id)
+        //    .into_future();
+        //
+        //let storage = self
+        //    .future_runner
+        //    .run(future)
+        //    .map_err(transport_to_provider_error)?;
+        //
+        let storage = tokio::task::block_in_place(move || {
+            tokio::runtime::Handle::current().block_on(async move {
+                self.remote_provider
+                    .get_storage_at(account, storage_key.into())
+                    .block_id(self.block_id)
+                    .await
+            })
+        })
+        .map_err(transport_to_provider_error)?;
 
         Ok(Some(storage))
     }
@@ -241,15 +267,25 @@ where
     /// IMPORTANT: Assumes remote provider (node) has RPC call:"rbuilder_getCodeByHash"
     fn bytecode_by_hash(&self, code_hash: &B256) -> ProviderResult<Option<Bytecode>> {
         //println!("bytecode by hash");
-        let future = self
-            .remote_provider
-            .client()
-            .request::<_, Bytes>("rbuilder_getCodeByHash", (code_hash,));
-
-        let bytes = self
-            .future_runner
-            .run(future)
-            .map_err(transport_to_provider_error)?;
+        //let future = self
+        //    .remote_provider
+        //    .client()
+        //    .request::<_, Bytes>("rbuilder_getCodeByHash", (code_hash,));
+        //
+        //let bytes = self
+        //    .future_runner
+        //    .run(future)
+        //    .map_err(transport_to_provider_error)?;
+        //
+        let bytes = tokio::task::block_in_place(move || {
+            tokio::runtime::Handle::current().block_on(async move {
+                self.remote_provider
+                    .client()
+                    .request::<_, Bytes>("rbuilder_getCodeByHash", (code_hash,))
+                    .await
+            })
+        })
+        .map_err(transport_to_provider_error)?;
 
         Ok(Some(Bytecode::new_raw(bytes)))
     }
@@ -261,24 +297,32 @@ where
 {
     /// Get the hash of the block with the given number. Returns `None` if no block with this number exists
     fn block_hash(&self, number: BlockNumber) -> ProviderResult<Option<B256>> {
-        //debug!("block hash 2, {number}");
-        let future = self
-            .remote_provider
-            .get_block_by_number(BlockNumberOrTag::Number(number), false.into());
+        //debug!("block hash 1, {number}");
+        //let future =
+        //
+        //let block_hash = match self.future_runner.run(future) {
+        //    Ok(b) => b.map(|b| b.header.hash),
+        //    Err(e) => {
+        //        println!("error {e}");
+        //        return Err(transport_to_provider_error(e));
+        //    }
+        //};
 
-        let block_hash = match self.future_runner.run(future) {
-            Ok(b) => b.map(|b| b.header.hash),
-            Err(e) => {
-                println!("error {e}");
-                return Err(transport_to_provider_error(e));
-            }
-        };
+        let block_hash = tokio::task::block_in_place(move || {
+            tokio::runtime::Handle::current().block_on(async move {
+                self.remote_provider
+                    .get_block_by_number(BlockNumberOrTag::Number(number), false.into())
+                    .await
+            })
+        })
+        .map_err(transport_to_provider_error)?
+        .map(|b| b.header.hash);
+
         //debug!("got block hash {block_hash:?}");
         //.map_err(transport_to_provider_error)?
         //.map(|b| b.header.hash);
         Ok(block_hash)
     }
-
     fn canonical_hashes_range(
         &self,
         _start: BlockNumber,
@@ -297,19 +341,28 @@ where
     fn basic_account(&self, address: &Address) -> ProviderResult<Option<Account>> {
         //debug!("account {address}");
         //TODO: is this the best way to fetch all requited account data at once?
-        let future = self
-            .remote_provider
-            .client()
-            .request::<_, AccountState>("rbuilder_getAccount", (*address, self.block_id));
+        //let future = self
+        //    .remote_provider
+        //    .client()
+        //    .request::<_, AccountState>("rbuilder_getAccount", (*address, self.block_id));
+        //
+        //let account = match self.future_runner.run(future) {
+        //    Ok(a) => a,
+        //    Err(e) => {
+        //        println!("error: {e}, address {address}");
+        //        return Err(transport_to_provider_error(e));
+        //    }
+        //};
 
-        let account = match self.future_runner.run(future) {
-            Ok(a) => a,
-            Err(e) => {
-                println!("error: {e}, address {address}");
-                return Err(transport_to_provider_error(e));
-            }
-        };
-
+        let account = tokio::task::block_in_place(move || {
+            tokio::runtime::Handle::current().block_on(async move {
+                self.remote_provider
+                    .client()
+                    .request::<_, AccountState>("rbuilder_getAccount", (*address, self.block_id))
+                    .await
+            })
+        })
+        .map_err(transport_to_provider_error)?;
         //debug!("Account fetched {address}");
 
         Ok(Some(Account {
@@ -420,7 +473,6 @@ where
 #[derive(Debug)]
 pub struct StatRootHashCalculator<T> {
     remote_provider: RootProvider<T>,
-    future_runner: FutureRunner,
     parent_hash: B256,
 }
 
@@ -448,15 +500,30 @@ where
             .map(|(address, diff)| (*address, diff.clone().into()))
             .collect();
 
-        let future = self.remote_provider.client().request::<_, B256>(
-            "rbuilder_calculateStateRoot",
-            (BlockId::Hash(self.parent_hash.into()), account_diff),
-        );
+        //let future =
+        //self.remote_provider.client().request::<_, B256>(
+        //    "rbuilder_calculateStateRoot",
+        //    (BlockId::Hash(self.parent_hash.into()), account_diff),
+        //);
+        //
 
-        let hash = self
-            .future_runner
-            .run(future)
-            .map_err(|_| crate::roothash::RootHashError::Verification)?;
+        //let hash = self
+        //    .future_runner
+        //    .run(future)
+        //    .map_err(|_| crate::roothash::RootHashError::Verification)?;
+        //
+        let hash = tokio::task::block_in_place(move || {
+            tokio::runtime::Handle::current().block_on(async move {
+                self.remote_provider
+                    .client()
+                    .request::<_, B256>(
+                        "rbuilder_calculateStateRoot",
+                        (BlockId::Hash(self.parent_hash.into()), account_diff),
+                    )
+                    .await
+            })
+        })
+        .map_err(|_| crate::roothash::RootHashError::Verification)?;
 
         Ok(hash)
     }
