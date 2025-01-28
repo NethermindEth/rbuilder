@@ -280,9 +280,8 @@ where
         //TODO: is this the best way to fetch all requited account data at once?
         let future = self
             .remote_provider
-            .get_proof(*address, Vec::new())
-            .block_id(self.block_id)
-            .into_future();
+            .client()
+            .request::<_, AccountState>("rbuilder_getAccount", (*address, self.block_id));
 
         let account_proof = match self.future_runner.run(future) {
             Ok(a) => a,
@@ -295,7 +294,7 @@ where
         //println!("Account fetched");
 
         Ok(Some(Account {
-            nonce: account_proof.nonce,
+            nonce: account_proof.nonce.try_into().unwrap(),
             bytecode_hash: account_proof.code_hash.into(),
             balance: account_proof.balance,
         }))
@@ -452,6 +451,13 @@ pub struct AccountDiff {
     pub self_destructed: bool,
     pub changed_slots: HashMap<U256, U256>,
     pub code_hash: Option<B256>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct AccountState {
+    pub nonce: U256,
+    pub balance: U256,
+    pub code_hash: B256,
 }
 
 impl From<BundleAccount> for AccountDiff {
