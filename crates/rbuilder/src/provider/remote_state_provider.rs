@@ -66,7 +66,7 @@ where
     T: Transport + Clone + Debug,
 {
     fn latest(&self) -> ProviderResult<StateProviderBox> {
-        println!("latest");
+        //println!("latest");
         let num = self.best_block_number()?;
 
         Ok(RemoteStateProvider::boxed(
@@ -77,7 +77,7 @@ where
     }
 
     fn history_by_block_number(&self, block: BlockNumber) -> ProviderResult<StateProviderBox> {
-        println!("history by block num {block}");
+        //println!("history by block num {block}");
         Ok(RemoteStateProvider::boxed(
             self.remote_provider.clone(),
             self.future_runner.clone(),
@@ -87,6 +87,16 @@ where
 
     fn history_by_block_hash(&self, block: BlockHash) -> ProviderResult<StateProviderBox> {
         println!("history by block hash {block}");
+
+        let future = self.remote_provider.get_block_by_hash(block, false.into());
+
+        let _block_hash = match self.future_runner.run(future) {
+            Ok(block) => block,
+            Err(e) => {
+                println!("error {e}");
+                return Err(transport_to_provider_error(e));
+            }
+        };
 
         Ok(RemoteStateProvider::boxed(
             self.remote_provider.clone(),
