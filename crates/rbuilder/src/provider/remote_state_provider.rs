@@ -121,7 +121,7 @@ where
     }
 
     fn block_hash(&self, number: BlockNumber) -> ProviderResult<Option<B256>> {
-        println!("block hash, {number}");
+        println!("block hash 1, {number}");
         let future = self
             .remote_provider
             .get_block_by_number(BlockNumberOrTag::Number(number), false.into());
@@ -260,18 +260,22 @@ where
 {
     /// Get the hash of the block with the given number. Returns `None` if no block with this number exists
     fn block_hash(&self, number: BlockNumber) -> ProviderResult<Option<B256>> {
-        println!("block hash");
+        println!("block hash 1, {number}");
         let future = self
             .remote_provider
             .get_block_by_number(BlockNumberOrTag::Number(number), false.into());
 
-        let hash = self
-            .future_runner
-            .run(future)
-            .map_err(transport_to_provider_error)?
-            .map(|b| b.header.hash);
-
-        Ok(hash)
+        let block_hash = match self.future_runner.run(future) {
+            Ok(b) => b.map(|b| b.header.hash),
+            Err(e) => {
+                println!("error {e}");
+                return Err(transport_to_provider_error(e));
+            }
+        };
+        println!("got block hash {block_hash:?}");
+        //.map_err(transport_to_provider_error)?
+        //.map(|b| b.header.hash);
+        Ok(block_hash)
     }
 
     fn canonical_hashes_range(
