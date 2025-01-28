@@ -286,7 +286,7 @@ where
         let account_proof = match self.future_runner.run(future) {
             Ok(a) => a,
             Err(e) => {
-                println!("error: {e}");
+                println!("error: {e}, address {address}");
                 return Err(transport_to_provider_error(e));
             }
         };
