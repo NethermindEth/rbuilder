@@ -13,7 +13,7 @@ use tokio::{
     task::JoinHandle,
 };
 use tokio_util::sync::CancellationToken;
-use tracing::{error, info, trace};
+use tracing::{debug, error, info, trace};
 
 /// Subscribes to EL mempool and pushes new txs as orders in results.
 /// This version allows 4844 by subscribing to subscribe_pending_txs to get the hashes and then calling eth_getRawTransactionByHash
@@ -44,14 +44,15 @@ pub async fn subscribe_to_txpool_with_blobs(
         while let Some(tx_hash) = stream.next().await {
             let start = Instant::now();
 
+            debug!(?tx_hash, "New txpool tx");
             let tx_with_blobs = match get_tx_with_blobs(tx_hash, &provider).await {
                 Ok(Some(tx_with_blobs)) => tx_with_blobs,
                 Ok(None) => {
-                    trace!(?tx_hash, "tx not found in tx pool");
+                    debug!(?tx_hash, "tx not found in tx pool");
                     continue;
                 }
                 Err(err) => {
-                    //     error!(?tx_hash, ?err, "Failed to get tx pool");
+                    error!(?tx_hash, ?err, "Failed to get tx pool");
                     continue;
                 }
             };
