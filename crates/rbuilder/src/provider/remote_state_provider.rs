@@ -86,7 +86,7 @@ where
     }
 
     fn history_by_block_hash(&self, block: BlockHash) -> ProviderResult<StateProviderBox> {
-        println!("history by block hash");
+        println!("history by block hash {block}");
 
         Ok(RemoteStateProvider::boxed(
             self.remote_provider.clone(),
