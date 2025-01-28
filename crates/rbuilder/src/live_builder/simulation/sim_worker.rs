@@ -12,7 +12,6 @@ use parking_lot::Mutex;
 use reth::revm::cached::CachedReads;
 use std::{
     sync::Arc,
-    thread::sleep,
     time::{Duration, Instant},
 };
 use tokio_util::sync::CancellationToken;
@@ -43,7 +42,7 @@ pub fn run_sim_worker<P>(
                 break ctx;
             } else {
                 // contexts are created for a duration of the slot so this is not a problem
-                sleep(Duration::from_millis(50));
+                //sleep(Duration::from_millis(50));
             }
         };
 
