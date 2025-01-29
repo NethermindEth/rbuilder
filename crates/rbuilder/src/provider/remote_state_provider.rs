@@ -134,14 +134,15 @@ where
             .map(|b| b.header.inner);
 
         if header.is_none() {
-            return Ok(None);
             debug!("header by hash cache miss, got none");
+            return Ok(None);
         }
 
         debug!("header by hash cache miss, got header");
         let header = header.unwrap();
 
         self.header_cache.insert(*block_hash, header.clone());
+        self.header_num_cache.insert(header.number, header.clone());
         //self.blcok_num_hash_cache.insert(header.number, *block_hash);
 
         Ok(Some(header))
@@ -187,19 +188,23 @@ where
             .remote_provider
             .get_block_by_number(num.into(), false.into());
 
-        let header = self
+        let block = self
             .future_runner
             .run(future)
-            .map_err(transport_to_provider_error)?
-            .map(|b| b.header.inner);
+            .map_err(transport_to_provider_error)?;
+        //.map(|b| b.header.inner);
 
-        if header.is_none() {
+        if block.is_none() {
             debug!("header by hash cache miss, got none");
             return Ok(None);
         }
 
         debug!("header by number cache miss, got header");
-        let header = header.unwrap();
+        let block = block.unwrap();
+        let hash = block.header.hash;
+        let header = block.header.inner;
+
+        self.header_cache.insert(hash, header.clone());
         self.header_num_cache.insert(num, header.clone());
 
         Ok(Some(header))
