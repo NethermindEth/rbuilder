@@ -16,6 +16,7 @@ pub struct SequentialSealerBidMaker {
 
 impl BidMaker for SequentialSealerBidMaker {
     fn send_bid(&self, bid: Bid) {
+        debug!("Sending bid, will update");
         self.pending_bid.update(bid);
     }
 }
@@ -41,9 +42,11 @@ impl PendingBid {
     }
     /// Updates bid, replacing  on current (we assume they are always increasing but we don't check it).
     fn update(&self, bid: Bid) {
+        debug!("Updating bid, just before lock");
         *self.bid.lock() = Some(bid);
+        debug!("Updating bid, notify");
         self.bid_notify.notify_one();
-        print!("Bid notification sent");
+        debug!("Bid notification sent");
     }
 
     fn consume_bid(&self) -> Option<Bid> {
@@ -80,13 +83,17 @@ impl SequentialSealerBidMakerProcess {
         loop {
             tokio::select! {
                 _ = self.pending_bid.wait_for_change() => self.check_for_new_bid().await,
-                _ = self.cancel.cancelled() => return
+                _ = self.cancel.cancelled() => {
+                    debug!("Cancel bid");
+                    return;
+                }
             }
         }
     }
 
     /// block.finalize_block + self.sink.new_block inside spawn_blocking.
     async fn check_for_new_bid(&mut self) {
+        debug!("Checking for new bid");
         if let Some(bid) = self.pending_bid.consume_bid() {
             let payout_tx_val = bid.payout_tx_value();
             let block = bid.block();

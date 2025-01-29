@@ -66,7 +66,7 @@ impl UnfinishedBlockBuildingSink for TrueBlockValueBidder {
         } else {
             None
         };
-        debug!("Bid for block");
+        debug!("Got new block, sending bid");
         self.bid_maker.send_bid(Bid::new(block, payout_tx_value));
     }
 
