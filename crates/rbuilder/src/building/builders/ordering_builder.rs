@@ -108,6 +108,7 @@ where
                 }
                 if time_since_last_block.elapsed() > Duration::from_millis(100) {
                     input.sink.new_block(block);
+                    time_since_last_block = time::Instant::now();
                 }
             }
             Err(err) => {
