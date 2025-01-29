@@ -159,7 +159,6 @@ where
         //debug!("block hash 1, {number}");
         //return Ok(None);
         if let Some(hash) = self.block_hash_cache.get(&number) {
-            debug!("block hash cache hit {number}");
             return Ok(Some(*hash));
         }
         let future = self
@@ -174,10 +173,8 @@ where
             }
         };
         if let Some(hash) = block_hash {
-            debug!("block hash cache miss, got none");
             self.block_hash_cache.insert(number, hash);
         }
-        debug!("block hash cache miss, got {number}");
         Ok(block_hash)
     }
 
@@ -336,10 +333,7 @@ where
 {
     /// Get the hash of the block with the given number. Returns `None` if no block with this number exists
     fn block_hash(&self, number: BlockNumber) -> ProviderResult<Option<B256>> {
-        //debug!("block hash 1, {number}");
-        //return Ok(None);
         if let Some(hash) = self.block_hash_cache.get(&number) {
-            debug!("block hash cache hit {number}");
             return Ok(Some(*hash));
         }
         let future = self
@@ -354,10 +348,8 @@ where
             }
         };
         if let Some(hash) = block_hash {
-            debug!("block hash cache miss, got none");
             self.block_hash_cache.insert(number, hash);
         }
-        debug!("block hash cache miss, got {number}");
         Ok(block_hash)
     }
 
