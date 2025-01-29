@@ -77,6 +77,7 @@ where
     // this is a hack to mark used orders until built block trace is implemented as a sane thing
     let mut removed_orders = Vec::new();
     let mut use_suggested_fee_recipient_as_coinbase = config.coinbase_payment;
+    let mut time_since_last_block = time::Instant::now();
     'building: loop {
         if input.cancel.is_cancelled() {
             break 'building;
@@ -105,7 +106,9 @@ where
                 if block.built_block_trace().got_no_signer_error {
                     use_suggested_fee_recipient_as_coinbase = false;
                 }
-                input.sink.new_block(block);
+                if time_since_last_block.elapsed() > Duration::from_millis(100) {
+                    input.sink.new_block(block);
+                }
             }
             Err(err) => {
                 if !handle_building_error(err) {
