@@ -227,6 +227,7 @@ pub struct RemoteStateProvider<T> {
     block_id: BlockId,
     account_cache: DashMap<Address, Account>,
     bytecode_cache: DashMap<B256, Bytecode>,
+    storage_cache: DashMap<(Address, StorageKey), StorageValue>,
 }
 
 impl<T> RemoteStateProvider<T> {
@@ -244,6 +245,7 @@ impl<T> RemoteStateProvider<T> {
             future_runner,
             account_cache: DashMap::new(),
             bytecode_cache: DashMap::new(),
+            storage_cache: DashMap::new(),
         }
     }
 
@@ -274,25 +276,32 @@ where
         storage_key: StorageKey,
     ) -> ProviderResult<Option<StorageValue>> {
         return Ok(None);
-        //println!("storage");
-        //let future = self
-        //    .remote_provider
-        //    .get_storage_at(account, storage_key.into())
-        //    .block_id(self.block_id)
-        //    .into_future();
+        if let Some(storage) = self.storage_cache.get(&(account, storage_key)) {
+            let storage_val = *storage;
+            return Ok(Some(storage_val.clone()));
+        }
 
-        //let storage = self
-        //    .future_runner
-        //    .run(future)
-        //    .map_err(transport_to_provider_error)?;
-        //
-        //Ok(Some(storage))
+        let future = self
+            .remote_provider
+            .get_storage_at(account, storage_key.into())
+            .block_id(self.block_id)
+            .into_future();
+
+        let storage = self
+            .future_runner
+            .run(future)
+            .map_err(transport_to_provider_error)?;
+
+        self.storage_cache
+            .insert((account, storage_key), storage.clone());
+
+        Ok(Some(storage))
     }
 
     /// Get account code by its hash
     /// IMPORTANT: Assumes remote provider (node) has RPC call:"rbuilder_getCodeByHash"
     fn bytecode_by_hash(&self, code_hash: &B256) -> ProviderResult<Option<Bytecode>> {
-        // return Ok(None);
+        return Ok(None);
         if code_hash.is_zero() {
             return Ok(None);
         }
