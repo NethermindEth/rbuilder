@@ -4,7 +4,7 @@ use std::{
     sync::Arc,
 };
 
-use alloy_consensus::Header;
+use alloy_consensus::{constants::KECCAK_EMPTY, Header};
 use alloy_eips::{BlockId, BlockNumberOrTag};
 use alloy_primitives::{BlockHash, BlockNumber, StorageKey, StorageValue};
 use alloy_provider::{Provider, ProviderBuilder, RootProvider};
@@ -292,11 +292,20 @@ where
     /// Get account code by its hash
     /// IMPORTANT: Assumes remote provider (node) has RPC call:"rbuilder_getCodeByHash"
     fn bytecode_by_hash(&self, code_hash: &B256) -> ProviderResult<Option<Bytecode>> {
-        return Ok(None);
-        //println!("bytecode by hash");
-        //if let Some(bytecode) = self.bytecode_cache.get(code_hash) {
-        //    return Ok(Some(bytecode.clone()));
-        //}
+        // return Ok(None);
+        if code_hash.is_zero() {
+            return Ok(None);
+        }
+
+        if *code_hash == KECCAK_EMPTY {
+            debug!("empty code hash");
+            return Ok(None);
+        }
+
+        if let Some(bytecode) = self.bytecode_cache.get(code_hash) {
+            debug!("code hash cache hit");
+            return Ok(Some(bytecode.clone()));
+        }
 
         let future = self
             .remote_provider
@@ -308,7 +317,11 @@ where
             .run(future)
             .map_err(transport_to_provider_error)?;
 
-        Ok(Some(Bytecode::new_raw(bytes)))
+        let bytecode = Bytecode::new_raw(bytes);
+
+        self.bytecode_cache.insert(*code_hash, bytecode.clone());
+
+        Ok(Some(bytecode))
     }
 }
 
