@@ -89,15 +89,15 @@ where
     fn history_by_block_hash(&self, block: BlockHash) -> ProviderResult<StateProviderBox> {
         //println!("history by block hash {block}");
 
-        let future = self.remote_provider.get_block_by_hash(block, false.into());
-
-        let _block_hash = match self.future_runner.run(future) {
-            Ok(block) => block,
-            Err(e) => {
-                println!("error {e}");
-                return Err(transport_to_provider_error(e));
-            }
-        };
+        //let future = self.remote_provider.get_block_by_hash(block, false.into());
+        //
+        //let _block_hash = match self.future_runner.run(future) {
+        //    Ok(block) => block,
+        //    Err(e) => {
+        //        println!("error {e}");
+        //        return Err(transport_to_provider_error(e));
+        //    }
+        //};
 
         Ok(RemoteStateProvider::boxed(
             self.remote_provider.clone(),
@@ -108,6 +108,7 @@ where
 
     fn header(&self, block_hash: &BlockHash) -> ProviderResult<Option<Header>> {
         //println!("Get header");
+        return Ok(None);
         let future = self
             .remote_provider
             .get_block_by_hash(*block_hash, false.into());
@@ -149,6 +150,7 @@ where
 
     fn header_by_number(&self, num: u64) -> ProviderResult<Option<Header>> {
         //debug!("header by number");
+        return Ok(None);
         let future = self
             .remote_provider
             .get_block_by_number(num.into(), false.into());
@@ -164,6 +166,7 @@ where
 
     fn last_block_number(&self) -> ProviderResult<BlockNumber> {
         //println!("header by number");
+        return Ok(0);
         let future = self.remote_provider.get_block_number();
 
         let block_num = self
@@ -223,6 +226,7 @@ where
         account: Address,
         storage_key: StorageKey,
     ) -> ProviderResult<Option<StorageValue>> {
+        return Ok(None);
         //println!("storage");
         let future = self
             .remote_provider
@@ -241,6 +245,7 @@ where
     /// Get account code by its hash
     /// IMPORTANT: Assumes remote provider (node) has RPC call:"rbuilder_getCodeByHash"
     fn bytecode_by_hash(&self, code_hash: &B256) -> ProviderResult<Option<Bytecode>> {
+        return Ok(None);
         //println!("bytecode by hash");
         let future = self
             .remote_provider
@@ -298,6 +303,7 @@ where
     /// Returns `None` if the account doesn't exist.
     fn basic_account(&self, address: &Address) -> ProviderResult<Option<Account>> {
         //debug!("account {address}");
+        return Ok(None);
         //TODO: is this the best way to fetch all requited account data at once?
         let future = self
             .remote_provider
