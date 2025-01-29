@@ -373,7 +373,7 @@ where
     /// Get basic account information.
     /// Returns `None` if the account doesn't exist.
     fn basic_account(&self, address: &Address) -> ProviderResult<Option<Account>> {
-        //return Ok(Some(Account::default()));
+        return Ok(Some(Account::default()));
 
         if let Some(account) = self.account_cache.get(address) {
             return Ok(Some(*account));
