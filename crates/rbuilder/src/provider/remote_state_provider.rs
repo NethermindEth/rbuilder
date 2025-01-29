@@ -9,6 +9,7 @@ use alloy_primitives::{BlockHash, BlockNumber, StorageKey, StorageValue};
 use alloy_provider::{Provider, ProviderBuilder, RootProvider};
 use alloy_rpc_client::RpcClient;
 use alloy_transport::{Transport, TransportError};
+use dashmap::DashMap;
 use reth_errors::{ProviderError, ProviderResult};
 use reth_primitives::{Account, Bytecode};
 use reth_provider::{
@@ -35,7 +36,8 @@ use super::{RootHasher, StateProviderFactory};
 #[derive(Clone)]
 pub struct RemoteStateProviderFactory<T> {
     remote_provider: RootProvider<T>,
-    //future_runner: FutureRunner,
+    future_runner: FutureRunner,
+    header_cache: DashMap<B256, Header>,
 }
 
 impl<T> RemoteStateProviderFactory<T>
@@ -44,20 +46,22 @@ where
 {
     pub fn new(client: RpcClient<T>) -> Self {
         let remote_provider = ProviderBuilder::new().on_client(client);
-        //   let future_runner = FutureRunner::new();
+        let future_runner = FutureRunner::new();
 
         Self {
             remote_provider,
-            //      future_runner,
+            future_runner,
+            header_cache: DashMap::new(),
         }
     }
 
     pub fn from_provider(root_provider: RootProvider<T>) -> Self {
-        //let future_runner = FutureRunner::new();
+        let future_runner = FutureRunner::new();
 
         Self {
             remote_provider: root_provider,
-            //     future_runner,
+            future_runner,
+            header_cache: DashMap::new(),
         }
     }
 }
@@ -108,18 +112,30 @@ where
 
     fn header(&self, block_hash: &BlockHash) -> ProviderResult<Option<Header>> {
         //println!("Get header");
-        return Ok(Some(Header::default()));
-        //let future = self
-        //    .remote_provider
-        //    .get_block_by_hash(*block_hash, false.into());
-        //
-        //let header = self
-        //    .future_runner
-        //    .run(future)
-        //    .map_err(transport_to_provider_error)?
-        //    .map(|b| b.header.inner);
+        //        return Ok(Some(Header::default()));
+        //if let Some(header) = self.header_cache.get(block_hash) {
+        //    return Ok(Some(header.clone()));
+        //}
 
-        //        Ok(header)
+        let future = self
+            .remote_provider
+            .get_block_by_hash(*block_hash, false.into());
+
+        let header = self
+            .future_runner
+            .run(future)
+            .map_err(transport_to_provider_error)?
+            .map(|b| b.header.inner);
+
+        if header.is_none() {
+            return Ok(None);
+        }
+
+        let header = header.unwrap();
+
+        //        self.header_cache.insert(*block_hash, header.clone());
+
+        Ok(Some(header))
     }
 
     fn block_hash(&self, number: BlockNumber) -> ProviderResult<Option<B256>> {
@@ -149,20 +165,20 @@ where
     }
 
     fn header_by_number(&self, num: u64) -> ProviderResult<Option<Header>> {
-        return Ok(Some(Header::default()));
+        //return Ok(Some(Header::default()));
         //debug!("header by number");
-        return Ok(None);
+        //return Ok(None);
         let future = self
             .remote_provider
             .get_block_by_number(num.into(), false.into());
 
-        //let header = self
-        //    .future_runner
-        //    .run(future)
-        //    .map_err(transport_to_provider_error)?
-        //    .map(|b| b.header.inner);
+        let header = self
+            .future_runner
+            .run(future)
+            .map_err(transport_to_provider_error)?
+            .map(|b| b.header.inner);
 
-        //        Ok(header)
+        Ok(header)
     }
 
     fn last_block_number(&self) -> ProviderResult<BlockNumber> {
