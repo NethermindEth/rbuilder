@@ -123,6 +123,7 @@ where
 
     fn block_hash(&self, number: BlockNumber) -> ProviderResult<Option<B256>> {
         //debug!("block hash 1, {number}");
+        return Ok(None);
         let future = self
             .remote_provider
             .get_block_by_number(BlockNumberOrTag::Number(number), false.into());
@@ -262,6 +263,7 @@ where
     /// Get the hash of the block with the given number. Returns `None` if no block with this number exists
     fn block_hash(&self, number: BlockNumber) -> ProviderResult<Option<B256>> {
         //debug!("block hash 2, {number}");
+        return Ok(None);
         let future = self
             .remote_provider
             .get_block_by_number(BlockNumberOrTag::Number(number), false.into());
