@@ -108,7 +108,7 @@ where
 
     fn header(&self, block_hash: &BlockHash) -> ProviderResult<Option<Header>> {
         //println!("Get header");
-        return Ok(None);
+        return Ok(Some(Header::default()));
         //let future = self
         //    .remote_provider
         //    .get_block_by_hash(*block_hash, false.into());
@@ -149,6 +149,7 @@ where
     }
 
     fn header_by_number(&self, num: u64) -> ProviderResult<Option<Header>> {
+        return Ok(Some(Header::default()));
         //debug!("header by number");
         return Ok(None);
         let future = self
