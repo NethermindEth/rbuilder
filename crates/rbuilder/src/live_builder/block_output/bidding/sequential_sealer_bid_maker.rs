@@ -38,12 +38,19 @@ impl PendingBid {
         }
     }
     pub async fn wait_for_change(&self) {
-        self.bid_notify.notified().await
+        debug!("Waiting for change");
+        self.bid_notify.notified().await;
+        debug!("Got  change");
     }
     /// Updates bid, replacing  on current (we assume they are always increasing but we don't check it).
     fn update(&self, bid: Bid) {
         debug!("Updating bid, just before lock");
-        *self.bid.lock() = Some(bid);
+        if let Some(mut guard) = self.bid.try_lock_for(std::time::Duration::from_millis(10)) {
+            *guard = Some(bid);
+        } else {
+            debug!("Failed to lock bid, skipping");
+            return;
+        }
         debug!("Updating bid, notify");
         self.bid_notify.notify_one();
         debug!("Bid notification sent");
@@ -93,7 +100,7 @@ impl SequentialSealerBidMakerProcess {
 
     /// block.finalize_block + self.sink.new_block inside spawn_blocking.
     async fn check_for_new_bid(&mut self) {
-        debug!("Checking for new bid");
+        debug!("New bid notification received, will start finalize_block");
         if let Some(bid) = self.pending_bid.consume_bid() {
             let payout_tx_val = bid.payout_tx_value();
             let block = bid.block();
