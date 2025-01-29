@@ -262,6 +262,7 @@ where
 
             let root_hasher = Arc::from(self.provider.root_hasher(payload.parent_block_hash())?);
 
+            debug!("Will try to crate blk builder");
             if let Some(block_ctx) = BlockBuildingContext::from_attributes(
                 payload.payload_attributes_event.clone(),
                 &parent_header,
@@ -273,6 +274,7 @@ where
                 None,
                 root_hasher,
             ) {
+                debug!("Started block building");
                 builder_pool.start_block_building(
                     payload,
                     block_ctx,
@@ -359,8 +361,10 @@ where
     let deadline = slot_time + timings.block_header_deadline_delta;
     while OffsetDateTime::now_utc() < deadline {
         if let Some(header) = provider.header(&block)? {
+            debug!(block = ?block, "Got block header");
             return Ok(header);
         } else {
+            debug!(block = ?block, "Going to sleep");
             let time_to_sleep = min(
                 deadline - OffsetDateTime::now_utc(),
                 timings.get_block_header_period,
@@ -369,6 +373,7 @@ where
                 break;
             }
             tokio::time::sleep(time_to_sleep.try_into().unwrap()).await;
+            debug!(block = ?block, "finsih sleep");
         }
     }
     Err(eyre::eyre!("Block header not found"))

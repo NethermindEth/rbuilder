@@ -117,9 +117,9 @@ where
         //println!("Get header");
         //       return Ok(Some(Header::default()));
 
-        debug!("header by hash ");
+        debug!("header by hash {block_hash}");
         if let Some(header) = self.header_cache.get(block_hash) {
-            debug!("header by hash cache hit");
+            debug!("header by hash cache hit {block_hash}");
             return Ok(Some(header.clone()));
         }
 
@@ -134,38 +134,37 @@ where
             .map(|b| b.header.inner);
 
         if header.is_none() {
-            debug!("header by hash cache miss, got none");
+            debug!("header by hash cache miss, got none {block_hash}");
             return Ok(None);
         }
 
-        debug!("header by hash cache miss, got header");
+        debug!("header by hash cache miss, got header {block_hash}");
         let header = header.unwrap();
 
         self.header_cache.insert(*block_hash, header.clone());
         self.header_num_cache.insert(header.number, header.clone());
-        //self.blcok_num_hash_cache.insert(header.number, *block_hash);
 
         Ok(Some(header))
     }
 
     fn block_hash(&self, number: BlockNumber) -> ProviderResult<Option<B256>> {
         //debug!("block hash 1, {number}");
-        return Ok(None);
+        //return Ok(None);
         let future = self
             .remote_provider
             .get_block_by_number(BlockNumberOrTag::Number(number), false.into());
 
-        //let block_hash = match self.future_runner.run(future) {
-        //    Ok(b) => b.map(|b| b.header.hash),
-        //    Err(e) => {
-        //        println!("error {e}");
-        //        return Err(transport_to_provider_error(e));
-        //    }
-        //};
+        let block_hash = match self.future_runner.run(future) {
+            Ok(b) => b.map(|b| b.header.hash),
+            Err(e) => {
+                println!("error {e}");
+                return Err(transport_to_provider_error(e));
+            }
+        };
         //debug!("got block hash {block_hash:?}");
         //.map_err(transport_to_provider_error)?
         //.map(|b| b.header.hash);
-        //       Ok(block_hash)
+        Ok(block_hash)
     }
 
     //TODO: is this correct?
@@ -176,11 +175,11 @@ where
 
     fn header_by_number(&self, num: u64) -> ProviderResult<Option<Header>> {
         //return Ok(Some(Header::default()));
-        debug!("header by number");
+        debug!("header by number, {num}");
         //return Ok(None);
 
         if let Some(header) = self.header_num_cache.get(&num) {
-            debug!("header by number cache hit");
+            debug!("header by number cache hit {num}");
             return Ok(Some(header.clone()));
         }
 
@@ -195,11 +194,11 @@ where
         //.map(|b| b.header.inner);
 
         if block.is_none() {
-            debug!("header by hash cache miss, got none");
+            debug!("header by hash cache miss, got none {num}");
             return Ok(None);
         }
 
-        debug!("header by number cache miss, got header");
+        debug!("header by number cache miss, got header {num}");
         let block = block.unwrap();
         let hash = block.header.hash;
         let header = block.header.inner;
@@ -212,15 +211,15 @@ where
 
     fn last_block_number(&self) -> ProviderResult<BlockNumber> {
         //println!("header by number");
-        return Ok(0);
+        //return Ok(0);
         let future = self.remote_provider.get_block_number();
 
-        //let block_num = self
-        //    .future_runner
-        //    .run(future)
-        //    .map_err(transport_to_provider_error)?;
-        //
-        //Ok(block_num)
+        let block_num = self
+            .future_runner
+            .run(future)
+            .map_err(transport_to_provider_error)?;
+
+        Ok(block_num)
     }
 
     fn root_hasher(&self, parent_hash: B256) -> ProviderResult<Box<dyn RootHasher>> {
