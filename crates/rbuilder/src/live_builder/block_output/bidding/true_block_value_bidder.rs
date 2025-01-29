@@ -9,6 +9,7 @@ use alloy_primitives::U256;
 use std::sync::Arc;
 use time::OffsetDateTime;
 use tokio_util::sync::CancellationToken;
+use tracing::debug;
 
 /// Bidding service giving a TrueBlockValueBidder
 #[derive(Debug)]
@@ -65,6 +66,7 @@ impl UnfinishedBlockBuildingSink for TrueBlockValueBidder {
         } else {
             None
         };
+        debug!("Bid for block");
         self.bid_maker.send_bid(Bid::new(block, payout_tx_value));
     }
 

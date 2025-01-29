@@ -3,7 +3,7 @@ use parking_lot::Mutex;
 use std::sync::Arc;
 use tokio::sync::Notify;
 use tokio_util::sync::CancellationToken;
-use tracing::error;
+use tracing::{debug, error};
 
 use super::interfaces::{Bid, BidMaker};
 
@@ -43,6 +43,7 @@ impl PendingBid {
     fn update(&self, bid: Bid) {
         *self.bid.lock() = Some(bid);
         self.bid_notify.notify_one();
+        print!("Bid notification sent");
     }
 
     fn consume_bid(&self) -> Option<Bid> {
@@ -91,18 +92,20 @@ impl SequentialSealerBidMakerProcess {
             let block = bid.block();
             let block_number = block.building_context().block();
             let builder_name = block.builder_name().to_string();
+            debug!("Will calc state root");
             match tokio::task::spawn_blocking(move || block.finalize_block(payout_tx_val)).await {
                 Ok(finalize_res) => match finalize_res {
-                    Ok(res) => self.sink.new_block(res.block),
+                    Ok(res) => {
+                        debug!("Sealed");
+                        self.sink.new_block(res.block)
+                    }
                     Err(error) => {
-                        if error.is_critical() {
-                            error!(
-                                builder_name,
-                                block_number,
-                                ?error,
-                                "Error on finalize_block on SequentialSealerBidMaker"
-                            )
-                        }
+                        error!(
+                            builder_name,
+                            block_number,
+                            ?error,
+                            "Error on finalize_block on SequentialSealerBidMaker"
+                        )
                     }
                 },
                 Err(error) => error!(
@@ -111,6 +114,8 @@ impl SequentialSealerBidMakerProcess {
                     "Error on join finalize_block on SequentialSealerBidMaker"
                 ),
             }
+        } else {
+            debug!("bid none");
         }
     }
 }

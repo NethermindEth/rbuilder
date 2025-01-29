@@ -55,6 +55,7 @@ impl BestBlockCell {
             .unwrap_or_default();
         if block.trace.bid_value > old_value {
             *best_block = Some(block);
+            //drop(best_block);
             self.block_notify.notify_one();
         }
     }
