@@ -440,6 +440,9 @@ where
         &self,
         outcome: &reth_provider::ExecutionOutcome,
     ) -> Result<B256, crate::roothash::RootHashError> {
+        return Ok(B256::default());
+        unreachable!();
+        //
         //println!("state root");
         let account_diff: HashMap<Address, AccountDiff> = outcome
             .bundle
