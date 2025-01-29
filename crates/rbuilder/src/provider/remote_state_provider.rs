@@ -225,6 +225,8 @@ pub struct RemoteStateProvider<T> {
     future_runner: FutureRunner,
     block_hash_cache: Arc<DashMap<u64, BlockHash>>,
     block_id: BlockId,
+    account_cache: DashMap<Address, Account>,
+    bytecode_cache: DashMap<B256, Bytecode>,
 }
 
 impl<T> RemoteStateProvider<T> {
@@ -240,6 +242,8 @@ impl<T> RemoteStateProvider<T> {
             block_id,
             block_hash_cache,
             future_runner,
+            account_cache: DashMap::new(),
+            bytecode_cache: DashMap::new(),
         }
     }
 
@@ -290,17 +294,21 @@ where
     fn bytecode_by_hash(&self, code_hash: &B256) -> ProviderResult<Option<Bytecode>> {
         return Ok(None);
         //println!("bytecode by hash");
-        //let future = self
-        //    .remote_provider
-        //    .client()
-        //    .request::<_, Bytes>("rbuilder_getCodeByHash", (code_hash,));
-        //
-        //let bytes = self
-        //    .future_runner
-        //    .run(future)
-        //    .map_err(transport_to_provider_error)?;
-        //
-        //Ok(Some(Bytecode::new_raw(bytes)))
+        //if let Some(bytecode) = self.bytecode_cache.get(code_hash) {
+        //    return Ok(Some(bytecode.clone()));
+        //}
+
+        let future = self
+            .remote_provider
+            .client()
+            .request::<_, Bytes>("rbuilder_getCodeByHash", (code_hash,));
+
+        let bytes = self
+            .future_runner
+            .run(future)
+            .map_err(transport_to_provider_error)?;
+
+        Ok(Some(Bytecode::new_raw(bytes)))
     }
 }
 
@@ -346,30 +354,35 @@ where
     /// Get basic account information.
     /// Returns `None` if the account doesn't exist.
     fn basic_account(&self, address: &Address) -> ProviderResult<Option<Account>> {
-        //debug!("account {address}");
+        //return Ok(Some(Account::default()));
 
-        return Ok(Some(Account::default()));
-        //TODO: is this the best way to fetch all requited account data at once?
-        //let future = self
-        //    .remote_provider
-        //    .client()
-        //    .request::<_, AccountState>("rbuilder_getAccount", (*address, self.block_id));
-        //
-        //let account = match self.future_runner.run(future) {
-        //    Ok(a) => a,
-        //    Err(e) => {
-        //        println!("error: {e}, address {address}");
-        //        return Err(transport_to_provider_error(e));
-        //    }
-        //};
-        //
-        ////debug!("Account fetched {address}");
-        //
-        //Ok(Some(Account {
-        //    nonce: account.nonce.try_into().unwrap(),
-        //    bytecode_hash: account.code_hash.into(),
-        //    balance: account.balance,
-        //}))
+        if let Some(account) = self.account_cache.get(address) {
+            debug!("Account from cache {address}");
+            return Ok(Some(*account));
+        }
+
+        let future = self
+            .remote_provider
+            .client()
+            .request::<_, AccountState>("rbuilder_getAccount", (*address, self.block_id));
+
+        let account = match self.future_runner.run(future) {
+            Ok(a) => a,
+            Err(e) => {
+                println!("error: {e}, address {address}");
+                return Err(transport_to_provider_error(e));
+            }
+        };
+
+        let account = Account {
+            nonce: account.nonce.try_into().unwrap(),
+            bytecode_hash: account.code_hash.into(),
+            balance: account.balance,
+        };
+
+        self.account_cache.insert(*address, account);
+
+        Ok(Some(account))
     }
 }
 
@@ -494,7 +507,6 @@ where
         outcome: &reth_provider::ExecutionOutcome,
     ) -> Result<B256, crate::roothash::RootHashError> {
         return Ok(B256::default());
-        unreachable!();
         //
         //println!("state root");
         let account_diff: HashMap<Address, AccountDiff> = outcome
