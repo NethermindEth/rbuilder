@@ -38,8 +38,6 @@ use super::{RootHasher, StateProviderFactory};
 pub struct RemoteStateProviderFactory<T> {
     remote_provider: RootProvider<T>,
     future_runner: FutureRunner,
-    header_num_cache: DashMap<u64, Header>,
-    header_cache: DashMap<B256, Header>,
     block_hash_cache: Arc<DashMap<u64, BlockHash>>,
 }
 
@@ -54,8 +52,6 @@ where
         Self {
             remote_provider,
             future_runner,
-            header_cache: DashMap::new(),
-            header_num_cache: DashMap::new(),
             block_hash_cache: Arc::new(DashMap::new()),
         }
     }
@@ -66,8 +62,6 @@ where
         Self {
             remote_provider: root_provider,
             future_runner,
-            header_cache: DashMap::new(),
-            header_num_cache: DashMap::new(),
             block_hash_cache: Arc::new(DashMap::new()),
         }
     }
@@ -124,12 +118,6 @@ where
         //println!("Get header");
         //       return Ok(Some(Header::default()));
 
-        debug!("header by hash {block_hash}");
-        if let Some(header) = self.header_cache.get(block_hash) {
-            debug!("header by hash cache hit {block_hash}");
-            return Ok(Some(header.clone()));
-        }
-
         let future = self
             .remote_provider
             .get_block_by_hash(*block_hash, false.into());
@@ -148,8 +136,6 @@ where
         debug!("header by hash cache miss, got header {block_hash}");
         let header = header.unwrap();
 
-        self.header_cache.insert(*block_hash, header.clone());
-        self.header_num_cache.insert(header.number, header.clone());
         self.block_hash_cache.insert(header.number, *block_hash);
 
         Ok(Some(header))
@@ -186,13 +172,7 @@ where
 
     fn header_by_number(&self, num: u64) -> ProviderResult<Option<Header>> {
         //return Ok(Some(Header::default()));
-        debug!("header by number, {num}");
         //return Ok(None);
-
-        if let Some(header) = self.header_num_cache.get(&num) {
-            debug!("header by number cache hit {num}");
-            return Ok(Some(header.clone()));
-        }
 
         let future = self
             .remote_provider
@@ -209,13 +189,10 @@ where
             return Ok(None);
         }
 
-        debug!("header by number cache miss, got header {num}");
         let block = block.unwrap();
         let hash = block.header.hash;
         let header = block.header.inner;
 
-        self.header_cache.insert(hash, header.clone());
-        self.header_num_cache.insert(num, header.clone());
         self.block_hash_cache.insert(header.number, hash);
 
         Ok(Some(header))
