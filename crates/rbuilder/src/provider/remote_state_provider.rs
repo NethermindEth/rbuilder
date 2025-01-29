@@ -311,7 +311,7 @@ where
     /// Get account code by its hash
     /// IMPORTANT: Assumes remote provider (node) has RPC call:"rbuilder_getCodeByHash"
     fn bytecode_by_hash(&self, code_hash: &B256) -> ProviderResult<Option<Bytecode>> {
-        return Ok(None);
+        //return Ok(None);
         if code_hash.is_zero() {
             return Ok(None);
         }
@@ -533,7 +533,7 @@ where
         &self,
         outcome: &reth_provider::ExecutionOutcome,
     ) -> Result<B256, crate::roothash::RootHashError> {
-        return Ok(B256::default());
+        //return Ok(B256::default());
         //
         //println!("state root");
         let account_diff: HashMap<Address, AccountDiff> = outcome
