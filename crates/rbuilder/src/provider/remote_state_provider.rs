@@ -275,10 +275,10 @@ where
         account: Address,
         storage_key: StorageKey,
     ) -> ProviderResult<Option<StorageValue>> {
-        return Ok(None);
+        //return Ok(None);
         if let Some(storage) = self.storage_cache.get(&(account, storage_key)) {
             let storage_val = *storage;
-            return Ok(Some(storage_val.clone()));
+            return Ok(Some(storage_val));
         }
 
         let future = self
@@ -292,8 +292,7 @@ where
             .run(future)
             .map_err(transport_to_provider_error)?;
 
-        self.storage_cache
-            .insert((account, storage_key), storage.clone());
+        self.storage_cache.insert((account, storage_key), storage);
 
         Ok(Some(storage))
     }
