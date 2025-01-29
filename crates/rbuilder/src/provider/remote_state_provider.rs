@@ -142,26 +142,20 @@ where
     }
 
     fn block_hash(&self, number: BlockNumber) -> ProviderResult<Option<B256>> {
-        //debug!("block hash 1, {number}");
-        //return Ok(None);
         if let Some(hash) = self.block_hash_cache.get(&number) {
             return Ok(Some(*hash));
         }
         let future = self
             .remote_provider
-            .get_block_by_number(BlockNumberOrTag::Number(number), false.into());
+            .client()
+            .request::<_, B256>("rbuilder_getBlockHash", (BlockNumberOrTag::Number(number),));
+        let block_hash = self
+            .future_runner
+            .run(future)
+            .map_err(transport_to_provider_error)?;
 
-        let block_hash = match self.future_runner.run(future) {
-            Ok(b) => b.map(|b| b.header.hash),
-            Err(e) => {
-                println!("error {e}");
-                return Err(transport_to_provider_error(e));
-            }
-        };
-        if let Some(hash) = block_hash {
-            self.block_hash_cache.insert(number, hash);
-        }
-        Ok(block_hash)
+        self.block_hash_cache.insert(number, block_hash);
+        Ok(Some(block_hash))
     }
 
     //TODO: is this correct?
@@ -344,19 +338,15 @@ where
         }
         let future = self
             .remote_provider
-            .get_block_by_number(BlockNumberOrTag::Number(number), false.into());
+            .client()
+            .request::<_, B256>("rbuilder_getBlockHash", (BlockNumberOrTag::Number(number),));
+        let block_hash = self
+            .future_runner
+            .run(future)
+            .map_err(transport_to_provider_error)?;
 
-        let block_hash = match self.future_runner.run(future) {
-            Ok(b) => b.map(|b| b.header.hash),
-            Err(e) => {
-                println!("error {e}");
-                return Err(transport_to_provider_error(e));
-            }
-        };
-        if let Some(hash) = block_hash {
-            self.block_hash_cache.insert(number, hash);
-        }
-        Ok(block_hash)
+        self.block_hash_cache.insert(number, block_hash);
+        Ok(Some(block_hash))
     }
 
     fn canonical_hashes_range(
@@ -378,7 +368,6 @@ where
         //return Ok(Some(Account::default()));
 
         if let Some(account) = self.account_cache.get(address) {
-            debug!("Account from cache {address}");
             return Ok(Some(*account));
         }
 
@@ -555,7 +544,6 @@ where
 pub struct AccountDiff {
     pub nonce: Option<U256>,
     pub balance: Option<U256>,
-    pub code: Option<Bytes>,
     pub self_destructed: bool,
     pub changed_slots: HashMap<U256, U256>,
     pub code_hash: Option<B256>,
@@ -585,7 +573,6 @@ impl From<BundleAccount> for AccountDiff {
                 balance: Some(info.balance),
                 nonce: Some(U256::from(info.nonce)),
                 code_hash: Some(info.code_hash),
-                code: info.code.map(|c| c.bytes()),
             },
             None => Self {
                 changed_slots,
@@ -593,7 +580,6 @@ impl From<BundleAccount> for AccountDiff {
                 balance: None,
                 nonce: None,
                 code_hash: None,
-                code: None,
             },
         }
     }
