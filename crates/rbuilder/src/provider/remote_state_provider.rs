@@ -303,7 +303,8 @@ where
     /// Returns `None` if the account doesn't exist.
     fn basic_account(&self, address: &Address) -> ProviderResult<Option<Account>> {
         //debug!("account {address}");
-        return Ok(None);
+
+        return Ok(Some(Account::default()));
         //TODO: is this the best way to fetch all requited account data at once?
         //let future = self
         //    .remote_provider
