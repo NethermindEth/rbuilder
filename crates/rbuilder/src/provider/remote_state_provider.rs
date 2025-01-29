@@ -130,15 +130,27 @@ where
         //println!("Get header");
         //       return Ok(Some(Header::default()));
 
-        let future = self
-            .remote_provider
-            .get_block_by_hash(*block_hash, false.into());
-
-        let header = self
-            .future_runner
-            .run(future)
-            .map_err(transport_to_provider_error)?
-            .map(|b| b.header.inner);
+        //let future = self
+        //    .remote_provider
+        //    .get_block_by_hash(*block_hash, false.into());
+        //
+        //let header = self
+        //    .future_runner
+        //    .run(future)
+        //    .map_err(transport_to_provider_error)?
+        //    .map(|b| b.header.inner);
+        //
+        let b_h = *block_hash;
+        let rm_prov = self.remote_provider.clone();
+        let header = futures::executor::block_on(async move {
+            self.future_runner
+                .runtime_handle
+                .spawn(async move { rm_prov.get_block_by_hash(b_h, false.into()).await })
+                .await
+                .unwrap()
+        })
+        .map_err(transport_to_provider_error)?
+        .map(|b| b.header.inner);
 
         if header.is_none() {
             debug!("header by hash cache miss, got none {block_hash}");
@@ -156,14 +168,32 @@ where
         if let Some(hash) = self.block_hash_cache.get(&number) {
             return Ok(Some(*hash));
         }
-        let future = self
-            .remote_provider
-            .client()
-            .request::<_, B256>("rbuilder_getBlockHash", (BlockNumberOrTag::Number(number),));
-        let block_hash = self
-            .future_runner
-            .run(future)
-            .map_err(transport_to_provider_error)?;
+        //let future = self
+        //    .remote_provider
+        //    .client()
+        //    .request::<_, B256>("rbuilder_getBlockHash", (BlockNumberOrTag::Number(number),));
+        //let block_hash = self
+        //    .future_runner
+        //    .run(future)
+        //    .map_err(transport_to_provider_error)?;
+        //
+        let rm_prov = self.remote_provider.clone();
+        let block_hash = futures::executor::block_on(async move {
+            self.future_runner
+                .runtime_handle
+                .spawn(async move {
+                    rm_prov
+                        .client()
+                        .request::<_, B256>(
+                            "rbuilder_getBlockHash",
+                            (BlockNumberOrTag::Number(number),),
+                        )
+                        .await
+                })
+                .await
+                .unwrap()
+        })
+        .map_err(transport_to_provider_error)?;
 
         self.block_hash_cache.insert(number, block_hash);
         Ok(Some(block_hash))
@@ -179,15 +209,25 @@ where
         //return Ok(Some(Header::default()));
         //return Ok(None);
 
-        let future = self
-            .remote_provider
-            .get_block_by_number(num.into(), false.into());
-
-        let block = self
-            .future_runner
-            .run(future)
-            .map_err(transport_to_provider_error)?;
-        //.map(|b| b.header.inner);
+        //let future = self
+        //    .remote_provider
+        //    .get_block_by_number(num.into(), false.into());
+        //
+        //let block = self
+        //    .future_runner
+        //    .run(future)
+        //    .map_err(transport_to_provider_error)?;
+        ////.map(|b| b.header.inner);
+        //
+        let rm_prov = self.remote_provider.clone();
+        let block = futures::executor::block_on(async move {
+            self.future_runner
+                .runtime_handle
+                .spawn(async move { rm_prov.get_block_by_number(num.into(), false.into()).await })
+                .await
+                .unwrap()
+        })
+        .map_err(transport_to_provider_error)?;
 
         if block.is_none() {
             debug!("header by hash cache miss, got none {num}");
@@ -206,12 +246,22 @@ where
     fn last_block_number(&self) -> ProviderResult<BlockNumber> {
         //println!("header by number");
         //return Ok(0);
-        let future = self.remote_provider.get_block_number();
-
-        let block_num = self
-            .future_runner
-            .run(future)
-            .map_err(transport_to_provider_error)?;
+        //let future = self.remote_provider.get_block_number();
+        //
+        //let block_num = self
+        //    .future_runner
+        //    .run(future)
+        //    .map_err(transport_to_provider_error)?;
+        //
+        let rm_prov = self.remote_provider.clone();
+        let block_num = futures::executor::block_on(async move {
+            self.future_runner
+                .runtime_handle
+                .spawn(async move { rm_prov.get_block_number().await })
+                .await
+                .unwrap()
+        })
+        .map_err(transport_to_provider_error)?;
 
         Ok(block_num)
     }
@@ -286,7 +336,7 @@ where
         account: Address,
         storage_key: StorageKey,
     ) -> ProviderResult<Option<StorageValue>> {
-        //return Ok(None);
+        return Ok(None);
         if let Some(storage) = self.storage_cache.get(&(account, storage_key)) {
             let storage_val = *storage;
             return Ok(Some(storage_val));
@@ -353,14 +403,32 @@ where
         if let Some(hash) = self.block_hash_cache.get(&number) {
             return Ok(Some(*hash));
         }
-        let future = self
-            .remote_provider
-            .client()
-            .request::<_, B256>("rbuilder_getBlockHash", (BlockNumberOrTag::Number(number),));
-        let block_hash = self
-            .future_runner
-            .run(future)
-            .map_err(transport_to_provider_error)?;
+        //let future = self
+        //    .remote_provider
+        //    .client()
+        //    .request::<_, B256>("rbuilder_getBlockHash", (BlockNumberOrTag::Number(number),));
+        //let block_hash = self
+        //    .future_runner
+        //    .run(future)
+        //    .map_err(transport_to_provider_error)?;
+        //
+        let rm_prov = self.remote_provider.clone();
+        let block_hash = futures::executor::block_on(async move {
+            self.future_runner
+                .runtime_handle
+                .spawn(async move {
+                    rm_prov
+                        .client()
+                        .request::<_, B256>(
+                            "rbuilder_getBlockHash",
+                            (BlockNumberOrTag::Number(number),),
+                        )
+                        .await
+                })
+                .await
+                .unwrap()
+        })
+        .map_err(transport_to_provider_error)?;
 
         self.block_hash_cache.insert(number, block_hash);
         Ok(Some(block_hash))
@@ -382,7 +450,7 @@ where
     /// Get basic account information.
     /// Returns `None` if the account doesn't exist.
     fn basic_account(&self, address: &Address) -> ProviderResult<Option<Account>> {
-        //return Ok(Some(Account::default()));
+        return Ok(Some(Account::default()));
 
         if let Some(account) = self.account_cache.get(address) {
             return Ok(Some(*account));
