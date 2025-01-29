@@ -40,6 +40,7 @@ pub struct RemoteStateProviderFactory<T> {
     future_runner: FutureRunner,
     block_hash_cache: Arc<DashMap<u64, BlockHash>>,
     code_cache: Arc<DashMap<B256, Bytecode>>,
+    account_cache: DashMap<Address, Account>,
 }
 
 impl<T> RemoteStateProviderFactory<T>
@@ -55,6 +56,7 @@ where
             future_runner,
             block_hash_cache: Arc::new(DashMap::new()),
             code_cache: Arc::new(DashMap::new()),
+            account_cache: DashMap::new(),
         }
     }
 
@@ -66,6 +68,7 @@ where
             future_runner,
             block_hash_cache: Arc::new(DashMap::new()),
             code_cache: Arc::new(DashMap::new()),
+            account_cache: DashMap::new(),
         }
     }
 }
@@ -84,6 +87,7 @@ where
             BlockId::Number(num.into()),
             self.block_hash_cache.clone(),
             self.code_cache.clone(),
+            self.account_cache.clone(),
         ))
     }
 
@@ -95,6 +99,7 @@ where
             BlockId::Number(block.into()),
             self.block_hash_cache.clone(),
             self.code_cache.clone(),
+            self.account_cache.clone(),
         ))
     }
 
@@ -117,6 +122,7 @@ where
             BlockId::Hash(block.into()),
             self.block_hash_cache.clone(),
             self.code_cache.clone(),
+            self.account_cache.clone(),
         ))
     }
 
@@ -237,6 +243,7 @@ impl<T> RemoteStateProvider<T> {
         block_id: BlockId,
         block_hash_cache: Arc<DashMap<u64, BlockHash>>,
         code_cache: Arc<DashMap<B256, Bytecode>>,
+        account_cache: DashMap<Address, Account>,
     ) -> Self {
         Self {
             remote_provider,
@@ -244,7 +251,7 @@ impl<T> RemoteStateProvider<T> {
             block_hash_cache,
             future_runner,
             code_cache,
-            account_cache: DashMap::new(),
+            account_cache,
             storage_cache: DashMap::new(),
         }
     }
@@ -256,6 +263,7 @@ impl<T> RemoteStateProvider<T> {
         block_id: BlockId,
         block_hash_cache: Arc<DashMap<u64, BlockHash>>,
         code_cache: Arc<DashMap<B256, Bytecode>>,
+        account_cache: DashMap<Address, Account>,
     ) -> Box<Self> {
         Box::new(Self::new(
             remote_provider,
@@ -263,6 +271,7 @@ impl<T> RemoteStateProvider<T> {
             block_id,
             block_hash_cache,
             code_cache,
+            account_cache,
         ))
     }
 }
@@ -373,7 +382,7 @@ where
     /// Get basic account information.
     /// Returns `None` if the account doesn't exist.
     fn basic_account(&self, address: &Address) -> ProviderResult<Option<Account>> {
-        return Ok(Some(Account::default()));
+        //return Ok(Some(Account::default()));
 
         if let Some(account) = self.account_cache.get(address) {
             return Ok(Some(*account));
