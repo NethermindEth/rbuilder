@@ -214,7 +214,7 @@ where
     fn root_hasher(&self, parent_hash: B256) -> ProviderResult<Box<dyn RootHasher>> {
         Ok(Box::new(StatRootHashCalculator {
             remote_provider: self.remote_provider.clone(),
-            //future_runner: self.future_runner.clone(),
+            future_runner: self.future_runner.clone(),
             parent_hash,
         }))
     }
@@ -507,7 +507,7 @@ where
 #[derive(Debug)]
 pub struct StatRootHashCalculator<T> {
     remote_provider: RootProvider<T>,
-    //future_runner: FutureRunner,
+    future_runner: FutureRunner,
     parent_hash: B256,
 }
 
@@ -527,7 +527,7 @@ where
         &self,
         outcome: &reth_provider::ExecutionOutcome,
     ) -> Result<B256, crate::roothash::RootHashError> {
-        return Ok(B256::default());
+        //return Ok(B256::default());
         //
         //println!("state root");
         let account_diff: HashMap<Address, AccountDiff> = outcome
@@ -537,17 +537,17 @@ where
             .map(|(address, diff)| (*address, diff.clone().into()))
             .collect();
 
-        //let future = self.remote_provider.client().request::<_, B256>(
-        //    "rbuilder_calculateStateRoot",
-        //    (BlockId::Hash(self.parent_hash.into()), account_diff),
-        //);
-        //
-        //let hash = self
-        //    .future_runner
-        //    .run(future)
-        //    .map_err(|_| crate::roothash::RootHashError::Verification)?;
-        //
-        //Ok(hash)
+        let future = self.remote_provider.client().request::<_, B256>(
+            "rbuilder_calculateStateRoot",
+            (BlockId::Hash(self.parent_hash.into()), account_diff),
+        );
+
+        let hash = self
+            .future_runner
+            .run(future)
+            .map_err(|_| crate::roothash::RootHashError::Verification)?;
+
+        Ok(hash)
     }
 }
 
