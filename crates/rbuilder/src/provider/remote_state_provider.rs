@@ -39,6 +39,7 @@ pub struct RemoteStateProviderFactory<T> {
     remote_provider: RootProvider<T>,
     future_runner: FutureRunner,
     block_hash_cache: Arc<DashMap<u64, BlockHash>>,
+    code_cache: Arc<DashMap<B256, Bytecode>>,
 }
 
 impl<T> RemoteStateProviderFactory<T>
@@ -53,6 +54,7 @@ where
             remote_provider,
             future_runner,
             block_hash_cache: Arc::new(DashMap::new()),
+            code_cache: Arc::new(DashMap::new()),
         }
     }
 
@@ -63,6 +65,7 @@ where
             remote_provider: root_provider,
             future_runner,
             block_hash_cache: Arc::new(DashMap::new()),
+            code_cache: Arc::new(DashMap::new()),
         }
     }
 }
@@ -80,6 +83,7 @@ where
             self.future_runner.clone(),
             BlockId::Number(num.into()),
             self.block_hash_cache.clone(),
+            self.code_cache.clone(),
         ))
     }
 
@@ -90,6 +94,7 @@ where
             self.future_runner.clone(),
             BlockId::Number(block.into()),
             self.block_hash_cache.clone(),
+            self.code_cache.clone(),
         ))
     }
 
@@ -111,6 +116,7 @@ where
             self.future_runner.clone(),
             BlockId::Hash(block.into()),
             self.block_hash_cache.clone(),
+            self.code_cache.clone(),
         ))
     }
 
@@ -133,7 +139,6 @@ where
             return Ok(None);
         }
 
-        debug!("header by hash cache miss, got header {block_hash}");
         let header = header.unwrap();
 
         self.block_hash_cache.insert(header.number, *block_hash);
@@ -220,8 +225,8 @@ pub struct RemoteStateProvider<T> {
     block_hash_cache: Arc<DashMap<u64, BlockHash>>,
     block_id: BlockId,
     account_cache: DashMap<Address, Account>,
-    bytecode_cache: DashMap<B256, Bytecode>,
     storage_cache: DashMap<(Address, StorageKey), StorageValue>,
+    code_cache: Arc<DashMap<B256, Bytecode>>,
 }
 
 impl<T> RemoteStateProvider<T> {
@@ -231,14 +236,15 @@ impl<T> RemoteStateProvider<T> {
         future_runner: FutureRunner,
         block_id: BlockId,
         block_hash_cache: Arc<DashMap<u64, BlockHash>>,
+        code_cache: Arc<DashMap<B256, Bytecode>>,
     ) -> Self {
         Self {
             remote_provider,
             block_id,
             block_hash_cache,
             future_runner,
+            code_cache,
             account_cache: DashMap::new(),
-            bytecode_cache: DashMap::new(),
             storage_cache: DashMap::new(),
         }
     }
@@ -249,12 +255,14 @@ impl<T> RemoteStateProvider<T> {
         future_runner: FutureRunner,
         block_id: BlockId,
         block_hash_cache: Arc<DashMap<u64, BlockHash>>,
+        code_cache: Arc<DashMap<B256, Bytecode>>,
     ) -> Box<Self> {
         Box::new(Self::new(
             remote_provider,
             future_runner,
             block_id,
             block_hash_cache,
+            code_cache,
         ))
     }
 }
@@ -304,7 +312,7 @@ where
             return Ok(None);
         }
 
-        if let Some(bytecode) = self.bytecode_cache.get(code_hash) {
+        if let Some(bytecode) = self.code_cache.get(code_hash) {
             debug!("code hash cache hit");
             return Ok(Some(bytecode.clone()));
         }
@@ -321,7 +329,7 @@ where
 
         let bytecode = Bytecode::new_raw(bytes);
 
-        self.bytecode_cache.insert(*code_hash, bytecode.clone());
+        self.code_cache.insert(*code_hash, bytecode.clone());
 
         Ok(Some(bytecode))
     }
@@ -516,7 +524,7 @@ where
         &self,
         outcome: &reth_provider::ExecutionOutcome,
     ) -> Result<B256, crate::roothash::RootHashError> {
-        //return Ok(B256::default());
+        return Ok(B256::default());
         //
         //println!("state root");
         let account_diff: HashMap<Address, AccountDiff> = outcome
