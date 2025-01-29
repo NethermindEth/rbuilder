@@ -1,6 +1,7 @@
 use std::{
     fmt::Debug,
     future::{Future, IntoFuture},
+    sync::Arc,
 };
 
 use alloy_consensus::Header;
@@ -39,6 +40,7 @@ pub struct RemoteStateProviderFactory<T> {
     future_runner: FutureRunner,
     header_num_cache: DashMap<u64, Header>,
     header_cache: DashMap<B256, Header>,
+    block_hash_cache: Arc<DashMap<u64, BlockHash>>,
 }
 
 impl<T> RemoteStateProviderFactory<T>
@@ -54,6 +56,7 @@ where
             future_runner,
             header_cache: DashMap::new(),
             header_num_cache: DashMap::new(),
+            block_hash_cache: Arc::new(DashMap::new()),
         }
     }
 
@@ -65,6 +68,7 @@ where
             future_runner,
             header_cache: DashMap::new(),
             header_num_cache: DashMap::new(),
+            block_hash_cache: Arc::new(DashMap::new()),
         }
     }
 }
@@ -79,8 +83,9 @@ where
 
         Ok(RemoteStateProvider::boxed(
             self.remote_provider.clone(),
-            //self.future_runner.clone(),
+            self.future_runner.clone(),
             BlockId::Number(num.into()),
+            self.block_hash_cache.clone(),
         ))
     }
 
@@ -88,8 +93,9 @@ where
         //println!("history by block num {block}");
         Ok(RemoteStateProvider::boxed(
             self.remote_provider.clone(),
-            // self.future_runner.clone(),
+            self.future_runner.clone(),
             BlockId::Number(block.into()),
+            self.block_hash_cache.clone(),
         ))
     }
 
@@ -108,8 +114,9 @@ where
 
         Ok(RemoteStateProvider::boxed(
             self.remote_provider.clone(),
-            //self.future_runner.clone(),
+            self.future_runner.clone(),
             BlockId::Hash(block.into()),
+            self.block_hash_cache.clone(),
         ))
     }
 
@@ -143,6 +150,7 @@ where
 
         self.header_cache.insert(*block_hash, header.clone());
         self.header_num_cache.insert(header.number, header.clone());
+        self.block_hash_cache.insert(header.number, *block_hash);
 
         Ok(Some(header))
     }
@@ -150,6 +158,9 @@ where
     fn block_hash(&self, number: BlockNumber) -> ProviderResult<Option<B256>> {
         //debug!("block hash 1, {number}");
         //return Ok(None);
+        if let Some(hash) = self.block_hash_cache.get(&number) {
+            return Ok(Some(*hash));
+        }
         let future = self
             .remote_provider
             .get_block_by_number(BlockNumberOrTag::Number(number), false.into());
@@ -161,9 +172,9 @@ where
                 return Err(transport_to_provider_error(e));
             }
         };
-        //debug!("got block hash {block_hash:?}");
-        //.map_err(transport_to_provider_error)?
-        //.map(|b| b.header.hash);
+        if let Some(hash) = block_hash {
+            self.block_hash_cache.insert(number, hash);
+        }
         Ok(block_hash)
     }
 
@@ -205,6 +216,7 @@ where
 
         self.header_cache.insert(hash, header.clone());
         self.header_num_cache.insert(num, header.clone());
+        self.block_hash_cache.insert(header.number, hash);
 
         Ok(Some(header))
     }
@@ -233,7 +245,8 @@ where
 
 pub struct RemoteStateProvider<T> {
     remote_provider: RootProvider<T>,
-    //future_runner: FutureRunner,
+    future_runner: FutureRunner,
+    block_hash_cache: Arc<DashMap<u64, BlockHash>>,
     block_id: BlockId,
 }
 
@@ -241,23 +254,31 @@ impl<T> RemoteStateProvider<T> {
     /// Crates new instance of state provider
     fn new(
         remote_provider: RootProvider<T>,
-        //future_runner: FutureRunner,
+        future_runner: FutureRunner,
         block_id: BlockId,
+        block_hash_cache: Arc<DashMap<u64, BlockHash>>,
     ) -> Self {
         Self {
             remote_provider,
             block_id,
-            //future_runner,
+            block_hash_cache,
+            future_runner,
         }
     }
 
     /// Crates new instance of state provider on the heap
     fn boxed(
         remote_provider: RootProvider<T>,
-        // future_runner: FutureRunner,
+        future_runner: FutureRunner,
         block_id: BlockId,
+        block_hash_cache: Arc<DashMap<u64, BlockHash>>,
     ) -> Box<Self> {
-        Box::new(Self::new(remote_provider, block_id))
+        Box::new(Self::new(
+            remote_provider,
+            future_runner,
+            block_id,
+            block_hash_cache,
+        ))
     }
 }
 
@@ -312,23 +333,24 @@ where
 {
     /// Get the hash of the block with the given number. Returns `None` if no block with this number exists
     fn block_hash(&self, number: BlockNumber) -> ProviderResult<Option<B256>> {
-        //debug!("block hash 2, {number}");
-        return Ok(None);
+        if let Some(hash) = self.block_hash_cache.get(&number) {
+            return Ok(Some(*hash));
+        }
         let future = self
             .remote_provider
             .get_block_by_number(BlockNumberOrTag::Number(number), false.into());
 
-        //let block_hash = match self.future_runner.run(future) {
-        //    Ok(b) => b.map(|b| b.header.hash),
-        //    Err(e) => {
-        //        println!("error {e}");
-        //        return Err(transport_to_provider_error(e));
-        //    }
-        //};
-        //debug!("got block hash {block_hash:?}");
-        //.map_err(transport_to_provider_error)?
-        //.map(|b| b.header.hash);
-        //        Ok(block_hash)
+        let block_hash = match self.future_runner.run(future) {
+            Ok(b) => b.map(|b| b.header.hash),
+            Err(e) => {
+                println!("error {e}");
+                return Err(transport_to_provider_error(e));
+            }
+        };
+        if let Some(hash) = block_hash {
+            self.block_hash_cache.insert(number, hash);
+        }
+        Ok(block_hash)
     }
 
     fn canonical_hashes_range(
