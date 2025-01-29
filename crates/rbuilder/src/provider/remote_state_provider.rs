@@ -35,7 +35,7 @@ use super::{RootHasher, StateProviderFactory};
 #[derive(Clone)]
 pub struct RemoteStateProviderFactory<T> {
     remote_provider: RootProvider<T>,
-    future_runner: FutureRunner,
+    //future_runner: FutureRunner,
 }
 
 impl<T> RemoteStateProviderFactory<T>
@@ -44,20 +44,20 @@ where
 {
     pub fn new(client: RpcClient<T>) -> Self {
         let remote_provider = ProviderBuilder::new().on_client(client);
-        let future_runner = FutureRunner::new();
+        //   let future_runner = FutureRunner::new();
 
         Self {
             remote_provider,
-            future_runner,
+            //      future_runner,
         }
     }
 
     pub fn from_provider(root_provider: RootProvider<T>) -> Self {
-        let future_runner = FutureRunner::new();
+        //let future_runner = FutureRunner::new();
 
         Self {
             remote_provider: root_provider,
-            future_runner,
+            //     future_runner,
         }
     }
 }
@@ -72,7 +72,7 @@ where
 
         Ok(RemoteStateProvider::boxed(
             self.remote_provider.clone(),
-            self.future_runner.clone(),
+            //self.future_runner.clone(),
             BlockId::Number(num.into()),
         ))
     }
@@ -81,7 +81,7 @@ where
         //println!("history by block num {block}");
         Ok(RemoteStateProvider::boxed(
             self.remote_provider.clone(),
-            self.future_runner.clone(),
+            // self.future_runner.clone(),
             BlockId::Number(block.into()),
         ))
     }
@@ -101,7 +101,7 @@ where
 
         Ok(RemoteStateProvider::boxed(
             self.remote_provider.clone(),
-            self.future_runner.clone(),
+            //self.future_runner.clone(),
             BlockId::Hash(block.into()),
         ))
     }
@@ -109,17 +109,17 @@ where
     fn header(&self, block_hash: &BlockHash) -> ProviderResult<Option<Header>> {
         //println!("Get header");
         return Ok(None);
-        let future = self
-            .remote_provider
-            .get_block_by_hash(*block_hash, false.into());
+        //let future = self
+        //    .remote_provider
+        //    .get_block_by_hash(*block_hash, false.into());
+        //
+        //let header = self
+        //    .future_runner
+        //    .run(future)
+        //    .map_err(transport_to_provider_error)?
+        //    .map(|b| b.header.inner);
 
-        let header = self
-            .future_runner
-            .run(future)
-            .map_err(transport_to_provider_error)?
-            .map(|b| b.header.inner);
-
-        Ok(header)
+        //        Ok(header)
     }
 
     fn block_hash(&self, number: BlockNumber) -> ProviderResult<Option<B256>> {
@@ -129,17 +129,17 @@ where
             .remote_provider
             .get_block_by_number(BlockNumberOrTag::Number(number), false.into());
 
-        let block_hash = match self.future_runner.run(future) {
-            Ok(b) => b.map(|b| b.header.hash),
-            Err(e) => {
-                println!("error {e}");
-                return Err(transport_to_provider_error(e));
-            }
-        };
+        //let block_hash = match self.future_runner.run(future) {
+        //    Ok(b) => b.map(|b| b.header.hash),
+        //    Err(e) => {
+        //        println!("error {e}");
+        //        return Err(transport_to_provider_error(e));
+        //    }
+        //};
         //debug!("got block hash {block_hash:?}");
         //.map_err(transport_to_provider_error)?
         //.map(|b| b.header.hash);
-        Ok(block_hash)
+        //       Ok(block_hash)
     }
 
     //TODO: is this correct?
@@ -155,13 +155,13 @@ where
             .remote_provider
             .get_block_by_number(num.into(), false.into());
 
-        let header = self
-            .future_runner
-            .run(future)
-            .map_err(transport_to_provider_error)?
-            .map(|b| b.header.inner);
+        //let header = self
+        //    .future_runner
+        //    .run(future)
+        //    .map_err(transport_to_provider_error)?
+        //    .map(|b| b.header.inner);
 
-        Ok(header)
+        //        Ok(header)
     }
 
     fn last_block_number(&self) -> ProviderResult<BlockNumber> {
@@ -169,18 +169,18 @@ where
         return Ok(0);
         let future = self.remote_provider.get_block_number();
 
-        let block_num = self
-            .future_runner
-            .run(future)
-            .map_err(transport_to_provider_error)?;
-
-        Ok(block_num)
+        //let block_num = self
+        //    .future_runner
+        //    .run(future)
+        //    .map_err(transport_to_provider_error)?;
+        //
+        //Ok(block_num)
     }
 
     fn root_hasher(&self, parent_hash: B256) -> ProviderResult<Box<dyn RootHasher>> {
         Ok(Box::new(StatRootHashCalculator {
             remote_provider: self.remote_provider.clone(),
-            future_runner: self.future_runner.clone(),
+            //future_runner: self.future_runner.clone(),
             parent_hash,
         }))
     }
@@ -188,7 +188,7 @@ where
 
 pub struct RemoteStateProvider<T> {
     remote_provider: RootProvider<T>,
-    future_runner: FutureRunner,
+    //future_runner: FutureRunner,
     block_id: BlockId,
 }
 
@@ -196,23 +196,23 @@ impl<T> RemoteStateProvider<T> {
     /// Crates new instance of state provider
     fn new(
         remote_provider: RootProvider<T>,
-        future_runner: FutureRunner,
+        //future_runner: FutureRunner,
         block_id: BlockId,
     ) -> Self {
         Self {
             remote_provider,
             block_id,
-            future_runner,
+            //future_runner,
         }
     }
 
     /// Crates new instance of state provider on the heap
     fn boxed(
         remote_provider: RootProvider<T>,
-        future_runner: FutureRunner,
+        // future_runner: FutureRunner,
         block_id: BlockId,
     ) -> Box<Self> {
-        Box::new(Self::new(remote_provider, future_runner, block_id))
+        Box::new(Self::new(remote_provider, block_id))
     }
 }
 
@@ -228,18 +228,18 @@ where
     ) -> ProviderResult<Option<StorageValue>> {
         return Ok(None);
         //println!("storage");
-        let future = self
-            .remote_provider
-            .get_storage_at(account, storage_key.into())
-            .block_id(self.block_id)
-            .into_future();
+        //let future = self
+        //    .remote_provider
+        //    .get_storage_at(account, storage_key.into())
+        //    .block_id(self.block_id)
+        //    .into_future();
 
-        let storage = self
-            .future_runner
-            .run(future)
-            .map_err(transport_to_provider_error)?;
-
-        Ok(Some(storage))
+        //let storage = self
+        //    .future_runner
+        //    .run(future)
+        //    .map_err(transport_to_provider_error)?;
+        //
+        //Ok(Some(storage))
     }
 
     /// Get account code by its hash
@@ -247,17 +247,17 @@ where
     fn bytecode_by_hash(&self, code_hash: &B256) -> ProviderResult<Option<Bytecode>> {
         return Ok(None);
         //println!("bytecode by hash");
-        let future = self
-            .remote_provider
-            .client()
-            .request::<_, Bytes>("rbuilder_getCodeByHash", (code_hash,));
-
-        let bytes = self
-            .future_runner
-            .run(future)
-            .map_err(transport_to_provider_error)?;
-
-        Ok(Some(Bytecode::new_raw(bytes)))
+        //let future = self
+        //    .remote_provider
+        //    .client()
+        //    .request::<_, Bytes>("rbuilder_getCodeByHash", (code_hash,));
+        //
+        //let bytes = self
+        //    .future_runner
+        //    .run(future)
+        //    .map_err(transport_to_provider_error)?;
+        //
+        //Ok(Some(Bytecode::new_raw(bytes)))
     }
 }
 
@@ -273,17 +273,17 @@ where
             .remote_provider
             .get_block_by_number(BlockNumberOrTag::Number(number), false.into());
 
-        let block_hash = match self.future_runner.run(future) {
-            Ok(b) => b.map(|b| b.header.hash),
-            Err(e) => {
-                println!("error {e}");
-                return Err(transport_to_provider_error(e));
-            }
-        };
+        //let block_hash = match self.future_runner.run(future) {
+        //    Ok(b) => b.map(|b| b.header.hash),
+        //    Err(e) => {
+        //        println!("error {e}");
+        //        return Err(transport_to_provider_error(e));
+        //    }
+        //};
         //debug!("got block hash {block_hash:?}");
         //.map_err(transport_to_provider_error)?
         //.map(|b| b.header.hash);
-        Ok(block_hash)
+        //        Ok(block_hash)
     }
 
     fn canonical_hashes_range(
@@ -305,26 +305,26 @@ where
         //debug!("account {address}");
         return Ok(None);
         //TODO: is this the best way to fetch all requited account data at once?
-        let future = self
-            .remote_provider
-            .client()
-            .request::<_, AccountState>("rbuilder_getAccount", (*address, self.block_id));
-
-        let account = match self.future_runner.run(future) {
-            Ok(a) => a,
-            Err(e) => {
-                println!("error: {e}, address {address}");
-                return Err(transport_to_provider_error(e));
-            }
-        };
-
-        //debug!("Account fetched {address}");
-
-        Ok(Some(Account {
-            nonce: account.nonce.try_into().unwrap(),
-            bytecode_hash: account.code_hash.into(),
-            balance: account.balance,
-        }))
+        //let future = self
+        //    .remote_provider
+        //    .client()
+        //    .request::<_, AccountState>("rbuilder_getAccount", (*address, self.block_id));
+        //
+        //let account = match self.future_runner.run(future) {
+        //    Ok(a) => a,
+        //    Err(e) => {
+        //        println!("error: {e}, address {address}");
+        //        return Err(transport_to_provider_error(e));
+        //    }
+        //};
+        //
+        ////debug!("Account fetched {address}");
+        //
+        //Ok(Some(Account {
+        //    nonce: account.nonce.try_into().unwrap(),
+        //    bytecode_hash: account.code_hash.into(),
+        //    balance: account.balance,
+        //}))
     }
 }
 
@@ -428,7 +428,7 @@ where
 #[derive(Debug)]
 pub struct StatRootHashCalculator<T> {
     remote_provider: RootProvider<T>,
-    future_runner: FutureRunner,
+    //future_runner: FutureRunner,
     parent_hash: B256,
 }
 
@@ -459,17 +459,17 @@ where
             .map(|(address, diff)| (*address, diff.clone().into()))
             .collect();
 
-        let future = self.remote_provider.client().request::<_, B256>(
-            "rbuilder_calculateStateRoot",
-            (BlockId::Hash(self.parent_hash.into()), account_diff),
-        );
-
-        let hash = self
-            .future_runner
-            .run(future)
-            .map_err(|_| crate::roothash::RootHashError::Verification)?;
-
-        Ok(hash)
+        //let future = self.remote_provider.client().request::<_, B256>(
+        //    "rbuilder_calculateStateRoot",
+        //    (BlockId::Hash(self.parent_hash.into()), account_diff),
+        //);
+        //
+        //let hash = self
+        //    .future_runner
+        //    .run(future)
+        //    .map_err(|_| crate::roothash::RootHashError::Verification)?;
+        //
+        //Ok(hash)
     }
 }
 
