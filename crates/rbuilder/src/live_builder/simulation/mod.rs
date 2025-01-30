@@ -92,26 +92,26 @@ where
         //    result.worker_threads.push(handle);
         //}
         //result
-        for i in 0..4 {
-            let ctx = Arc::clone(&result.current_contexts);
-            let provider = result.provider.clone();
-            let cancel = global_cancellation.clone();
-            let _task_name = format!("sim_task:{}", i);
-
-            let handle = tokio::task::spawn_blocking(move || {
-                sim_worker::run_sim_worker(i, ctx, provider, cancel);
-            });
-
-            result.worker_threads.push(handle);
-        }
-
-        //let ctx = Arc::clone(&result.current_contexts);
-        //let provider = result.provider.clone();
-        //let cancel = global_cancellation.clone();
+        //for i in 0..4 {
+        //    let ctx = Arc::clone(&result.current_contexts);
+        //    let provider = result.provider.clone();
+        //    let cancel = global_cancellation.clone();
+        //    let _task_name = format!("sim_task:{}", i);
         //
-        //let handle = tokio::task::spawn_blocking(move || {
-        //    sim_worker::run_sim_worker(0, ctx, provider, cancel);
-        //});
+        //    let handle = tokio::task::spawn_blocking(move || {
+        //        sim_worker::run_sim_worker(i, ctx, provider, cancel);
+        //    });
+        //
+        //    result.worker_threads.push(handle);
+        //        }
+
+        let ctx = Arc::clone(&result.current_contexts);
+        let provider = result.provider.clone();
+        let cancel = global_cancellation.clone();
+
+        let handle = tokio::task::spawn_blocking(move || {
+            sim_worker::run_sim_worker(0, ctx, provider, cancel);
+        });
         result
     }
 

@@ -23,7 +23,7 @@ use reth_trie::{
 };
 use revm::db::{BundleAccount, BundleState};
 use revm_primitives::{map::B256HashMap, Address, Bytes, HashMap, B256, U256};
-use serde::{Deserialize, Serialize};
+use serde::{de, Deserialize, Serialize};
 use tokio::{runtime::Builder, sync::broadcast};
 use tokio_util::sync::CancellationToken;
 use tracing::debug;
@@ -92,7 +92,7 @@ where
     }
 
     fn history_by_block_number(&self, block: BlockNumber) -> ProviderResult<StateProviderBox> {
-        //println!("history by block num {block}");
+        debug!("history by block num {block}");
         Ok(RemoteStateProvider::boxed(
             self.remote_provider.clone(),
             self.future_runner.clone(),
@@ -116,6 +116,7 @@ where
         //    }
         //};
 
+        debug!("history by block hash");
         Ok(RemoteStateProvider::boxed(
             self.remote_provider.clone(),
             self.future_runner.clone(),
@@ -127,7 +128,7 @@ where
     }
 
     fn header(&self, block_hash: &BlockHash) -> ProviderResult<Option<Header>> {
-        //println!("Get header");
+        debug!("Get header");
         //       return Ok(Some(Header::default()));
 
         let future = self
@@ -141,21 +142,25 @@ where
             .map(|b| b.header.inner);
 
         if header.is_none() {
-            debug!("header by hash cache miss, got none {block_hash}");
+            debug!("header is none");
             return Ok(None);
         }
 
         let header = header.unwrap();
 
         self.block_hash_cache.insert(header.number, *block_hash);
+        debug!("got header");
 
         Ok(Some(header))
     }
 
     fn block_hash(&self, number: BlockNumber) -> ProviderResult<Option<B256>> {
+        debug!("Get block hash, {number}");
         if let Some(hash) = self.block_hash_cache.get(&number) {
+            debug!("Got block hash cache, {number}");
             return Ok(Some(*hash));
         }
+
         let future = self
             .remote_provider
             .client()
@@ -166,6 +171,7 @@ where
             .map_err(transport_to_provider_error)?;
 
         self.block_hash_cache.insert(number, block_hash);
+        debug!("Got block hash {number}");
         Ok(Some(block_hash))
     }
 
@@ -177,7 +183,8 @@ where
 
     fn header_by_number(&self, num: u64) -> ProviderResult<Option<Header>> {
         //return Ok(Some(Header::default()));
-        //return Ok(None);
+
+        debug!("header by number, {num}");
 
         let future = self
             .remote_provider
@@ -200,12 +207,14 @@ where
 
         self.block_hash_cache.insert(header.number, hash);
 
+        debug!("Got header by number, {num}");
         Ok(Some(header))
     }
 
     fn last_block_number(&self) -> ProviderResult<BlockNumber> {
         //println!("header by number");
         //return Ok(0);
+        debug!("last block num");
         let future = self.remote_provider.get_block_number();
 
         let block_num = self
@@ -213,6 +222,7 @@ where
             .run(future)
             .map_err(transport_to_provider_error)?;
 
+        debug!("Got last block num");
         Ok(block_num)
     }
 
@@ -287,8 +297,10 @@ where
         storage_key: StorageKey,
     ) -> ProviderResult<Option<StorageValue>> {
         //return Ok(None);
+        debug!("storage");
         if let Some(storage) = self.storage_cache.get(&(account, storage_key)) {
             let storage_val = *storage;
+            debug!("got storage from cache");
             return Ok(Some(storage_val));
         }
 
@@ -305,6 +317,7 @@ where
 
         self.storage_cache.insert((account, storage_key), storage);
 
+        debug!("got storage");
         Ok(Some(storage))
     }
 
@@ -321,6 +334,7 @@ where
             return Ok(None);
         }
 
+        debug!("code by hash");
         if let Some(bytecode) = self.code_cache.get(code_hash) {
             debug!("code hash cache hit");
             return Ok(Some(bytecode.clone()));
@@ -339,6 +353,7 @@ where
         let bytecode = Bytecode::new_raw(bytes);
 
         self.code_cache.insert(*code_hash, bytecode.clone());
+        debug!("got bytecode");
 
         Ok(Some(bytecode))
     }
@@ -350,7 +365,9 @@ where
 {
     /// Get the hash of the block with the given number. Returns `None` if no block with this number exists
     fn block_hash(&self, number: BlockNumber) -> ProviderResult<Option<B256>> {
+        debug!("block hash 2");
         if let Some(hash) = self.block_hash_cache.get(&number) {
+            debug!("block hash 2 cache hit");
             return Ok(Some(*hash));
         }
         let future = self
@@ -363,6 +380,7 @@ where
             .map_err(transport_to_provider_error)?;
 
         self.block_hash_cache.insert(number, block_hash);
+        debug!("got block hash 2");
         Ok(Some(block_hash))
     }
 
@@ -384,7 +402,9 @@ where
     fn basic_account(&self, address: &Address) -> ProviderResult<Option<Account>> {
         //return Ok(Some(Account::default()));
 
+        debug!("account");
         if let Some(account) = self.account_cache.get(address) {
+            debug!("account cache hit");
             return Ok(Some(*account));
         }
 
@@ -409,6 +429,7 @@ where
 
         self.account_cache.insert(*address, account);
 
+        debug!("got account");
         Ok(Some(account))
     }
 }
@@ -536,6 +557,7 @@ where
         //return Ok(B256::default());
         //
         //println!("state root");
+        debug!("state root");
         let account_diff: HashMap<Address, AccountDiff> = outcome
             .bundle
             .state
@@ -552,6 +574,7 @@ where
             .future_runner
             .run(future)
             .map_err(|_| crate::roothash::RootHashError::Verification)?;
+        debug!("got state root");
 
         Ok(hash)
     }
@@ -605,21 +628,13 @@ impl From<BundleAccount> for AccountDiff {
 #[derive(Clone, Debug)]
 struct FutureRunner {
     runtime_handle: tokio::runtime::Handle,
-    runtime: Arc<tokio::runtime::Runtime>,
 }
 
 impl FutureRunner {
     /// Creates new instance of  FutureRunner
     /// IMPORTANT: MUST be called from within tokio context, otherwise will panic
     fn new() -> Self {
-        let runtime = Builder::new_multi_thread()
-            .worker_threads(16)
-            .enable_all()
-            .build()
-            .expect("Failed to create runtime");
-
         Self {
-            runtime: Arc::new(runtime),
             runtime_handle: tokio::runtime::Handle::current(),
         }
     }
@@ -633,8 +648,11 @@ impl FutureRunner {
     where
         F: Future<Output = R>,
     {
-        self.runtime.block_on(f)
-        //tokio::task::block_in_place(move || self.runtime_handle.block_on(f))
+        debug!("FutureRunner::run");
+        let start = std::time::Instant::now();
+        let r = tokio::task::block_in_place(move || self.runtime_handle.block_on(f));
+        debug!("FutureRunner::finished in {}", start.elapsed().as_millis());
+        r
     }
 }
 
