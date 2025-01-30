@@ -24,7 +24,7 @@ use reth_trie::{
 use revm::db::{BundleAccount, BundleState};
 use revm_primitives::{map::B256HashMap, Address, Bytes, HashMap, B256, U256};
 use serde::{Deserialize, Serialize};
-use tokio::sync::broadcast;
+use tokio::{runtime::Builder, sync::broadcast};
 use tokio_util::sync::CancellationToken;
 use tracing::debug;
 
@@ -533,7 +533,7 @@ where
         &self,
         outcome: &reth_provider::ExecutionOutcome,
     ) -> Result<B256, crate::roothash::RootHashError> {
-        return Ok(B256::default());
+        //return Ok(B256::default());
         //
         //println!("state root");
         let account_diff: HashMap<Address, AccountDiff> = outcome
@@ -605,13 +605,21 @@ impl From<BundleAccount> for AccountDiff {
 #[derive(Clone, Debug)]
 struct FutureRunner {
     runtime_handle: tokio::runtime::Handle,
+    runtime: Arc<tokio::runtime::Runtime>,
 }
 
 impl FutureRunner {
     /// Creates new instance of  FutureRunner
     /// IMPORTANT: MUST be called from within tokio context, otherwise will panic
     fn new() -> Self {
+        let runtime = Builder::new_multi_thread()
+            .worker_threads(16)
+            .enable_all()
+            .build()
+            .expect("Failed to create runtime");
+
         Self {
+            runtime: Arc::new(runtime),
             runtime_handle: tokio::runtime::Handle::current(),
         }
     }
@@ -625,7 +633,8 @@ impl FutureRunner {
     where
         F: Future<Output = R>,
     {
-        tokio::task::block_in_place(move || self.runtime_handle.block_on(f))
+        self.runtime.block_on(f)
+        //tokio::task::block_in_place(move || self.runtime_handle.block_on(f))
     }
 }
 
