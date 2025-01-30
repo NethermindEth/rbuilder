@@ -384,10 +384,10 @@ where
         let id: u64 = rand::random();
         let span = debug_span!("block_hash 2:", id);
         let _guard = span.enter();
-        debug_span!("block_hash 2: get");
+        debug!("block_hash 2: get");
 
         if let Some(hash) = self.block_hash_cache.get(&number) {
-            debug_span!("block_hash 2: cache hit");
+            debug!("block_hash 2: cache hit");
             return Ok(Some(*hash));
         }
         let future = self
@@ -400,7 +400,7 @@ where
             .map_err(transport_to_provider_error)?;
 
         self.block_hash_cache.insert(number, block_hash);
-        debug_span!("block_hash 2: got");
+        debug!("block_hash 2: got");
         Ok(Some(block_hash))
     }
 
@@ -423,7 +423,7 @@ where
         let id: u64 = rand::random();
         let span = debug_span!("account", id, address = address.to_string());
         let _guard = span.enter();
-        debug_span!("account: get");
+        debug!("account: get");
 
         if let Some(account) = self.account_cache.get(address) {
             debug!("account cache hit");
@@ -451,7 +451,7 @@ where
 
         self.account_cache.insert(*address, account);
 
-        debug_span!("account: got");
+        debug!("account: got");
         Ok(Some(account))
     }
 }
@@ -579,7 +579,7 @@ where
         let id: u64 = rand::random();
         let span = debug_span!("state_root", id, block = outcome.first_block);
         let _guard = span.enter();
-        debug_span!("state_root: get");
+        debug!("state_root: get");
 
         let account_diff: HashMap<Address, AccountDiff> = outcome
             .bundle
@@ -597,7 +597,7 @@ where
             .future_runner
             .run(future)
             .map_err(|_| crate::roothash::RootHashError::Verification)?;
-        debug_span!("state_root: got");
+        debug!("state_root: got");
 
         Ok(hash)
     }

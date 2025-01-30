@@ -100,16 +100,20 @@ impl SequentialSealerBidMakerProcess {
 
     /// block.finalize_block + self.sink.new_block inside spawn_blocking.
     async fn check_for_new_bid(&mut self) {
-        let id: u64 = rand::random();
-        let span = debug_span!("block_finalizer", id);
-        let _guard = span.enter();
         if let Some(bid) = self.pending_bid.consume_bid() {
             let payout_tx_val = bid.payout_tx_value();
             let block = bid.block();
             let block_number = block.building_context().block();
             let builder_name = block.builder_name().to_string();
-            debug!("Will start finalizaton process {}", block_number);
-            match tokio::task::spawn_blocking(move || block.finalize_block(payout_tx_val)).await {
+            match tokio::task::spawn_blocking(move || {
+                let id: u64 = rand::random();
+                let span = debug_span!("block_finalizer", id, block_number);
+                let _guard = span.enter();
+
+                block.finalize_block(payout_tx_val)
+            })
+            .await
+            {
                 Ok(finalize_res) => match finalize_res {
                     Ok(res) => {
                         debug!("Sealed");
