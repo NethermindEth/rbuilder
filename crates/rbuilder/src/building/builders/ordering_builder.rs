@@ -225,7 +225,8 @@ where
         cancel_block: CancellationToken,
     ) -> eyre::Result<Box<dyn BlockBuildingHelper>> {
         let build_attempt_id: u32 = rand::random();
-        let span = info_span!("build_run", build_attempt_id);
+        let blk_num = self.ctx.block_env.number.to::<u64>();
+        let span = info_span!("build_run num{} ", blk_num, build_attempt_id);
         let _guard = span.enter();
 
         let build_start = Instant::now();

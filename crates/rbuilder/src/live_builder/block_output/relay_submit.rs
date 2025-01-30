@@ -438,9 +438,9 @@ async fn validate_block(
         .await
     {
         Ok(()) => {
-            println!("---------------- -------------");
+            println!("---------------- ------------- \n ---------------------- \n --------------");
             println!("SUCCESS");
-            println!("---------------- -------------");
+            println!("---------------- ------------- \n ---------------------- \n --------------");
             true
         }
         Err(ValidationError::ValidationFailed(err)) => {
