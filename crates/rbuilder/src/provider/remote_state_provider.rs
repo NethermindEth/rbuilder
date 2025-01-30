@@ -425,11 +425,10 @@ where
         let _guard = span.enter();
         debug_span!("account: get");
 
-        //if let Some(account) = self.account_cache.get(address) {
-        //    debug!("account cache hit");
-        //    return Ok(Some(*account));
-        //}
-        //
+        if let Some(account) = self.account_cache.get(address) {
+            debug!("account cache hit");
+            return Ok(Some(*account));
+        }
 
         let future = self
             .remote_provider
@@ -450,7 +449,7 @@ where
             balance: account.balance,
         };
 
-        //self.account_cache.insert(*address, account);
+        self.account_cache.insert(*address, account);
 
         debug_span!("account: got");
         Ok(Some(account))
