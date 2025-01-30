@@ -14,7 +14,7 @@ use alloy_consensus::{Header, EMPTY_OMMER_ROOT_HASH};
 use alloy_primitives::{Address, Bytes, U256};
 use builders::mock_block_building_helper::MockRootHasher;
 use reth_primitives::{BlockBody, BlockExt};
-use tracing::debug;
+use tracing::{debug, debug_span};
 
 use crate::{
     primitives::{Order, OrderId, SimValue, SimulatedOrder, TransactionSignedEcRecoveredWithBlobs},
@@ -612,7 +612,11 @@ impl<Tracer: SimulationTracer> PartialBlock<Tracer> {
         state: &mut BlockState,
         ctx: &BlockBuildingContext,
     ) -> Result<FinalizeResult, FinalizeError> {
-        debug!("finalize {}", ctx.block_env.number);
+        let id: u64 = rand::random();
+        let block_number = ctx.block_env.number.to::<u64>();
+        let span = debug_span!("finalize_stateRoot", id, block_number);
+        let _guard = span.enter();
+
         let requests = if ctx
             .chain_spec
             .is_prague_active_at_timestamp(ctx.attributes.timestamp())
@@ -660,7 +664,7 @@ impl<Tracer: SimulationTracer> PartialBlock<Tracer> {
             None
         };
 
-        debug!("debug: withdrawals root");
+        debug!("finalize: withdrawals root");
         let withdrawals_root = {
             let mut db = state.new_db_ref();
             let withdrawals_root = commit_withdrawals(

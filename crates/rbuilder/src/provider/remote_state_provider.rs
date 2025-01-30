@@ -381,13 +381,13 @@ where
 {
     /// Get the hash of the block with the given number. Returns `None` if no block with this number exists
     fn block_hash(&self, number: BlockNumber) -> ProviderResult<Option<B256>> {
-        let id: u64 = rand::random();
-        let span = debug_span!("block_hash 2:", id);
-        let _guard = span.enter();
-        debug!("block_hash 2: get");
-
+        //let id: u64 = rand::random();
+        //let span = debug_span!("block_hash 2:", id);
+        //let _guard = span.enter();
+        //debug!("block_hash 2: get");
+        //
         if let Some(hash) = self.block_hash_cache.get(&number) {
-            debug!("block_hash 2: cache hit");
+            // debug!("block_hash 2: cache hit");
             return Ok(Some(*hash));
         }
         let future = self
@@ -400,7 +400,7 @@ where
             .map_err(transport_to_provider_error)?;
 
         self.block_hash_cache.insert(number, block_hash);
-        debug!("block_hash 2: got");
+        //debug!("block_hash 2: got");
         Ok(Some(block_hash))
     }
 
