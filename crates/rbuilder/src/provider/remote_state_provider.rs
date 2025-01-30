@@ -533,7 +533,7 @@ where
         &self,
         outcome: &reth_provider::ExecutionOutcome,
     ) -> Result<B256, crate::roothash::RootHashError> {
-        //return Ok(B256::default());
+        return Ok(B256::default());
         //
         //println!("state root");
         let account_diff: HashMap<Address, AccountDiff> = outcome
