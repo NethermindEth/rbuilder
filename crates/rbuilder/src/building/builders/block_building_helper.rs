@@ -251,6 +251,10 @@ where
         &mut self,
         payout_tx_value: Option<U256>,
     ) -> Result<(), BlockBuildingHelperError> {
+        debug!(
+            "finalize block execution {}",
+            self.building_ctx.block_env.number
+        );
         self.built_block_trace.coinbase_reward = self.partial_block.coinbase_profit;
         let (bid_value, true_value) = if let (Some(payout_tx_gas), Some(payout_tx_value)) =
             (self.payout_tx_gas, payout_tx_value)
@@ -272,6 +276,11 @@ where
         };
         // Since some extra money might arrived directly the suggested_fee_recipient (when suggested_fee_recipient != coinbase)
         // we check the fee_recipient delta and make our bid include that! This is supposed to be what the relay will check.
+
+        debug!(
+            "finalize block execution: calculate fees {}",
+            self.building_ctx.block_env.number
+        );
         let fee_recipient_balance_after = self
             .block_state
             .balance(self.building_ctx.attributes.suggested_fee_recipient)?;

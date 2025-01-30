@@ -3,7 +3,7 @@ use parking_lot::Mutex;
 use std::sync::Arc;
 use tokio::sync::Notify;
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, error};
+use tracing::{debug, debug_span, error};
 
 use super::interfaces::{Bid, BidMaker};
 
@@ -100,13 +100,15 @@ impl SequentialSealerBidMakerProcess {
 
     /// block.finalize_block + self.sink.new_block inside spawn_blocking.
     async fn check_for_new_bid(&mut self) {
-        debug!("New bid notification received, will start finalize_block");
+        let id: u64 = rand::random();
+        let span = debug_span!("block_finalizer", id);
+        let _guard = span.enter();
         if let Some(bid) = self.pending_bid.consume_bid() {
             let payout_tx_val = bid.payout_tx_value();
             let block = bid.block();
             let block_number = block.building_context().block();
             let builder_name = block.builder_name().to_string();
-            debug!("Will calc state root");
+            debug!("Will start finalizaton process {}", block_number);
             match tokio::task::spawn_blocking(move || block.finalize_block(payout_tx_val)).await {
                 Ok(finalize_res) => match finalize_res {
                     Ok(res) => {

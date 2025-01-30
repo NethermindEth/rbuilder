@@ -14,6 +14,7 @@ use alloy_consensus::{Header, EMPTY_OMMER_ROOT_HASH};
 use alloy_primitives::{Address, Bytes, U256};
 use builders::mock_block_building_helper::MockRootHasher;
 use reth_primitives::{BlockBody, BlockExt};
+use tracing::debug;
 
 use crate::{
     primitives::{Order, OrderId, SimValue, SimulatedOrder, TransactionSignedEcRecoveredWithBlobs},
@@ -55,7 +56,7 @@ use revm::{
     primitives::{BlobExcessGasAndPrice, BlockEnv, CfgEnvWithHandlerCfg, SpecId},
 };
 use revm_primitives::InvalidTransaction;
-use serde::Deserialize;
+use serde::{de, Deserialize};
 use std::{
     hash::Hash,
     str::FromStr,
@@ -569,6 +570,7 @@ impl<Tracer: SimulationTracer> PartialBlock<Tracer> {
         ctx: &BlockBuildingContext,
         state: &mut BlockState,
     ) -> Result<(), InsertPayoutTxErr> {
+        debug!("insert proposer payout tx {}", ctx.block_env.number);
         let builder_signer = ctx
             .builder_signer
             .as_ref()
@@ -610,6 +612,7 @@ impl<Tracer: SimulationTracer> PartialBlock<Tracer> {
         state: &mut BlockState,
         ctx: &BlockBuildingContext,
     ) -> Result<FinalizeResult, FinalizeError> {
+        debug!("finalize {}", ctx.block_env.number);
         let requests = if ctx
             .chain_spec
             .is_prague_active_at_timestamp(ctx.attributes.timestamp())
@@ -619,10 +622,12 @@ impl<Tracer: SimulationTracer> PartialBlock<Tracer> {
                 ctx.chain_spec.clone(),
             );
             let mut db = state.new_db_ref();
+            debug!("Prague depoist");
 
             let deposit_requests =
                 parse_deposits_from_receipts(&ctx.chain_spec, self.receipts.iter())
                     .map_err(|err| FinalizeError::Other(err.into()))?;
+            debug!("Prague withdrawal");
             let withdrawal_requests = system_caller
                 .post_block_withdrawal_requests_contract_call(
                     db.as_mut(),
@@ -630,6 +635,8 @@ impl<Tracer: SimulationTracer> PartialBlock<Tracer> {
                     &ctx.block_env,
                 )
                 .map_err(|err| FinalizeError::Other(err.into()))?;
+
+            debug!("Prague consolidation");
             let consolidation_requests = system_caller
                 .post_block_consolidation_requests_contract_call(
                     db.as_mut(),
@@ -653,6 +660,7 @@ impl<Tracer: SimulationTracer> PartialBlock<Tracer> {
             None
         };
 
+        debug!("debug: withdrawals root");
         let withdrawals_root = {
             let mut db = state.new_db_ref();
             let withdrawals_root = commit_withdrawals(
@@ -692,9 +700,11 @@ impl<Tracer: SimulationTracer> PartialBlock<Tracer> {
             .expect("Number is in range");
 
         // calculate the state root
+        debug!("finalize: state root hash");
         let start = Instant::now();
         let state_root = ctx.root_hasher.state_root(&execution_outcome)?;
         let root_hash_time = start.elapsed();
+        debug!("finalize: state root hash end");
 
         // create the block header
         let transactions_root = proofs::calculate_transaction_root(&self.executed_tx);
@@ -728,6 +738,7 @@ impl<Tracer: SimulationTracer> PartialBlock<Tracer> {
             (None, None)
         };
 
+        debug!("Finalize: header");
         let header = Header {
             parent_hash: ctx.attributes.parent,
             ommers_hash: EMPTY_OMMER_ROOT_HASH,
