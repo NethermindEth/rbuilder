@@ -348,7 +348,8 @@ where
         payout_tx_value: Option<U256>,
     ) -> Result<FinalizeBlockResult, BlockBuildingHelperError> {
         let id: u64 = rand::random();
-        let span = debug_span!("finalize_block", id, self.building_ctx.block_env.number);
+        let block_num = self.building_ctx.block_env.number.to::<u64>();
+        let span = debug_span!("finalize_block", id, block_num);
         let _guard = span.enter();
         if payout_tx_value.is_some() && self.building_ctx.coinbase_is_suggested_fee_recipient() {
             return Err(BlockBuildingHelperError::PayoutTxNotAllowed);
