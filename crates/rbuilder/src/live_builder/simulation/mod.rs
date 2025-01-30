@@ -54,7 +54,7 @@ pub struct OrderSimulationPool<P> {
     provider: P,
     running_tasks: Arc<Mutex<Vec<JoinHandle<()>>>>,
     current_contexts: Arc<Mutex<CurrentSimulationContexts>>,
-    worker_threads: Vec<JoinHandle<()>>,
+    worker_threads: Vec<std::thread::JoinHandle<()>>,
 }
 
 /// Result of a simulation.
@@ -109,9 +109,14 @@ where
         let provider = result.provider.clone();
         let cancel = global_cancellation.clone();
 
-        let handle = tokio::task::spawn_blocking(move || {
+        //let handle = tokio::task::spawn_blocking(move || {
+        //    sim_worker::run_sim_worker(0, ctx, provider, cancel);
+        //});
+
+        let handle = std::thread::spawn(move || {
             sim_worker::run_sim_worker(0, ctx, provider, cancel);
         });
+        result.worker_threads.push(handle);
         result
     }
 
