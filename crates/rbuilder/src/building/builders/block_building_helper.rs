@@ -6,7 +6,7 @@ use std::{
 };
 use time::OffsetDateTime;
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, error, trace};
+use tracing::{debug, debug_span, error, trace};
 
 use crate::{
     building::{
@@ -347,6 +347,9 @@ where
         mut self: Box<Self>,
         payout_tx_value: Option<U256>,
     ) -> Result<FinalizeBlockResult, BlockBuildingHelperError> {
+        let id: u64 = rand::random();
+        let span = debug_span!("finalize_block", id, self.building_ctx.block_env.number);
+        let _guard = span.enter();
         if payout_tx_value.is_some() && self.building_ctx.coinbase_is_suggested_fee_recipient() {
             return Err(BlockBuildingHelperError::PayoutTxNotAllowed);
         }
