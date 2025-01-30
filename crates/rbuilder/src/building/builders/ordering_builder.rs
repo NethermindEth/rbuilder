@@ -21,7 +21,7 @@ use reth::revm::cached::CachedReads;
 use serde::Deserialize;
 use std::time::{Duration, Instant};
 use tokio_util::sync::CancellationToken;
-use tracing::{error, info_span, trace};
+use tracing::{debug, error, info_span, trace};
 
 use super::{
     block_building_helper::BlockBuildingHelperFromProvider, handle_building_error,
@@ -77,10 +77,20 @@ where
     // this is a hack to mark used orders until built block trace is implemented as a sane thing
     let mut removed_orders = Vec::new();
     let mut use_suggested_fee_recipient_as_coinbase = config.coinbase_payment;
-    let mut time_since_last_block = time::Instant::now();
+
+    let mut time_since_last_block = time::Instant::now()
+        .checked_sub(time::Duration::milliseconds(200))
+        .unwrap_or(time::Instant::now());
+
     'building: loop {
         if input.cancel.is_cancelled() {
             break 'building;
+        }
+
+        if time_since_last_block.elapsed() < Duration::from_millis(100) {
+            debug!("going to sleep");
+            std::thread::sleep_ms(100);
+            time_since_last_block = time::Instant::now();
         }
 
         match order_intake_consumer.consume_next_batch() {
@@ -106,10 +116,7 @@ where
                 if block.built_block_trace().got_no_signer_error {
                     use_suggested_fee_recipient_as_coinbase = false;
                 }
-                if time_since_last_block.elapsed() > Duration::from_millis(100) {
-                    input.sink.new_block(block);
-                    time_since_last_block = time::Instant::now();
-                }
+                input.sink.new_block(block);
             }
             Err(err) => {
                 if !handle_building_error(err) {
