@@ -51,21 +51,19 @@ pub struct NonceCacheRef {
 
 impl NonceCacheRef {
     pub fn nonce(&self, address: Address) -> ProviderResult<u64> {
-        let nonce: u64 = rand::random();
-        //let id: u64 = rand::random();
-        //let span = debug_span!("noncer", id, address = address.to_string());
-        //let _guard = span.enter();
-        //debug!("noncer: get");
-        //
-        //if let Some(nonce) = self.cache.get(&address) {
-        //    debug!("noncer: cache hit");
-        //    return Ok(*nonce);
-        //}
+        let id: u64 = rand::random();
+        let span = debug_span!("noncer", id, address = address.to_string());
+        let _guard = span.enter();
+        debug!("noncer: get");
 
-        let nonce: u64 = rand::random();
-        //let nonce = self.state.account_nonce(&address)?.unwrap_or_default();
-        //self.cache.insert(address, nonce);
-        //debug!("noncer: got it");
+        if let Some(nonce) = self.cache.get(&address) {
+            debug!("noncer: cache hit");
+            return Ok(*nonce);
+        }
+
+        let nonce = self.state.account_nonce(&address)?.unwrap_or_default();
+        self.cache.insert(address, nonce);
+        debug!("noncer: got it");
         Ok(nonce)
     }
 }
