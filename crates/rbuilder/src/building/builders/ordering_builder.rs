@@ -110,12 +110,12 @@ where
                 if block.built_block_trace().got_no_signer_error {
                     use_suggested_fee_recipient_as_coinbase = false;
                 }
-                //if time_since_last_block.elapsed() < Duration::from_millis(100) {
-                //    debug!("going to sleep");
-                //    std::thread::sleep_ms(100);
-                //}
+                if time_since_last_block.elapsed() < Duration::from_millis(100) {
+                    debug!("going to sleep");
+                    std::thread::sleep_ms(100);
+                }
                 input.sink.new_block(block);
-                //                time_since_last_block = std::time::Instant::now();
+                time_since_last_block = std::time::Instant::now();
             }
             Err(err) => {
                 if !handle_building_error(err) {
