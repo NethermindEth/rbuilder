@@ -259,7 +259,7 @@ where
         self.fill_orders(&mut block_building_helper, block_orders, build_start)?;
         block_building_helper.set_trace_fill_time(build_start.elapsed());
         self.cached_reads = Some(block_building_helper.clone_cached_reads());
-        debug("finished tx execution");
+        debug!("finished tx execution");
         Ok(Box::new(block_building_helper))
     }
 
