@@ -45,12 +45,7 @@ impl PendingBid {
     /// Updates bid, replacing  on current (we assume they are always increasing but we don't check it).
     fn update(&self, bid: Bid) {
         debug!("Updating bid, just before lock");
-        if let Some(mut guard) = self.bid.try_lock_for(std::time::Duration::from_millis(10)) {
-            *guard = Some(bid);
-        } else {
-            debug!("Failed to lock bid, skipping");
-            return;
-        }
+        *self.bid.lock() = Some(bid);
         debug!("Updating bid, notify");
         self.bid_notify.notify_one();
         debug!("Bid notification sent");
