@@ -15,7 +15,7 @@ use crate::{
 use revm_primitives::Address;
 use tokio::sync::{broadcast, mpsc};
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, trace};
+use tracing::{debug, debug_span, trace};
 
 use super::{
     order_input::{
@@ -68,11 +68,17 @@ where
         global_cancellation: CancellationToken,
         max_time_to_build: Duration,
     ) {
+        let build_attempt_id: u32 = rand::random();
+        let blk_num = block_ctx.block_env.number.to::<u64>();
+        let span = debug_span!("start_block_build", blk_num, build_attempt_id);
+        let _guard = span.enter();
+
         let block_cancellation = global_cancellation.child_token();
 
         let cancel = block_cancellation.clone();
-        tokio::spawn(async move {
-            tokio::time::sleep(max_time_to_build).await;
+        std::thread::spawn(move || {
+            //tokio::time::sleep(max_time_to_build).await;
+            std::thread::sleep(max_time_to_build);
             cancel.cancel();
         });
 

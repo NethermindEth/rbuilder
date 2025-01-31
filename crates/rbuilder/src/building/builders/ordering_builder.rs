@@ -87,7 +87,9 @@ where
         .checked_sub(std::time::Duration::from_millis(200))
         .unwrap_or(std::time::Instant::now());
 
+    let mut block_exec_count = 0;
     'building: loop {
+        block_exec_count += 1;
         if input.cancel.is_cancelled() {
             debug!("canceled");
             break 'building;
@@ -112,6 +114,7 @@ where
             use_suggested_fee_recipient_as_coinbase
                 && input.sink.can_use_suggested_fee_recipient_as_coinbase(),
             input.cancel.clone(),
+            block_exec_count,
         ) {
             Ok(block) => {
                 if block.built_block_trace().got_no_signer_error {
@@ -161,6 +164,7 @@ where
         block_orders,
         use_suggested_fee_recipient_as_coinbase,
         CancellationToken::new(),
+        1,
     )?;
 
     let payout_tx_value = if use_suggested_fee_recipient_as_coinbase {
@@ -230,10 +234,10 @@ where
         block_orders: PrioritizedOrderStore,
         use_suggested_fee_recipient_as_coinbase: bool,
         cancel_block: CancellationToken,
+        exec_count: usize,
     ) -> eyre::Result<Box<dyn BlockBuildingHelper>> {
-        let build_attempt_id: u32 = rand::random();
         let blk_num = self.ctx.block_env.number.to::<u64>();
-        let span = info_span!("build_run num", blk_num, build_attempt_id);
+        let span = info_span!("build_run num", blk_num, exec_count);
         let _guard = span.enter();
 
         let build_start = Instant::now();
