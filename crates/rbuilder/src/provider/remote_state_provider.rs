@@ -40,7 +40,8 @@ pub struct RemoteStateProviderFactory<T> {
     future_runner: FutureRunner,
     block_hash_cache: Arc<DashMap<u64, BlockHash>>,
     code_cache: Arc<DashMap<B256, Bytecode>>,
-    account_cache: Arc<DashMap<Address, Account>>,
+
+    account_cache: Arc<DashMap<(BlockNumber, Address), Account>>,
 }
 
 impl<T> RemoteStateProviderFactory<T>
@@ -78,17 +79,18 @@ where
     T: Transport + Clone + Debug,
 {
     fn latest(&self) -> ProviderResult<StateProviderBox> {
-        //println!("latest");
         let num = self.best_block_number()?;
 
-        Ok(RemoteStateProvider::boxed(
+        let state = RemoteStateProvider::boxed(
             self.remote_provider.clone(),
             self.future_runner.clone(),
-            BlockId::Number(num.into()),
+            num,
             self.block_hash_cache.clone(),
             self.code_cache.clone(),
             self.account_cache.clone(),
-        ))
+        );
+
+        Ok(state)
     }
 
     fn history_by_block_number(&self, block: BlockNumber) -> ProviderResult<StateProviderBox> {
@@ -96,7 +98,7 @@ where
         Ok(RemoteStateProvider::boxed(
             self.remote_provider.clone(),
             self.future_runner.clone(),
-            BlockId::Number(block.into()),
+            block,
             self.block_hash_cache.clone(),
             self.code_cache.clone(),
             self.account_cache.clone(),
@@ -106,21 +108,22 @@ where
     fn history_by_block_hash(&self, block: BlockHash) -> ProviderResult<StateProviderBox> {
         //println!("history by block hash {block}");
 
-        //let future = self.remote_provider.get_block_by_hash(block, false.into());
-        //
-        //let _block_hash = match self.future_runner.run(future) {
-        //    Ok(block) => block,
-        //    Err(e) => {
-        //        println!("error {e}");
-        //        return Err(transport_to_provider_error(e));
-        //    }
-        //};
+        //TODO: optimize this
+        let future = self.remote_provider.get_block_by_hash(block, false.into());
+        let block_num = match self.future_runner.run(future) {
+            Ok(Some(block)) => block.header.number,
+            Err(e) => {
+                println!("error {e}");
+                return Err(transport_to_provider_error(e));
+            }
+            _ => return Err(ProviderError::BestBlockNotFound),
+        };
 
         debug!("history by block hash");
         Ok(RemoteStateProvider::boxed(
             self.remote_provider.clone(),
             self.future_runner.clone(),
-            BlockId::Hash(block.into()),
+            block_num,
             self.block_hash_cache.clone(),
             self.code_cache.clone(),
             self.account_cache.clone(),
@@ -244,14 +247,15 @@ where
     }
 }
 
+#[derive(Clone, Debug)]
 pub struct RemoteStateProvider<T> {
     remote_provider: RootProvider<T>,
     future_runner: FutureRunner,
     storage_cache: DashMap<(Address, StorageKey), StorageValue>,
-    block_id: BlockId,
+    block_id: BlockNumber,
 
     block_hash_cache: Arc<DashMap<u64, BlockHash>>,
-    account_cache: Arc<DashMap<Address, Account>>,
+    account_cache: Arc<DashMap<(BlockNumber, Address), Account>>,
     code_cache: Arc<DashMap<B256, Bytecode>>,
 }
 
@@ -260,10 +264,10 @@ impl<T> RemoteStateProvider<T> {
     fn new(
         remote_provider: RootProvider<T>,
         future_runner: FutureRunner,
-        block_id: BlockId,
+        block_id: BlockNumber,
         block_hash_cache: Arc<DashMap<u64, BlockHash>>,
         code_cache: Arc<DashMap<B256, Bytecode>>,
-        account_cache: Arc<DashMap<Address, Account>>,
+        account_cache: Arc<DashMap<(BlockNumber, Address), Account>>,
     ) -> Self {
         Self {
             remote_provider,
@@ -280,10 +284,10 @@ impl<T> RemoteStateProvider<T> {
     fn boxed(
         remote_provider: RootProvider<T>,
         future_runner: FutureRunner,
-        block_id: BlockId,
+        block_id: BlockNumber,
         block_hash_cache: Arc<DashMap<u64, BlockHash>>,
         code_cache: Arc<DashMap<B256, Bytecode>>,
-        account_cache: Arc<DashMap<Address, Account>>,
+        account_cache: Arc<DashMap<(BlockNumber, Address), Account>>,
     ) -> Box<Self> {
         Box::new(Self::new(
             remote_provider,
@@ -320,7 +324,7 @@ where
         let future = self
             .remote_provider
             .get_storage_at(account, storage_key.into())
-            .block_id(self.block_id)
+            .block_id(self.block_id.into())
             .into_future();
 
         let storage = self
@@ -426,7 +430,7 @@ where
         let _guard = span.enter();
         debug!("account: get");
 
-        if let Some(account) = self.account_cache.get(address) {
+        if let Some(account) = self.account_cache.get(&(self.block_id, *address)) {
             debug!("account cache hit");
             return Ok(Some(*account));
         }
@@ -450,7 +454,8 @@ where
             balance: account.balance,
         };
 
-        self.account_cache.insert(*address, account);
+        self.account_cache
+            .insert((self.block_id, *address), account);
 
         debug!("account: got");
         Ok(Some(account))
@@ -554,7 +559,7 @@ where
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct StatRootHashCalculator<T> {
     remote_provider: RootProvider<T>,
     future_runner: FutureRunner,
