@@ -88,10 +88,12 @@ where
     T: Transport + Clone + Debug,
 {
     fn latest(&self) -> ProviderResult<StateProviderBox> {
+        let num = self.best_block_number()?;
+
         let state = RemoteStateProvider::new(
             self.remote_provider.clone(),
             self.future_runner.clone(),
-            BlockId::latest(),
+            num.into(),
             self.block_hash_cache.clone(),
             // self.block_num_cache.clone(),
             self.code_cache.clone(),
