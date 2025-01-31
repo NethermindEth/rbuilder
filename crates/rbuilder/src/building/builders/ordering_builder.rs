@@ -60,6 +60,11 @@ pub fn run_ordering_builder<P>(input: LiveBuilderInput<P>, config: &OrderingBuil
 where
     P: StateProviderFactory + Clone + 'static,
 {
+    let build_attempt_id: u32 = rand::random();
+    let blk_num = input.ctx.block_env.number.to::<u64>();
+    let span = info_span!("ordering builder", blk_num, build_attempt_id);
+    let _guard = span.enter();
+
     let mut order_intake_consumer = OrderIntakeConsumer::new(
         input.provider.clone(),
         input.input,
@@ -84,12 +89,14 @@ where
 
     'building: loop {
         if input.cancel.is_cancelled() {
+            debug!("canceled");
             break 'building;
         }
 
         match order_intake_consumer.consume_next_batch() {
             Ok(ok) => {
                 if !ok {
+                    debug!("not ok, break");
                     break 'building;
                 }
             }
@@ -252,6 +259,7 @@ where
         self.fill_orders(&mut block_building_helper, block_orders, build_start)?;
         block_building_helper.set_trace_fill_time(build_start.elapsed());
         self.cached_reads = Some(block_building_helper.clone_cached_reads());
+        debug("finished tx execution");
         Ok(Box::new(block_building_helper))
     }
 
