@@ -40,7 +40,7 @@ pub struct RemoteStateProviderFactory<T> {
     future_runner: FutureRunner,
     block_hash_cache: Arc<DashMap<u64, BlockHash>>,
     code_cache: Arc<DashMap<B256, Bytecode>>,
-    account_cache: DashMap<Address, Account>,
+    account_cache: Arc<DashMap<Address, Account>>,
 }
 
 impl<T> RemoteStateProviderFactory<T>
@@ -56,7 +56,7 @@ where
             future_runner,
             block_hash_cache: Arc::new(DashMap::new()),
             code_cache: Arc::new(DashMap::new()),
-            account_cache: DashMap::new(),
+            account_cache: Arc::new(DashMap::new()),
         }
     }
 
@@ -68,7 +68,7 @@ where
             future_runner,
             block_hash_cache: Arc::new(DashMap::new()),
             code_cache: Arc::new(DashMap::new()),
-            account_cache: DashMap::new(),
+            account_cache: Arc::new(DashMap::new()),
         }
     }
 }
@@ -247,10 +247,11 @@ where
 pub struct RemoteStateProvider<T> {
     remote_provider: RootProvider<T>,
     future_runner: FutureRunner,
-    block_hash_cache: Arc<DashMap<u64, BlockHash>>,
-    block_id: BlockId,
-    account_cache: DashMap<Address, Account>,
     storage_cache: DashMap<(Address, StorageKey), StorageValue>,
+    block_id: BlockId,
+
+    block_hash_cache: Arc<DashMap<u64, BlockHash>>,
+    account_cache: Arc<DashMap<Address, Account>>,
     code_cache: Arc<DashMap<B256, Bytecode>>,
 }
 
@@ -262,7 +263,7 @@ impl<T> RemoteStateProvider<T> {
         block_id: BlockId,
         block_hash_cache: Arc<DashMap<u64, BlockHash>>,
         code_cache: Arc<DashMap<B256, Bytecode>>,
-        account_cache: DashMap<Address, Account>,
+        account_cache: Arc<DashMap<Address, Account>>,
     ) -> Self {
         Self {
             remote_provider,
@@ -282,7 +283,7 @@ impl<T> RemoteStateProvider<T> {
         block_id: BlockId,
         block_hash_cache: Arc<DashMap<u64, BlockHash>>,
         code_cache: Arc<DashMap<B256, Bytecode>>,
-        account_cache: DashMap<Address, Account>,
+        account_cache: Arc<DashMap<Address, Account>>,
     ) -> Box<Self> {
         Box::new(Self::new(
             remote_provider,
