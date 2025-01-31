@@ -260,10 +260,14 @@ where
             cancel_block,
         )?;
 
-        self.fill_orders(&mut block_building_helper, block_orders, build_start)?;
+        let (tx_count_ok, tx_count_err) =
+            self.fill_orders(&mut block_building_helper, block_orders, build_start)?;
         block_building_helper.set_trace_fill_time(build_start.elapsed());
         self.cached_reads = Some(block_building_helper.clone_cached_reads());
-        debug!("finished tx execution");
+        debug!(
+            "finished tx execution ok:{}, err:{}",
+            tx_count_ok, tx_count_err
+        );
         Ok(Box::new(block_building_helper))
     }
 
@@ -272,9 +276,11 @@ where
         block_building_helper: &mut dyn BlockBuildingHelper,
         mut block_orders: PrioritizedOrderStore,
         build_start: Instant,
-    ) -> eyre::Result<()> {
+    ) -> eyre::Result<(usize, usize)> {
         let mut order_attempts: HashMap<OrderId, usize> = HashMap::default();
         // @Perf when gas left is too low we should break.
+        let mut tx_count_ok = 0;
+        let mut tx_count_err = 0;
         while let Some(sim_order) = block_orders.pop_order() {
             if let Some(deadline) = self.config.build_duration_deadline() {
                 if build_start.elapsed() > deadline {
@@ -290,6 +296,7 @@ where
             let success = commit_result.is_ok();
             match commit_result {
                 Ok(res) => {
+                    tx_count_ok += 1;
                     gas_used = res.gas_used;
                     // This intermediate step is needed until we replace all (Address, u64) for AccountNonce
                     let nonces_updated: Vec<_> = res
@@ -303,6 +310,7 @@ where
                     block_orders.update_onchain_nonces(&nonces_updated);
                 }
                 Err(err) => {
+                    tx_count_err += 1;
                     if let ExecutionError::LowerInsertedValue { inplace, .. } = &err {
                         // try to reinsert order into the map
                         let order_attempts = order_attempts.entry(sim_order.id()).or_insert(0);
@@ -330,7 +338,7 @@ where
                 "Executed order"
             );
         }
-        Ok(())
+        Ok((tx_count_ok, tx_count_err))
     }
 }
 
