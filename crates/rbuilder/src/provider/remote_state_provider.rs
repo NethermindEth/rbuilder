@@ -39,6 +39,7 @@ pub struct RemoteStateProviderFactory<T> {
     remote_provider: RootProvider<T>,
     future_runner: FutureRunner,
     block_hash_cache: Arc<DashMap<u64, BlockHash>>,
+    block_num_cache: Arc<DashMap<BlockHash, u64>>,
     code_cache: Arc<DashMap<B256, Bytecode>>,
 
     account_cache: Arc<DashMap<(BlockNumber, Address), Account>>,
@@ -58,6 +59,7 @@ where
             block_hash_cache: Arc::new(DashMap::new()),
             code_cache: Arc::new(DashMap::new()),
             account_cache: Arc::new(DashMap::new()),
+            block_num_cache: Arc::new(DashMap::new()),
         }
     }
 
@@ -70,6 +72,7 @@ where
             block_hash_cache: Arc::new(DashMap::new()),
             code_cache: Arc::new(DashMap::new()),
             account_cache: Arc::new(DashMap::new()),
+            block_num_cache: Arc::new(DashMap::new()),
         }
     }
 }
@@ -79,13 +82,12 @@ where
     T: Transport + Clone + Debug,
 {
     fn latest(&self) -> ProviderResult<StateProviderBox> {
-        let num = self.best_block_number()?;
-
         let state = RemoteStateProvider::boxed(
             self.remote_provider.clone(),
             self.future_runner.clone(),
-            num,
+            BlockId::latest(),
             self.block_hash_cache.clone(),
+            self.block_num_cache.clone(),
             self.code_cache.clone(),
             self.account_cache.clone(),
         );
@@ -94,37 +96,24 @@ where
     }
 
     fn history_by_block_number(&self, block: BlockNumber) -> ProviderResult<StateProviderBox> {
-        debug!("history by block num {block}");
         Ok(RemoteStateProvider::boxed(
             self.remote_provider.clone(),
             self.future_runner.clone(),
-            block,
+            block.into(),
             self.block_hash_cache.clone(),
+            self.block_num_cache.clone(),
             self.code_cache.clone(),
             self.account_cache.clone(),
         ))
     }
 
     fn history_by_block_hash(&self, block: BlockHash) -> ProviderResult<StateProviderBox> {
-        //println!("history by block hash {block}");
-
-        //TODO: optimize this
-        let future = self.remote_provider.get_block_by_hash(block, false.into());
-        let block_num = match self.future_runner.run(future) {
-            Ok(Some(block)) => block.header.number,
-            Err(e) => {
-                println!("error {e}");
-                return Err(transport_to_provider_error(e));
-            }
-            _ => return Err(ProviderError::BestBlockNotFound),
-        };
-
-        debug!("history by block hash");
         Ok(RemoteStateProvider::boxed(
             self.remote_provider.clone(),
             self.future_runner.clone(),
-            block_num,
+            block.into(),
             self.block_hash_cache.clone(),
+            self.block_num_cache.clone(),
             self.code_cache.clone(),
             self.account_cache.clone(),
         ))
@@ -154,6 +143,7 @@ where
         let header = header.unwrap();
 
         self.block_hash_cache.insert(header.number, *block_hash);
+        self.block_num_cache.insert(*block_hash, header.number);
         debug!("header: got");
 
         Ok(Some(header))
@@ -180,6 +170,7 @@ where
             .map_err(transport_to_provider_error)?;
 
         self.block_hash_cache.insert(number, block_hash);
+        self.block_num_cache.insert(block_hash, number);
         debug!("block_hash: got");
         Ok(Some(block_hash))
     }
@@ -216,6 +207,7 @@ where
         let header = block.header.inner;
 
         self.block_hash_cache.insert(header.number, hash);
+        self.block_num_cache.insert(hash, header.number);
 
         debug!("header_by_num: got");
         Ok(Some(header))
@@ -252,9 +244,10 @@ pub struct RemoteStateProvider<T> {
     remote_provider: RootProvider<T>,
     future_runner: FutureRunner,
     storage_cache: DashMap<(Address, StorageKey), StorageValue>,
-    block_id: BlockNumber,
+    block_id: BlockId,
 
     block_hash_cache: Arc<DashMap<u64, BlockHash>>,
+    block_num_cache: Arc<DashMap<BlockHash, u64>>,
     account_cache: Arc<DashMap<(BlockNumber, Address), Account>>,
     code_cache: Arc<DashMap<B256, Bytecode>>,
 }
@@ -264,8 +257,9 @@ impl<T> RemoteStateProvider<T> {
     fn new(
         remote_provider: RootProvider<T>,
         future_runner: FutureRunner,
-        block_id: BlockNumber,
+        block_id: BlockId,
         block_hash_cache: Arc<DashMap<u64, BlockHash>>,
+        block_num_cache: Arc<DashMap<BlockHash, u64>>,
         code_cache: Arc<DashMap<B256, Bytecode>>,
         account_cache: Arc<DashMap<(BlockNumber, Address), Account>>,
     ) -> Self {
@@ -273,6 +267,7 @@ impl<T> RemoteStateProvider<T> {
             remote_provider,
             block_id,
             block_hash_cache,
+            block_num_cache,
             future_runner,
             code_cache,
             account_cache,
@@ -284,8 +279,9 @@ impl<T> RemoteStateProvider<T> {
     fn boxed(
         remote_provider: RootProvider<T>,
         future_runner: FutureRunner,
-        block_id: BlockNumber,
+        block_id: BlockId,
         block_hash_cache: Arc<DashMap<u64, BlockHash>>,
+        block_num_cache: Arc<DashMap<BlockHash, u64>>,
         code_cache: Arc<DashMap<B256, Bytecode>>,
         account_cache: Arc<DashMap<(BlockNumber, Address), Account>>,
     ) -> Box<Self> {
@@ -294,6 +290,7 @@ impl<T> RemoteStateProvider<T> {
             future_runner,
             block_id,
             block_hash_cache,
+            block_num_cache,
             code_cache,
             account_cache,
         ))
@@ -430,7 +427,19 @@ where
         let _guard = span.enter();
         debug!("account: get");
 
-        if let Some(account) = self.account_cache.get(&(self.block_id, *address)) {
+        let blk_num = match self.block_id {
+            BlockId::Number(BlockNumberOrTag::Number(num)) => num,
+            BlockId::Hash(hash) => {
+                if let Some(block_num) = self.block_num_cache.get(&hash.block_hash) {
+                    *block_num
+                } else {
+                    0 // force fetch
+                }
+            }
+            _ => 0, // force fetch
+        };
+
+        if let Some(account) = self.account_cache.get(&(blk_num, *address)) {
             debug!("account cache hit");
             return Ok(Some(*account));
         }
@@ -454,8 +463,11 @@ where
             balance: account.balance,
         };
 
-        self.account_cache
-            .insert((self.block_id, *address), account);
+        if blk_num != 0 {
+            self.account_cache.insert((blk_num, *address), account);
+        } else {
+            debug!("account: no blk num");
+        }
 
         debug!("account: got");
         Ok(Some(account))
