@@ -89,6 +89,9 @@ where
 {
     fn latest(&self) -> ProviderResult<StateProviderBox> {
         let num = self.best_block_number()?;
+        if let Some(state) = self.state_provider_by_num.get(&num) {
+            return Ok(state.clone());
+        }
 
         let state = RemoteStateProvider::new(
             self.remote_provider.clone(),
@@ -100,7 +103,9 @@ where
             //self.account_cache.clone(),
         );
 
-        Ok(ArcRemoteStateProvider::boxed(state))
+        let state = ArcRemoteStateProvider::boxed(state);
+        self.state_provider_by_num.insert(num, state.clone());
+        Ok(state)
     }
 
     fn history_by_block_number(&self, block: BlockNumber) -> ProviderResult<StateProviderBox> {
@@ -716,9 +721,19 @@ impl FutureRunner {
     where
         F: Future<Output = R>,
     {
-        debug!("FutureRunner::run");
-        let r = tokio::task::block_in_place(move || self.runtime_handle.block_on(f));
-        debug!("FutureRunner::finished");
+        let id: u64 = rand::random();
+        let span = debug_span!("Future runner", id);
+        let _guard = span.enter();
+        debug!("Future::start");
+        let r = tokio::task::block_in_place(move || {
+            debug!("Future::block_in_place");
+            let fut = || {
+                debug!("Future::block_on");
+                f
+            };
+            self.runtime_handle.block_on(fut())
+        });
+        debug!("Future::finished");
         r
     }
 }
