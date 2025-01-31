@@ -42,7 +42,7 @@ pub fn run_sim_worker<P>(
                 break ctx;
             } else {
                 // contexts are created for a duration of the slot so this is not a problem
-                //sleep(Duration::from_millis(50));
+                sleep(Duration::from_millis(50));
             }
         };
 
