@@ -438,7 +438,8 @@ async fn validate_block(
         .await
     {
         Ok(()) => {
-            info!("!!!!!!!!!!! VALIDATION PASSED !!!!!!!!!!!!");
+            let block_num = block.header.number;
+            info!(block_num, "!!!!!!!!!!! VALIDATION PASSED !!!!!!!!!!!!");
             true
         }
         Err(ValidationError::ValidationFailed(err)) => {

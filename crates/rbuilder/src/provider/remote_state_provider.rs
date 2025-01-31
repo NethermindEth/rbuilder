@@ -1,6 +1,7 @@
 use std::{
     fmt::Debug,
     future::{Future, IntoFuture},
+    ops::Deref,
     sync::Arc,
 };
 
@@ -38,11 +39,12 @@ use super::{RootHasher, StateProviderFactory};
 pub struct RemoteStateProviderFactory<T> {
     remote_provider: RootProvider<T>,
     future_runner: FutureRunner,
+
     block_hash_cache: Arc<DashMap<u64, BlockHash>>,
-    block_num_cache: Arc<DashMap<BlockHash, u64>>,
     code_cache: Arc<DashMap<B256, Bytecode>>,
 
-    account_cache: Arc<DashMap<(BlockNumber, Address), Account>>,
+    state_provider_by_num: Arc<DashMap<BlockNumber, Box<ArcRemoteStateProvider<T>>>>,
+    state_provider_by_hash: Arc<DashMap<BlockHash, Box<ArcRemoteStateProvider<T>>>>,
 }
 
 impl<T> RemoteStateProviderFactory<T>
@@ -58,8 +60,10 @@ where
             future_runner,
             block_hash_cache: Arc::new(DashMap::new()),
             code_cache: Arc::new(DashMap::new()),
-            account_cache: Arc::new(DashMap::new()),
-            block_num_cache: Arc::new(DashMap::new()),
+            state_provider_by_num: Arc::new(DashMap::new()),
+            state_provider_by_hash: Arc::new(DashMap::new()),
+            //account_cache: Arc:BlockNumber:new(DashMap::new()),
+            //block_num_cache: Arc::new(DashMap::new()),
         }
     }
 
@@ -71,8 +75,10 @@ where
             future_runner,
             block_hash_cache: Arc::new(DashMap::new()),
             code_cache: Arc::new(DashMap::new()),
-            account_cache: Arc::new(DashMap::new()),
-            block_num_cache: Arc::new(DashMap::new()),
+            state_provider_by_num: Arc::new(DashMap::new()),
+            state_provider_by_hash: Arc::new(DashMap::new()),
+            //account_cache: Arc::new(DashMap::new()),
+            //block_num_cache: Arc::new(DashMap::new()),
         }
     }
 }
@@ -82,41 +88,57 @@ where
     T: Transport + Clone + Debug,
 {
     fn latest(&self) -> ProviderResult<StateProviderBox> {
-        let state = RemoteStateProvider::boxed(
+        let state = RemoteStateProvider::new(
             self.remote_provider.clone(),
             self.future_runner.clone(),
             BlockId::latest(),
             self.block_hash_cache.clone(),
-            self.block_num_cache.clone(),
+            // self.block_num_cache.clone(),
             self.code_cache.clone(),
-            self.account_cache.clone(),
+            //self.account_cache.clone(),
         );
 
-        Ok(state)
+        Ok(ArcRemoteStateProvider::boxed(state))
     }
 
     fn history_by_block_number(&self, block: BlockNumber) -> ProviderResult<StateProviderBox> {
-        Ok(RemoteStateProvider::boxed(
+        if let Some(state) = self.state_provider_by_num.get(&block) {
+            return Ok(state.clone());
+        }
+
+        let state = RemoteStateProvider::new(
             self.remote_provider.clone(),
             self.future_runner.clone(),
             block.into(),
             self.block_hash_cache.clone(),
-            self.block_num_cache.clone(),
+            //self.block_num_cache.clone(),
             self.code_cache.clone(),
-            self.account_cache.clone(),
-        ))
+            //self.account_cache.clone(),
+        );
+
+        let state = ArcRemoteStateProvider::boxed(state);
+        self.state_provider_by_num.insert(block, state.clone());
+        Ok(state)
     }
 
     fn history_by_block_hash(&self, block: BlockHash) -> ProviderResult<StateProviderBox> {
-        Ok(RemoteStateProvider::boxed(
+        if let Some(state) = self.state_provider_by_hash.get(&block) {
+            return Ok(state.clone());
+        }
+
+        let state = RemoteStateProvider::new(
             self.remote_provider.clone(),
             self.future_runner.clone(),
             block.into(),
             self.block_hash_cache.clone(),
-            self.block_num_cache.clone(),
+            //self.block_num_cache.clone(),
             self.code_cache.clone(),
-            self.account_cache.clone(),
-        ))
+            //self.account_cache.clone(),
+        );
+
+        let state = ArcRemoteStateProvider::boxed(state);
+        self.state_provider_by_hash.insert(block, state.clone());
+        Ok(state)
     }
 
     fn header(&self, block_hash: &BlockHash) -> ProviderResult<Option<Header>> {
@@ -143,7 +165,6 @@ where
         let header = header.unwrap();
 
         self.block_hash_cache.insert(header.number, *block_hash);
-        self.block_num_cache.insert(*block_hash, header.number);
         debug!("header: got");
 
         Ok(Some(header))
@@ -170,7 +191,6 @@ where
             .map_err(transport_to_provider_error)?;
 
         self.block_hash_cache.insert(number, block_hash);
-        self.block_num_cache.insert(block_hash, number);
         debug!("block_hash: got");
         Ok(Some(block_hash))
     }
@@ -207,7 +227,6 @@ where
         let header = block.header.inner;
 
         self.block_hash_cache.insert(header.number, hash);
-        self.block_num_cache.insert(hash, header.number);
 
         debug!("header_by_num: got");
         Ok(Some(header))
@@ -243,13 +262,33 @@ where
 pub struct RemoteStateProvider<T> {
     remote_provider: RootProvider<T>,
     future_runner: FutureRunner,
+
     storage_cache: DashMap<(Address, StorageKey), StorageValue>,
+    account_cache: DashMap<Address, Account>,
+
     block_id: BlockId,
 
     block_hash_cache: Arc<DashMap<u64, BlockHash>>,
-    block_num_cache: Arc<DashMap<BlockHash, u64>>,
-    account_cache: Arc<DashMap<(BlockNumber, Address), Account>>,
     code_cache: Arc<DashMap<B256, Bytecode>>,
+}
+
+#[derive(Clone, Debug)]
+pub struct ArcRemoteStateProvider<T> {
+    inner: Arc<RemoteStateProvider<T>>,
+}
+
+impl<T> ArcRemoteStateProvider<T> {
+    pub fn new(inner: RemoteStateProvider<T>) -> Self {
+        Self {
+            inner: Arc::new(inner),
+        }
+    }
+
+    pub fn boxed(inner: RemoteStateProvider<T>) -> Box<Self> {
+        Box::new(Self {
+            inner: Arc::new(inner),
+        })
+    }
 }
 
 impl<T> RemoteStateProvider<T> {
@@ -259,19 +298,16 @@ impl<T> RemoteStateProvider<T> {
         future_runner: FutureRunner,
         block_id: BlockId,
         block_hash_cache: Arc<DashMap<u64, BlockHash>>,
-        block_num_cache: Arc<DashMap<BlockHash, u64>>,
         code_cache: Arc<DashMap<B256, Bytecode>>,
-        account_cache: Arc<DashMap<(BlockNumber, Address), Account>>,
     ) -> Self {
         Self {
             remote_provider,
             block_id,
             block_hash_cache,
-            block_num_cache,
             future_runner,
             code_cache,
-            account_cache,
             storage_cache: DashMap::new(),
+            account_cache: DashMap::new(),
         }
     }
 
@@ -281,23 +317,19 @@ impl<T> RemoteStateProvider<T> {
         future_runner: FutureRunner,
         block_id: BlockId,
         block_hash_cache: Arc<DashMap<u64, BlockHash>>,
-        block_num_cache: Arc<DashMap<BlockHash, u64>>,
         code_cache: Arc<DashMap<B256, Bytecode>>,
-        account_cache: Arc<DashMap<(BlockNumber, Address), Account>>,
     ) -> Box<Self> {
         Box::new(Self::new(
             remote_provider,
             future_runner,
             block_id,
             block_hash_cache,
-            block_num_cache,
             code_cache,
-            account_cache,
         ))
     }
 }
 
-impl<T> StateProvider for RemoteStateProvider<T>
+impl<T> StateProvider for ArcRemoteStateProvider<T>
 where
     T: Transport + Clone,
 {
@@ -312,24 +344,28 @@ where
         let _guard = span.enter();
         debug!("storage:get");
 
-        if let Some(storage) = self.storage_cache.get(&(account, storage_key)) {
+        if let Some(storage) = self.inner.storage_cache.get(&(account, storage_key)) {
             let storage_val = *storage;
             debug!("got storage from cache");
             return Ok(Some(storage_val));
         }
 
         let future = self
+            .inner
             .remote_provider
             .get_storage_at(account, storage_key.into())
-            .block_id(self.block_id.into())
+            .block_id(self.inner.block_id.into())
             .into_future();
 
         let storage = self
+            .inner
             .future_runner
             .run(future)
             .map_err(transport_to_provider_error)?;
 
-        self.storage_cache.insert((account, storage_key), storage);
+        self.inner
+            .storage_cache
+            .insert((account, storage_key), storage);
 
         debug!("got storage");
         Ok(Some(storage))
@@ -353,31 +389,33 @@ where
             return Ok(None);
         }
 
-        if let Some(bytecode) = self.code_cache.get(code_hash) {
+        if let Some(bytecode) = self.inner.code_cache.get(code_hash) {
             debug!("bytecode: cache hit");
             return Ok(Some(bytecode.clone()));
         }
 
         let future = self
+            .inner
             .remote_provider
             .client()
             .request::<_, Bytes>("rbuilder_getCodeByHash", (code_hash,));
 
         let bytes = self
+            .inner
             .future_runner
             .run(future)
             .map_err(transport_to_provider_error)?;
 
         let bytecode = Bytecode::new_raw(bytes);
 
-        self.code_cache.insert(*code_hash, bytecode.clone());
+        self.inner.code_cache.insert(*code_hash, bytecode.clone());
         debug!("bytecode: got");
 
         Ok(Some(bytecode))
     }
 }
 
-impl<T> BlockHashReader for RemoteStateProvider<T>
+impl<T> BlockHashReader for ArcRemoteStateProvider<T>
 where
     T: Transport + Clone,
 {
@@ -388,20 +426,22 @@ where
         //let _guard = span.enter();
         //debug!("block_hash 2: get");
         //
-        if let Some(hash) = self.block_hash_cache.get(&number) {
+        if let Some(hash) = self.inner.block_hash_cache.get(&number) {
             // debug!("block_hash 2: cache hit");
             return Ok(Some(*hash));
         }
         let future = self
+            .inner
             .remote_provider
             .client()
             .request::<_, B256>("rbuilder_getBlockHash", (BlockNumberOrTag::Number(number),));
         let block_hash = self
+            .inner
             .future_runner
             .run(future)
             .map_err(transport_to_provider_error)?;
 
-        self.block_hash_cache.insert(number, block_hash);
+        self.inner.block_hash_cache.insert(number, block_hash);
         //debug!("block_hash 2: got");
         Ok(Some(block_hash))
     }
@@ -415,7 +455,7 @@ where
     }
 }
 
-impl<T> AccountReader for RemoteStateProvider<T>
+impl<T> AccountReader for ArcRemoteStateProvider<T>
 where
     T: Transport + Clone,
 {
@@ -427,29 +467,18 @@ where
         let _guard = span.enter();
         debug!("account: get");
 
-        let blk_num = match self.block_id {
-            BlockId::Number(BlockNumberOrTag::Number(num)) => num,
-            BlockId::Hash(hash) => {
-                if let Some(block_num) = self.block_num_cache.get(&hash.block_hash) {
-                    *block_num
-                } else {
-                    0 // force fetch
-                }
-            }
-            _ => 0, // force fetch
-        };
-
-        if let Some(account) = self.account_cache.get(&(blk_num, *address)) {
+        if let Some(account) = self.inner.account_cache.get(address) {
             debug!("account cache hit");
             return Ok(Some(*account));
         }
 
         let future = self
+            .inner
             .remote_provider
             .client()
-            .request::<_, AccountState>("rbuilder_getAccount", (*address, self.block_id));
+            .request::<_, AccountState>("rbuilder_getAccount", (*address, self.inner.block_id));
 
-        let account = match self.future_runner.run(future) {
+        let account = match self.inner.future_runner.run(future) {
             Ok(a) => a,
             Err(e) => {
                 println!("error: {e}, address {address}");
@@ -463,18 +492,14 @@ where
             balance: account.balance,
         };
 
-        if blk_num != 0 {
-            self.account_cache.insert((blk_num, *address), account);
-        } else {
-            debug!("account: no blk num");
-        }
+        self.inner.account_cache.insert(*address, account);
 
         debug!("account: got");
         Ok(Some(account))
     }
 }
 
-impl<T> StateRootProvider for RemoteStateProvider<T>
+impl<T> StateRootProvider for ArcRemoteStateProvider<T>
 where
     T: Send + Sync,
 {
@@ -501,7 +526,7 @@ where
     }
 }
 
-impl<T> StorageRootProvider for RemoteStateProvider<T>
+impl<T> StorageRootProvider for ArcRemoteStateProvider<T>
 where
     T: Send + Sync,
 {
@@ -532,7 +557,7 @@ where
     }
 }
 
-impl<T> StateProofProvider for RemoteStateProvider<T>
+impl<T> StateProofProvider for ArcRemoteStateProvider<T>
 where
     T: Send + Sync,
 {
@@ -562,7 +587,7 @@ where
     }
 }
 
-impl<T> HashedPostStateProvider for RemoteStateProvider<T>
+impl<T> HashedPostStateProvider for ArcRemoteStateProvider<T>
 where
     T: Transport + Clone,
 {
