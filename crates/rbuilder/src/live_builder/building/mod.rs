@@ -146,12 +146,13 @@ where
         }
 
         let sbundle_merger_selected_signers = self.sbundle_merger_selected_signers.clone();
-        thread::spawn(move || {
+        tokio::spawn(async move {
             merge_and_send(
                 input.orders,
                 broadcast_input,
                 &sbundle_merger_selected_signers,
             )
+            .await;
         });
 
         //        tokio::spawn();
@@ -195,18 +196,18 @@ impl SimulatedOrderSink for SimulatedOrderSinkToChannel {
 }
 
 /// Merges (see [`MultiShareBundleMerger`]) simulated orders from input and forwards the result to sender.
-fn merge_and_send(
+async fn merge_and_send(
     mut input: mpsc::Receiver<SimulatedOrderCommand>,
     sender: broadcast::Sender<SimulatedOrderCommand>,
     sbundle_merger_selected_signers: &[Address],
 ) {
-    let sender = Rc::new(RefCell::new(SimulatedOrderSinkToChannel::new(sender)));
-    let mut merger = MultiShareBundleMerger::new(sbundle_merger_selected_signers, sender.clone());
+    let mut sender = SimulatedOrderSinkToChannel::new(sender);
+    //let mut merger = MultiShareBundleMerger::new(sbundle_merger_selected_signers, sender.clone());
     // we don't worry about waiting for input forever because it will be closed by producer job
-    while let Some(input) = input.blocking_recv() {
-        simulated_order_command_to_sink(input, &mut merger);
+    while let Some(input) = input.recv().await {
+        simulated_order_command_to_sink(input, &mut sender);
         // we don't create new subscribers to the broadcast so here we can be sure that err means end of receivers
-        if sender.borrow().sender_returned_error() {
+        if sender.sender_returned_error() {
             trace!("Cancelling merge_and_send job, destination stopped");
             return;
         }
