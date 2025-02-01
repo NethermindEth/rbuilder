@@ -138,7 +138,7 @@ where
             removed_orders.append(&mut removed);
         }
 
-        std::thread::yield_now();
+        //  std::thread::yield_now();
     }
 }
 

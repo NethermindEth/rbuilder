@@ -274,17 +274,28 @@ where
                 None,
                 root_hasher,
             ) {
+                let max_time_to_build = time_until_slot_end.try_into().unwrap_or_default();
+                let block_cancellation = self.global_cancellation.child_token();
+                let cancel = block_cancellation.clone();
+
+                tokio::spawn(async move {
+                    tokio::time::sleep(max_time_to_build).await;
+                    cancel.cancel();
+                });
+
                 debug!("Started block building");
                 builder_pool.start_block_building(
                     payload,
                     block_ctx,
                     self.global_cancellation.clone(),
-                    time_until_slot_end.try_into().unwrap_or_default(),
+                    max_time_to_build,
                 );
 
                 if let Some(watchdog_sender) = watchdog_sender.as_ref() {
                     watchdog_sender.try_send(()).unwrap_or_default();
                 };
+            } else {
+                error!("Failed to create block building context");
             }
         }
 
@@ -369,9 +380,11 @@ where
                 deadline - OffsetDateTime::now_utc(),
                 timings.get_block_header_period,
             );
-            if time_to_sleep.is_negative() {
+            let dont_sleep = !time_to_sleep.is_positive();
+            if dont_sleep {
                 break;
             }
+
             tokio::time::sleep(time_to_sleep.try_into().unwrap()).await;
             debug!(block = ?block, "finsih sleep");
         }
