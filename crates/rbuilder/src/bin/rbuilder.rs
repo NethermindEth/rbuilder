@@ -10,7 +10,7 @@ use tokio::runtime::Builder;
 fn main() -> eyre::Result<()> {
     let runtime = Builder::new_multi_thread()
         .worker_threads(32)
-        .max_blocking_threads(4048)
+        .max_blocking_threads(8096)
         .enable_all()
         .build()
         .expect("Failed to create runtime");

@@ -137,6 +137,8 @@ where
             let mut removed = order_intake_consumer.remove_orders(builder.failed_orders.drain());
             removed_orders.append(&mut removed);
         }
+
+        std::thread::yield_now();
     }
 }
 
