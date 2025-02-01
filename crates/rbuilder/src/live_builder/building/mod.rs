@@ -76,9 +76,14 @@ where
         let block_cancellation = global_cancellation.child_token();
 
         let cancel = block_cancellation.clone();
-        std::thread::spawn(move || {
-            //tokio::time::sleep(max_time_to_build).await;
-            std::thread::sleep(max_time_to_build);
+        //std::thread::spawn(move || {
+        //    std::thread::sleep(max_time_to_build);
+        //    cancel.cancel();
+        //});
+        //
+
+        tokio::spawn(async move {
+            tokio::time::sleep(max_time_to_build).await;
             cancel.cancel();
         });
 
@@ -128,7 +133,7 @@ where
                 cancel: cancel.clone(),
             };
             let builder = builder.clone();
-            std::thread::spawn(move || {
+            tokio::task::spawn_blocking(move || {
                 builder.build_blocks(input);
                 debug!(block = block_number, builder_name, "Stopped builder job");
             });
