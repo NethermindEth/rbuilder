@@ -287,7 +287,7 @@ where
                 builder_pool.start_block_building(
                     payload,
                     block_ctx,
-                    self.global_cancellation.clone(),
+                    block_cancellation,
                     max_time_to_build,
                 );
 
