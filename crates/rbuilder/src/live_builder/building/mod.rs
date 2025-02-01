@@ -76,9 +76,9 @@ where
         let block_cancellation = global_cancellation.child_token();
 
         let cancel = block_cancellation.clone();
-        std::thread::spawn(move || {
-            //tokio::time::sleep(max_time_to_build).await;
-            std::thread::sleep(max_time_to_build);
+        tokio::spawn(async move {
+            tokio::time::sleep(max_time_to_build).await;
+            //std::thread::sleep(max_time_to_build);
             cancel.cancel();
         });
 
