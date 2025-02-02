@@ -12,7 +12,7 @@ use std::{
     time::{Duration, Instant},
 };
 use tokio::sync::mpsc::{self};
-use tracing::{error, trace};
+use tracing::{error, info, trace};
 
 use super::{
     order_sink::{OrderPoolCommand, OrderSender2OrderSink},
@@ -226,10 +226,12 @@ impl OrderPool {
             .retain(|block_number, _| *block_number > new_block_number);
 
         // remove mempool txs by nonce, time
+        info!("head_updated: Going to remove mempool txs");
         self.mempool_txs.retain(|(order, time)| {
             if time.elapsed() > TIME_TO_KEEP_TXS {
                 return false;
             }
+            info!("head_updated: Nonce updater");
             for nonce in order.nonces() {
                 if nonce.optional {
                     continue;
@@ -246,12 +248,14 @@ impl OrderPool {
             true
         });
         //remove old bundle cancellations
+        info!("head_updated: Going to remove bundle cancellations");
         while let Some((_, oldest_time)) = self.bundle_cancellations.front() {
             if oldest_time.elapsed() < TIME_TO_KEEP_BUNDLE_CANCELLATIONS {
                 break; // reached the new ones
             }
             self.bundle_cancellations.pop_front();
         }
+        info!("head_updated: Done");
     }
 
     /// Does NOT take in account cancellations
