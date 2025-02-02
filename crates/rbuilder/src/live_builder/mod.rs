@@ -277,13 +277,25 @@ where
                 let max_time_to_build = time_until_slot_end.try_into().unwrap_or_default();
                 let block_cancellation = self.global_cancellation.child_token();
                 let cancel = block_cancellation.clone();
+                let blk_num = block_ctx.block_env.number.to::<u64>();
 
                 tokio::spawn(async move {
+                    let start = std::time::Instant::now();
                     tokio::time::sleep(max_time_to_build).await;
                     cancel.cancel();
+
+                    info!(
+                        "CANCEL block building:{}, time  {}",
+                        blk_num,
+                        start.elapsed().as_millis()
+                    );
                 });
 
-                debug!("Started block building");
+                info!(
+                    "Started block building:{}, time to build: {}",
+                    blk_num,
+                    max_time_to_build.as_millis()
+                );
                 builder_pool.start_block_building(
                     payload,
                     block_ctx,
