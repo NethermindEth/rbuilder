@@ -88,16 +88,16 @@ where
     T: Transport + Clone + Debug,
 {
     fn latest(&self) -> ProviderResult<StateProviderBox> {
-        info!("Latest state provider");
-        let num = self.best_block_number()?;
-        if let Some(state) = self.state_provider_by_num.get(&num) {
-            return Ok(state.clone());
-        }
+        //info!("Latest state provider");
+        //let num = self.best_block_number()?;
+        //if let Some(state) = self.state_provider_by_num.get(&num) {
+        //    return Ok(state.clone());
+        //}
 
         let state = RemoteStateProvider::new(
             self.remote_provider.clone(),
             self.future_runner.clone(),
-            num.into(),
+            BlockNumberOrTag::Latest.into(),
             self.block_hash_cache.clone(),
             // self.block_num_cache.clone(),
             self.code_cache.clone(),
@@ -105,7 +105,7 @@ where
         );
 
         let state = ArcRemoteStateProvider::boxed(state);
-        self.state_provider_by_num.insert(num, state.clone());
+        //        self.state_provider_by_num.insert(num, state.clone());
         Ok(state)
     }
 
@@ -313,7 +313,9 @@ impl<T> RemoteStateProvider<T> {
             block_id,
             block_hash_cache,
             future_runner,
+
             code_cache,
+
             storage_cache: DashMap::new(),
             account_cache: DashMap::new(),
         }
