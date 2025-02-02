@@ -216,8 +216,7 @@ where
         provider_factory,
         orderpool.clone(),
         global_cancel.clone(),
-    )
-    .await?;
+    )?;
     let rpc_server = rpc_server::start_server_accepting_bundles(
         config.clone(),
         order_sender.clone(),
@@ -324,7 +323,7 @@ pub fn expand_path(path: &Path) -> eyre::Result<PathBuf> {
 
 /// Performs maintenance operations on every new header by calling OrderPool::head_updated.
 /// Also calls some functions to generate metrics.
-async fn spawn_clean_orderpool_job<P>(
+fn spawn_clean_orderpool_job<P>(
     header_receiver: mpsc::Receiver<Header>,
     provider_factory: P,
     orderpool: Arc<Mutex<OrderPool>>,
@@ -358,15 +357,24 @@ where
                             }
                         };
 
-                        let mut orderpool = orderpool.lock();
                         let start = Instant::now();
+                        let orderpool = orderpool.clone();
+                        let count = tokio::task::spawn_blocking(move || {
+                            let mut orderpool = orderpool.lock();
 
-                        info!("Calling head updated");
-                        orderpool.head_updated(block_number, &state);
+                            info!("Calling head updated");
+
+                            orderpool.head_updated(block_number, &state);
+                            orderpool.content_count()
+                         })
+                        .await.unwrap_or_default();
+
 
                         let update_time = start.elapsed();
-                        let (tx_count, bundle_count) = orderpool.content_count();
+                        let (tx_count, bundle_count) = count;
+
                         set_ordepool_count(tx_count, bundle_count);
+
                         info!(
                             block_number,
                             tx_count,
