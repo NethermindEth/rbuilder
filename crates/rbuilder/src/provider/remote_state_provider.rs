@@ -27,7 +27,7 @@ use revm_primitives::{map::B256HashMap, Address, Bytes, HashMap, B256, U256};
 use serde::{de, Deserialize, Serialize};
 use tokio::{runtime::Builder, sync::broadcast};
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, debug_span};
+use tracing::{debug, debug_span, info};
 
 use crate::live_builder::simulation::SimulatedOrderCommand;
 
