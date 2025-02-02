@@ -274,7 +274,8 @@ where
                 None,
                 root_hasher,
             ) {
-                debug!("Started block building");
+                let blk_num = block_ctx.block_env.number.to::<u64>();
+                info!("Started block building {}", blk_num);
                 builder_pool.start_block_building(
                     payload,
                     block_ctx,

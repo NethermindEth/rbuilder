@@ -15,7 +15,7 @@ use crate::{
 use revm_primitives::Address;
 use tokio::sync::{broadcast, mpsc};
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, debug_span, trace};
+use tracing::{debug, debug_span, info, trace};
 
 use super::{
     order_input::{
@@ -80,6 +80,7 @@ where
             //tokio::time::sleep(max_time_to_build).await;
             std::thread::sleep(max_time_to_build);
             cancel.cancel();
+            info!("Cancelling block build, {}", blk_num);
         });
 
         let (orders_for_block, sink) = OrdersForBlock::new_with_sink();
