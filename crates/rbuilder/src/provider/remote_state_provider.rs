@@ -27,7 +27,7 @@ use revm_primitives::{map::B256HashMap, Address, Bytes, HashMap, B256, U256};
 use serde::{de, Deserialize, Serialize};
 use tokio::{runtime::Builder, sync::broadcast};
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, debug_span, info};
+use tracing::{debug_span, info, trace, trace_span};
 
 use crate::live_builder::simulation::SimulatedOrderCommand;
 
@@ -151,9 +151,9 @@ where
 
     fn header(&self, block_hash: &BlockHash) -> ProviderResult<Option<Header>> {
         let id: u64 = rand::random();
-        let span = debug_span!("header", id, block_hash = %block_hash.to_string());
+        let span = trace_span!("header", id, block_hash = %block_hash.to_string());
         let _guard = span.enter();
-        debug!("header: get");
+        trace!("header: get");
 
         let future = self
             .remote_provider
@@ -166,26 +166,26 @@ where
             .map(|b| b.header.inner);
 
         if header.is_none() {
-            debug!("header: got none");
+            trace!("header: got none");
             return Ok(None);
         }
 
         let header = header.unwrap();
 
         self.block_hash_cache.insert(header.number, *block_hash);
-        debug!("header: got");
+        trace!("header: got");
 
         Ok(Some(header))
     }
 
     fn block_hash(&self, number: BlockNumber) -> ProviderResult<Option<B256>> {
         let id: u64 = rand::random();
-        let span = debug_span!("block_hash 1", id, block_num = number);
+        let span = trace_span!("block_hash 1", id, block_num = number);
         let _guard = span.enter();
-        debug!("block_hash:get");
+        trace!("block_hash:get");
 
         if let Some(hash) = self.block_hash_cache.get(&number) {
-            debug!("block_hash:cache hit");
+            trace!("block_hash:cache hit");
             return Ok(Some(*hash));
         }
 
@@ -199,7 +199,7 @@ where
             .map_err(transport_to_provider_error)?;
 
         self.block_hash_cache.insert(number, block_hash);
-        debug!("block_hash: got");
+        trace!("block_hash: got");
         Ok(Some(block_hash))
     }
 
@@ -211,9 +211,9 @@ where
 
     fn header_by_number(&self, num: u64) -> ProviderResult<Option<Header>> {
         let id: u64 = rand::random();
-        let span = debug_span!("header_by_number", id, block_num = num);
+        let span = trace_span!("header_by_number", id, block_num = num);
         let _guard = span.enter();
-        debug!("header_by_num:get");
+        trace!("header_by_num:get");
 
         let future = self
             .remote_provider
@@ -226,7 +226,7 @@ where
         //.map(|b| b.header.inner);
 
         if block.is_none() {
-            debug!("header_by_num: got none");
+            trace!("header_by_num: got none");
             return Ok(None);
         }
 
@@ -236,15 +236,15 @@ where
 
         self.block_hash_cache.insert(header.number, hash);
 
-        debug!("header_by_num: got");
+        trace!("header_by_num: got");
         Ok(Some(header))
     }
 
     fn last_block_number(&self) -> ProviderResult<BlockNumber> {
         let id: u64 = rand::random();
-        let span = debug_span!("last_block_num", id);
+        let span = trace_span!("last_block_num", id);
         let _guard = span.enter();
-        debug!("last_block_num:get");
+        trace!("last_block_num:get");
 
         let future = self.remote_provider.get_block_number();
 
@@ -253,7 +253,7 @@ where
             .run(future)
             .map_err(transport_to_provider_error)?;
 
-        debug!("last_block_num: got");
+        trace!("last_block_num: got");
         Ok(block_num)
     }
 
@@ -350,13 +350,13 @@ where
         storage_key: StorageKey,
     ) -> ProviderResult<Option<StorageValue>> {
         let id: u64 = rand::random();
-        let span = debug_span!("storage", id);
+        let span = trace_span!("storage", id);
         let _guard = span.enter();
-        debug!("storage:get");
+        trace!("storage:get");
 
         if let Some(storage) = self.inner.storage_cache.get(&(account, storage_key)) {
             let storage_val = *storage;
-            debug!("got storage from cache");
+            trace!("got storage from cache");
             return Ok(Some(storage_val));
         }
 
@@ -377,7 +377,7 @@ where
             .storage_cache
             .insert((account, storage_key), storage);
 
-        debug!("got storage");
+        trace!("got storage");
         Ok(Some(storage))
     }
 
@@ -385,22 +385,22 @@ where
     /// IMPORTANT: Assumes remote provider (node) has RPC call:"rbuilder_getCodeByHash"
     fn bytecode_by_hash(&self, code_hash: &B256) -> ProviderResult<Option<Bytecode>> {
         let id: u64 = rand::random();
-        let span = debug_span!("bytecode", id);
+        let span = trace_span!("bytecode", id);
         let _guard = span.enter();
-        debug!("bytecode:get");
+        trace!("bytecode:get");
 
         if code_hash.is_zero() {
-            debug!("bytecode: hash is zero");
+            trace!("bytecode: hash is zero");
             return Ok(None);
         }
 
         if *code_hash == KECCAK_EMPTY {
-            debug!("bytecode: hash is empty");
+            trace!("bytecode: hash is empty");
             return Ok(None);
         }
 
         if let Some(bytecode) = self.inner.code_cache.get(code_hash) {
-            debug!("bytecode: cache hit");
+            trace!("bytecode: cache hit");
             return Ok(Some(bytecode.clone()));
         }
 
@@ -419,7 +419,7 @@ where
         let bytecode = Bytecode::new_raw(bytes);
 
         self.inner.code_cache.insert(*code_hash, bytecode.clone());
-        debug!("bytecode: got");
+        trace!("bytecode: got");
 
         Ok(Some(bytecode))
     }
@@ -432,12 +432,12 @@ where
     /// Get the hash of the block with the given number. Returns `None` if no block with this number exists
     fn block_hash(&self, number: BlockNumber) -> ProviderResult<Option<B256>> {
         //let id: u64 = rand::random();
-        //let span = debug_span!("block_hash 2:", id);
+        //let span = trace_span!("block_hash 2:", id);
         //let _guard = span.enter();
-        //debug!("block_hash 2: get");
+        //trace!("block_hash 2: get");
         //
         if let Some(hash) = self.inner.block_hash_cache.get(&number) {
-            // debug!("block_hash 2: cache hit");
+            // trace!("block_hash 2: cache hit");
             return Ok(Some(*hash));
         }
         let future = self
@@ -452,7 +452,7 @@ where
             .map_err(transport_to_provider_error)?;
 
         self.inner.block_hash_cache.insert(number, block_hash);
-        //debug!("block_hash 2: got");
+        //trace!("block_hash 2: got");
         Ok(Some(block_hash))
     }
 
@@ -473,12 +473,12 @@ where
     /// Returns `None` if the account doesn't exist.
     fn basic_account(&self, address: &Address) -> ProviderResult<Option<Account>> {
         let id: u64 = rand::random();
-        let span = debug_span!("account", id, address = address.to_string());
+        let span = trace_span!("account", id, address = address.to_string());
         let _guard = span.enter();
-        debug!("account: get");
+        trace!("account: get");
 
         if let Some(account) = self.inner.account_cache.get(address) {
-            debug!("account cache hit");
+            trace!("account cache hit");
             return Ok(Some(*account));
         }
 
@@ -504,7 +504,7 @@ where
 
         self.inner.account_cache.insert(*address, account);
 
-        debug!("account: got");
+        trace!("account: got");
         Ok(Some(account))
     }
 }
@@ -630,9 +630,9 @@ where
         outcome: &reth_provider::ExecutionOutcome,
     ) -> Result<B256, crate::roothash::RootHashError> {
         let id: u64 = rand::random();
-        let span = debug_span!("state_root", id, block = outcome.first_block);
+        let span = trace_span!("state_root", id, block = outcome.first_block);
         let _guard = span.enter();
-        debug!("state_root: get");
+        trace!("state_root: get");
 
         let account_diff: HashMap<Address, AccountDiff> = outcome
             .bundle
@@ -650,7 +650,7 @@ where
             .future_runner
             .run(future)
             .map_err(|_| crate::roothash::RootHashError::Verification)?;
-        debug!("state_root: got");
+        trace!("state_root: got");
 
         Ok(hash)
     }
@@ -725,18 +725,18 @@ impl FutureRunner {
         F: Future<Output = R>,
     {
         let id: u64 = rand::random();
-        let span = debug_span!("Future runner", id);
+        let span = trace_span!("Future runner", id);
         let _guard = span.enter();
-        debug!("Future::start");
+        trace!("Future::start");
         let r = tokio::task::block_in_place(move || {
-            debug!("Future::block_in_place");
+            trace!("Future::block_in_place");
             let fut = || {
-                debug!("Future::block_on");
+                trace!("Future::block_on");
                 f
             };
             self.runtime_handle.block_on(fut())
         });
-        debug!("Future::finished");
+        trace!("Future::finished");
         r
     }
 }

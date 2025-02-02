@@ -4,6 +4,7 @@ use crate::primitives::{
 };
 use ahash::HashMap;
 use alloy_eips::merge::SLOT_DURATION;
+use derive_more::derive::Display;
 use lru::LruCache;
 use reth::providers::StateProviderBox;
 use std::{
@@ -59,7 +60,7 @@ struct SinkSubscription {
 }
 
 /// returned by add_sink to be used on remove_sink
-#[derive(Debug, Eq, Hash, PartialEq, Clone)]
+#[derive(Debug, Eq, Hash, PartialEq, Clone, Display)]
 pub struct OrderPoolSubscriptionId(u64);
 
 /// Repository of ALL orders and cancellations that arrives us via process_commands. No processing is done here.
@@ -97,6 +98,7 @@ impl OrderPool {
     }
 
     pub fn process_commands(&mut self, commands: Vec<ReplaceableOrderPoolCommand>) {
+        info!("Processing commands");
         commands.into_iter().for_each(|oc| self.process_command(oc));
     }
 
@@ -153,12 +155,15 @@ impl OrderPool {
     }
 
     fn process_command(&mut self, command: ReplaceableOrderPoolCommand) {
+        info!("proccess_command before match");
         match &command {
             ReplaceableOrderPoolCommand::Order(order) => self.process_order(order),
             ReplaceableOrderPoolCommand::CancelShareBundle(c) => self.process_remove_sbundle(c),
             ReplaceableOrderPoolCommand::CancelBundle(key) => self.process_remove_bundle(key),
         }
+        info!("proccess_command after match, before sink");
         let target_block = command.target_block();
+
         self.sinks.retain(|_, sub| {
             if !sub.sink.is_alive() {
                 return false;
@@ -179,6 +184,7 @@ impl OrderPool {
             }
             true
         });
+        info!("proccess_command finsih");
     }
 
     /// Adds a sink and pushes the current state for the block

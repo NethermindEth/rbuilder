@@ -37,13 +37,19 @@ impl OrderPoolSubscriber {
         block_number: u64,
         sink: Box<dyn ReplaceableOrderSink>,
     ) -> OrderPoolSubscriptionId {
-        self.orderpool.lock().add_sink(block_number, sink)
+        let id = self.orderpool.lock().add_sink(block_number, sink);
+        info!(
+            "Adding sink for block {}, this takes lock, {}",
+            block_number, id
+        );
+        id
     }
 
     pub fn remove_sink(
         &self,
         id: &OrderPoolSubscriptionId,
     ) -> Option<Box<dyn ReplaceableOrderSink>> {
+        info!("Removing sink for subs id: {}, this takes lock", id);
         self.orderpool.lock().remove_sink(id)
     }
 
@@ -236,7 +242,9 @@ where
     }
 
     let handle = tokio::spawn(async move {
-        info!("OrderPoolJobs: started");
+        let id: u64 = rand::random();
+        let span = info_span!("Main Orderpool job", id);
+        let _guard = span.enter();
 
         // @Maybe we should add sleep here because each new order will trigger locking
         let mut new_commands = Vec::new();
@@ -287,6 +295,7 @@ where
                 info!("Going to process order pool commands and take the lock");
                 let mut orderpool = orderpool.lock();
                 orderpool.process_commands(new_commands.clone());
+                info!("Done orderpoool command processing")
             }
             new_commands.clear();
         }
