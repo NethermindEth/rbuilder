@@ -119,6 +119,7 @@ where
                     }
                 }
                 _ = self.block_cancellation.cancelled() => {
+                        debug!("Cancel sim job");
                     return;
                 }
             }

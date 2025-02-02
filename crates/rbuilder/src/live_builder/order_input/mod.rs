@@ -21,7 +21,7 @@ use std::{net::Ipv4Addr, path::PathBuf, sync::Arc, time::Duration};
 use std::{path::Path, time::Instant};
 use tokio::{sync::mpsc, task::JoinHandle};
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, error, info, trace, warn};
+use tracing::{debug, debug_span, error, info, trace, warn};
 
 use super::base_config::BaseConfig;
 
@@ -334,6 +334,11 @@ where
                     if let Some(header) = header {
                         let block_number = header.number;
                         set_current_block(block_number);
+
+                        let id: u64 = rand::random();
+                        let span = debug_span!("state_root", id, block = block_number);
+                        let _guard = span.enter();
+
                         let state = match provider_factory.latest() {
                             Ok(state) => state,
                             Err(err) => {
@@ -346,6 +351,7 @@ where
                         let mut orderpool = orderpool.lock();
                         let start = Instant::now();
 
+                        debug!("Calling head updated");
                         orderpool.head_updated(block_number, &state);
 
                         let update_time = start.elapsed();

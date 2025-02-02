@@ -570,15 +570,23 @@ impl<Tracer: SimulationTracer> PartialBlock<Tracer> {
         ctx: &BlockBuildingContext,
         state: &mut BlockState,
     ) -> Result<(), InsertPayoutTxErr> {
-        debug!("insert proposer payout tx {}", ctx.block_env.number);
+        let id: u64 = rand::random();
+        let block_number = ctx.block_env.number.to::<u64>();
+        let span = debug_span!("insert proposer payout tx", id, block_number);
+        let _guard = span.enter();
+
         let builder_signer = ctx
             .builder_signer
             .as_ref()
             .ok_or(InsertPayoutTxErr::NoSigner)?;
         self.free_reserved_gas();
+
+        debug!("Get nonce");
         let nonce = state
             .nonce(builder_signer.address)
             .map_err(CriticalCommitOrderError::Reth)?;
+        debug!("Get nonce end");
+
         let tx = create_payout_tx(
             ctx.chain_spec.as_ref(),
             ctx.block_env.basefee,
