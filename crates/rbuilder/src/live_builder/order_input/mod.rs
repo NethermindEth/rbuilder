@@ -283,13 +283,14 @@ where
                 })
             }
 
-            {
-                let mut orderpool = orderpool.lock();
+            info!("Going to process order pool commands and take the lock");
+            if let Some(mut orderpool) = orderpool.try_lock_for(Duration::from_millis(10)) {
+                info!("Got lock");
                 orderpool.process_commands(new_commands.clone());
+                info!("Done orderpoool command processing");
+                new_commands.clear();
             }
-            new_commands.clear();
         }
-
         for handle in handles {
             handle
                 .await
