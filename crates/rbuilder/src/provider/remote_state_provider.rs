@@ -88,11 +88,11 @@ where
     T: Transport + Clone + Debug,
 {
     fn latest(&self) -> ProviderResult<StateProviderBox> {
-        //info!("Latest state provider");
-        //let num = self.best_block_number()?;
-        //if let Some(state) = self.state_provider_by_num.get(&num) {
-        //    return Ok(state.clone());
-        //}
+        info!("Latest state provider");
+        let num = self.best_block_number()?;
+        if let Some(state) = self.state_provider_by_num.get(&num) {
+            return Ok(state.clone());
+        }
 
         let state = RemoteStateProvider::new(
             self.remote_provider.clone(),
@@ -105,7 +105,7 @@ where
         );
 
         let state = ArcRemoteStateProvider::boxed(state);
-        //        self.state_provider_by_num.insert(num, state.clone());
+        self.state_provider_by_num.insert(num, state.clone());
         Ok(state)
     }
 
