@@ -131,7 +131,7 @@ where
                 cancel: cancel.clone(),
             };
             let builder = builder.clone();
-            std::thread::spawn(move || {
+            tokio::task::spawn_blocking(move || {
                 builder.build_blocks(input);
                 debug!(block = block_number, builder_name, "Stopped builder job");
             });

@@ -128,6 +128,7 @@ impl OrderPool {
                 bundles_store.bundles.push(order.clone());
                 (order, Some(target_block))
             }
+
             Order::ShareBundle(bundle) => {
                 let target_block = bundle.block;
                 let bundles_store = self
