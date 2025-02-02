@@ -199,6 +199,7 @@ where
             }
         };
 
+        let mut cacnelation_tokens: Vec<CancellationToken> = Vec::new();
         while let Some(payload) = payload_events_channel.recv().await {
             if self.blocklist.contains(&payload.fee_recipient()) {
                 warn!(
@@ -296,6 +297,13 @@ where
                     blk_num,
                     max_time_to_build.as_millis()
                 );
+
+                for t in cacnelation_tokens.drain(0..) {
+                    t.cancel();
+                }
+
+                cacnelation_tokens.push(block_cancellation.clone());
+
                 builder_pool.start_block_building(
                     payload,
                     block_ctx,
