@@ -199,7 +199,7 @@ where
             }
         };
 
-        let mut cacnelation_tokens: Vec<CancellationToken> = Vec::new();
+        let mut cacnelation_tokens: Vec<(u64, CancellationToken)> = Vec::new();
         while let Some(payload) = payload_events_channel.recv().await {
             if self.blocklist.contains(&payload.fee_recipient()) {
                 warn!(
@@ -283,6 +283,7 @@ where
                 tokio::spawn(async move {
                     let start = std::time::Instant::now();
                     tokio::time::sleep(max_time_to_build).await;
+                    info!("Block building time out: will cancel {}", blk_num);
                     cancel.cancel();
 
                     info!(
@@ -298,11 +299,12 @@ where
                     max_time_to_build.as_millis()
                 );
 
-                for t in cacnelation_tokens.drain(0..) {
+                for (num, t) in cacnelation_tokens.drain(0..) {
                     t.cancel();
+                    info!("Cancelling token {}", num);
                 }
 
-                cacnelation_tokens.push(block_cancellation.clone());
+                cacnelation_tokens.push((blk_num, block_cancellation.clone()));
 
                 builder_pool.start_block_building(
                     payload,
