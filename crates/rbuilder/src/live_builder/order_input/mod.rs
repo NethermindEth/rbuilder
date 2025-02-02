@@ -21,7 +21,7 @@ use std::{net::Ipv4Addr, path::PathBuf, sync::Arc, time::Duration};
 use std::{path::Path, time::Instant};
 use tokio::{sync::mpsc, task::JoinHandle};
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, debug_span, error, info, trace, warn};
+use tracing::{debug, debug_span, error, info, info_span, trace, warn};
 
 use super::base_config::BaseConfig;
 
@@ -336,7 +336,7 @@ where
                         set_current_block(block_number);
 
                         let id: u64 = rand::random();
-                        let span = debug_span!("state_root", id, block = block_number);
+                        let span = info_span!("new head_cleaner", id, block = block_number);
                         let _guard = span.enter();
 
                         let state = match provider_factory.latest() {
@@ -351,13 +351,13 @@ where
                         let mut orderpool = orderpool.lock();
                         let start = Instant::now();
 
-                        debug!("Calling head updated");
+                        info!("Calling head updated");
                         orderpool.head_updated(block_number, &state);
 
                         let update_time = start.elapsed();
                         let (tx_count, bundle_count) = orderpool.content_count();
                         set_ordepool_count(tx_count, bundle_count);
-                        debug!(
+                        info!(
                             block_number,
                             tx_count,
                             bundle_count,
