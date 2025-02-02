@@ -284,6 +284,7 @@ where
             }
 
             {
+                info("Going to process order pool commands and take the lock");
                 let mut orderpool = orderpool.lock();
                 orderpool.process_commands(new_commands.clone());
             }
