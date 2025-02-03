@@ -238,7 +238,6 @@ impl OrderPool {
             if time.elapsed() > TIME_TO_KEEP_TXS {
                 return false;
             }
-            info!("head_updated: Nonce updater");
             for nonce in order.nonces() {
                 if nonce.optional {
                     continue;
