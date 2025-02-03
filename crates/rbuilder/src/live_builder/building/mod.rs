@@ -87,10 +87,12 @@ where
         // add OrderReplacementManager to manage replacements and cancellations
         let order_replacement_manager = OrderReplacementManager::new(Box::new(sink));
         // sink removal is automatic via OrderSink::is_alive false
-        let _block_sub = self.orderpool_subscriber.add_sink(
-            block_ctx.block_env.number.to(),
-            Box::new(order_replacement_manager),
-        );
+        {
+            let _block_sub = self.orderpool_subscriber.add_sink(
+                block_ctx.block_env.number.to(),
+                Box::new(order_replacement_manager),
+            );
+        }
 
         let simulations_for_block = self.order_simulation_pool.spawn_simulation_job(
             block_ctx.clone(),
