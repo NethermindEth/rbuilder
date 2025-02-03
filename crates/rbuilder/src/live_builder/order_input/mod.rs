@@ -28,34 +28,34 @@ use super::base_config::BaseConfig;
 /// Thread safe access to OrderPool to get orderflow
 #[derive(Debug)]
 pub struct OrderPoolSubscriber {
-    orderpool: Arc<Mutex<OrderPool>>,
+    orderpool: Arc<tokio::sync::Mutex<OrderPool>>,
 }
 
 impl OrderPoolSubscriber {
-    pub fn add_sink(
+    pub async fn add_sink(
         &self,
         block_number: u64,
         sink: Box<dyn ReplaceableOrderSink>,
     ) -> OrderPoolSubscriptionId {
-        self.orderpool.lock().add_sink(block_number, sink)
+        self.orderpool.lock().await.add_sink(block_number, sink)
     }
 
-    pub fn remove_sink(
+    pub async fn remove_sink(
         &self,
         id: &OrderPoolSubscriptionId,
     ) -> Option<Box<dyn ReplaceableOrderSink>> {
-        self.orderpool.lock().remove_sink(id)
+        self.orderpool.lock().await.remove_sink(id)
     }
 
     /// Returned AutoRemovingOrderPoolSubscriptionId will call remove when dropped
-    pub fn add_sink_auto_remove(
+    pub async fn add_sink_auto_remove(
         &self,
         block_number: u64,
         sink: Box<dyn ReplaceableOrderSink>,
     ) -> AutoRemovingOrderPoolSubscriptionId {
         AutoRemovingOrderPoolSubscriptionId {
             orderpool: self.orderpool.clone(),
-            id: self.add_sink(block_number, sink),
+            id: self.add_sink(block_number, sink).await,
         }
     }
 }
@@ -64,13 +64,17 @@ impl OrderPoolSubscriber {
 /// Call add_sink to get flow and remove_sink to stop it
 /// For easy auto remove we have add_sink_auto_remove
 pub struct AutoRemovingOrderPoolSubscriptionId {
-    orderpool: Arc<Mutex<OrderPool>>,
+    orderpool: Arc<tokio::sync::Mutex<OrderPool>>,
     id: OrderPoolSubscriptionId,
 }
 
 impl Drop for AutoRemovingOrderPoolSubscriptionId {
     fn drop(&mut self) {
-        self.orderpool.lock().remove_sink(&self.id);
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async {
+                self.orderpool.lock().await.remove_sink(&self.id);
+            });
+        });
     }
 }
 
@@ -200,7 +204,7 @@ where
         warn!("ignore_blobs is set to true, some order input is ignored");
     }
 
-    let orderpool = Arc::new(Mutex::new(OrderPool::new()));
+    let orderpool = Arc::new(tokio::sync::Mutex::new(OrderPool::new()));
     let subscriber = OrderPoolSubscriber {
         orderpool: orderpool.clone(),
     };
@@ -284,7 +288,7 @@ where
             }
 
             {
-                let mut orderpool = orderpool.lock();
+                let mut orderpool = orderpool.lock().await;
                 orderpool.process_commands(new_commands.clone());
             }
             new_commands.clear();
@@ -317,7 +321,7 @@ pub fn expand_path(path: &Path) -> eyre::Result<PathBuf> {
 async fn spawn_clean_orderpool_job<P>(
     header_receiver: mpsc::Receiver<Header>,
     provider_factory: P,
-    orderpool: Arc<Mutex<OrderPool>>,
+    orderpool: Arc<tokio::sync::Mutex<OrderPool>>,
     global_cancellation: CancellationToken,
 ) -> eyre::Result<JoinHandle<()>>
 where
@@ -343,7 +347,7 @@ where
                             }
                         };
 
-                        let mut orderpool = orderpool.lock();
+                        let mut orderpool = orderpool.lock().await;
                         let start = Instant::now();
 
                         orderpool.head_updated(block_number, &state);
