@@ -1,5 +1,5 @@
 use alloy_json_rpc::{ErrorPayload, RpcError};
-use std::{fmt::Debug, sync::Arc};
+use std::{fmt::Debug, fs::File, sync::Arc};
 
 use crate::{
     mev_boost::submission::SubmitBlockRequest,
@@ -86,10 +86,11 @@ impl ValidationAPIClient {
             parent_beacon_block_root,
         };
 
+        let _ = dump_validation_req_to_json_file(&request, method);
+
         // cancellation will make sure that all spawned tasks will terminate when function call is finished
         let cancellation_token = cancellation_token.child_token();
         let _cancel_guard = cancellation_token.clone().drop_guard();
-
         let (result_sender, mut result_receiver) = mpsc::channel(self.providers.len());
 
         for (i, provider) in self.providers.iter().enumerate() {
@@ -183,4 +184,15 @@ fn is_error_critical(msg: &str) -> bool {
     }
 
     true
+}
+
+fn dump_validation_req_to_json_file(req: &ValidRequest, method: &str) -> eyre::Result<()> {
+    let id = rand::random::<u8>();
+    let file_name = format!("{}_{}.json", method, id);
+    let file = File::create(&file_name)?;
+    serde_json::to_writer_pretty(file, req)?;
+
+    println!("Validation request saved to {}", file_name);
+
+    Ok(())
 }
