@@ -13,7 +13,7 @@ use std::{
     time::{Duration, Instant},
 };
 use tokio::sync::mpsc::{self};
-use tracing::{error, info, trace};
+use tracing::{debug, error, info, trace};
 
 use super::{
     order_sink::{OrderPoolCommand, OrderSender2OrderSink},
@@ -156,13 +156,13 @@ impl OrderPool {
     }
 
     fn process_command(&mut self, command: ReplaceableOrderPoolCommand) {
-        info!("proccess_command before match");
+        trace!("proccess_command before match");
         match &command {
             ReplaceableOrderPoolCommand::Order(order) => self.process_order(order),
             ReplaceableOrderPoolCommand::CancelShareBundle(c) => self.process_remove_sbundle(c),
             ReplaceableOrderPoolCommand::CancelBundle(key) => self.process_remove_bundle(key),
         }
-        info!("proccess_command after match, before sink");
+        trace!("proccess_command after match, before sink");
         let target_block = command.target_block();
 
         self.sinks.retain(|_, sub| {
@@ -185,7 +185,7 @@ impl OrderPool {
             }
             true
         });
-        info!("proccess_command finsih");
+        debug!("proccess_command finsih");
     }
 
     /// Adds a sink and pushes the current state for the block

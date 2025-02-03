@@ -290,11 +290,11 @@ where
                 })
             }
 
-            info!("Going to process order pool commands and take the lock");
+            debug!("Going to process order pool commands and take the lock");
             if let Some(mut orderpool) = orderpool.try_lock_for(Duration::from_millis(10)) {
-                info!("Got lock");
+                debug!("Got lock");
                 orderpool.process_commands(new_commands.clone());
-                info!("Done orderpoool command processing");
+                debug!("Done orderpoool command processing");
                 new_commands.clear();
             }
         }
