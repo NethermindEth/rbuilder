@@ -358,20 +358,12 @@ where
                         };
 
                         let start = Instant::now();
-                        let orderpool = orderpool.clone();
-                        let count = tokio::task::spawn_blocking(move || {
-                            let mut orderpool = orderpool.lock();
+                        if let Some(mut orderpool) = orderpool.try_lock_for(Duration::from_millis(10)) {
 
                             info!("Calling head updated");
-
-                            orderpool.head_updated(block_number, &state);
-                            orderpool.content_count()
-                         })
-                        .await.unwrap_or_default();
-
-
+                        orderpool.head_updated(block_number, &state);
                         let update_time = start.elapsed();
-                        let (tx_count, bundle_count) = count;
+                        let (tx_count, bundle_count) = orderpool.content_count();
 
                         set_ordepool_count(tx_count, bundle_count);
 
@@ -382,6 +374,7 @@ where
                             update_time_ms = update_time.as_millis(),
                             "Cleaned orderpool",
                         );
+                        }
                     } else {
                         info!("Clean orderpool job: channel ended");
                         if !global_cancellation.is_cancelled(){
