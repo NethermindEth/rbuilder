@@ -5,7 +5,7 @@ use crate::{
 };
 use alloy_primitives::U256;
 use std::{fmt::Debug, sync::Arc};
-use tracing::error;
+use tracing::{error, info, info_span};
 
 use super::{
     bid_value_source::interfaces::{BidValueObs, BidValueSource},
@@ -88,10 +88,12 @@ where
         slot_data: MevBoostSlotData,
         cancel: tokio_util::sync::CancellationToken,
     ) -> std::sync::Arc<dyn crate::building::builders::UnfinishedBlockBuildingSink> {
-        match self
-            .wallet_balance_watcher
-            .update_to_block(slot_data.block() - 1)
-        {
+        let id: u64 = rand::random();
+        let bn = slot_data.block() - 1;
+        let span = info_span!("create unfinsihed block sink", id, bn);
+        let _guard = span.enter();
+
+        match self.wallet_balance_watcher.update_to_block(bn) {
             Ok(landed_blocks) => self
                 .bidding_service
                 .update_new_landed_blocks_detected(&landed_blocks),
@@ -102,6 +104,7 @@ where
             }
         }
 
+        info!("Will cretae builder sink");
         let finished_block_sink = self.block_sink_factory.create_builder_sink(
             slot_data.clone(),
             self.competition_bid_value_source.clone(),
@@ -120,6 +123,7 @@ where
             ))
         };
 
+        info!("Created sealer");
         let slot_bidder: Arc<dyn SlotBidder> = self.bidding_service.create_slot_bidder(
             slot_data.block(),
             slot_data.slot(),
@@ -128,12 +132,14 @@ where
             cancel.clone(),
         );
 
+        info!("Created slot bidder");
         let res = BlockSealingBidder::new(
             slot_data,
             slot_bidder,
             self.competition_bid_value_source.clone(),
         );
 
+        info!("Created block sealing bidder");
         Arc::new(res)
     }
 }

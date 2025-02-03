@@ -98,7 +98,7 @@ impl OrderPool {
     }
 
     pub fn process_commands(&mut self, commands: Vec<ReplaceableOrderPoolCommand>) {
-        info!("Processing commands");
+        trace!("Processing commands");
         commands.into_iter().for_each(|oc| self.process_command(oc));
     }
 
