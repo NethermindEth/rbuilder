@@ -302,6 +302,7 @@ where
                 for (num, t) in cacnelation_tokens.drain(0..) {
                     t.cancel();
                     info!("Cancelling token {}", num);
+                    info!("Is cancelled? {}", t.is_cancelled());
                 }
 
                 cacnelation_tokens.push((blk_num, block_cancellation.clone()));
