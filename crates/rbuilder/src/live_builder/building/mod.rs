@@ -104,6 +104,7 @@ where
             payload,
             simulations_for_block,
             block_cancellation,
+            max_time_to_build,
         );
     }
 
@@ -114,6 +115,7 @@ where
         slot_data: MevBoostSlotData,
         input: SlotOrderSimResults,
         cancel: CancellationToken,
+        max_time_to_build: Duration,
     ) {
         let builder_sink = self.sink_factory.create_sink(slot_data, cancel.clone());
         let (broadcast_input, _) = broadcast::channel(10_000);
@@ -129,6 +131,9 @@ where
                 input: broadcast_input.subscribe(),
                 sink: builder_sink.clone(),
                 cancel: cancel.clone(),
+                ttl: std::time::Instant::now()
+                    .checked_add(max_time_to_build)
+                    .unwrap(),
             };
             let builder = builder.clone();
             tokio::task::spawn_blocking(move || {

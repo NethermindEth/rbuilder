@@ -44,6 +44,7 @@ pub struct LiveBuilderInput<P> {
     pub sink: Arc<dyn UnfinishedBlockBuildingSink>,
     pub builder_name: String,
     pub cancel: CancellationToken,
+    pub ttl: std::time::Instant,
 }
 
 /// Struct that helps reading new orders/cancellations
@@ -205,6 +206,7 @@ pub struct BlockBuildingAlgorithmInput<P> {
     /// output for the blocks
     pub sink: Arc<dyn UnfinishedBlockBuildingSink>,
     pub cancel: CancellationToken,
+    pub ttl: std::time::Instant,
 }
 
 /// Algorithm to build blocks

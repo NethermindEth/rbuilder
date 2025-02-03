@@ -391,6 +391,7 @@ where
             sink: input.sink,
             builder_name: self.name.clone(),
             cancel: input.cancel,
+            ttl: input.ttl,
         };
         run_parallel_builder(live_input, &self.config);
     }

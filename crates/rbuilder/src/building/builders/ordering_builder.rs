@@ -21,7 +21,7 @@ use reth::revm::cached::CachedReads;
 use serde::Deserialize;
 use std::time::{Duration, Instant};
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, error, info_span, trace};
+use tracing::{debug, error, info, info_span, trace};
 
 use super::{
     block_building_helper::BlockBuildingHelperFromProvider, handle_building_error,
@@ -90,8 +90,14 @@ where
     let mut block_exec_count = 0;
     'building: loop {
         block_exec_count += 1;
+        let no_more_time = std::time::Instant::now().ge(&input.ttl);
         if input.cancel.is_cancelled() {
-            debug!("canceled");
+            info!("canceled");
+            break 'building;
+        }
+
+        if no_more_time {
+            info!("no more time");
             break 'building;
         }
 
@@ -372,6 +378,7 @@ where
             sink: input.sink,
             builder_name: self.name.clone(),
             cancel: input.cancel,
+            ttl: input.ttl,
         };
         run_ordering_builder(live_input, &self.config);
     }
