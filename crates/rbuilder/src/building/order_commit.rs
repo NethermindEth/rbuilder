@@ -24,6 +24,7 @@ use revm::{
     primitives::{db::WrapDatabaseRef, EVMError, Env, ExecutionResult, InvalidTransaction, TxEnv},
     Database, DatabaseCommit, State,
 };
+use tracing::info_span;
 
 use crate::building::evm_inspector::{RBuilderEVMInspector, UsedStateTrace};
 use std::{collections::HashMap, sync::Arc};
@@ -766,6 +767,10 @@ impl<'a, 'b, Tracer: SimulationTracer> PartialBlockFork<'a, 'b, Tracer> {
         cumulative_blob_gas_used: u64,
         allow_tx_skip: bool,
     ) -> Result<Result<ShareBundleCommitResult, BundleErr>, CriticalCommitOrderError> {
+        let id: u64 = rand::random();
+        let span = info_span!("commit share budle inner no rollback", id, new_block);
+        let _guard = span.enter();
+
         let mut insert = BundleOk {
             gas_used: 0,
             cumulative_gas_used,

@@ -17,7 +17,7 @@ use simulation_job::SimulationJob;
 use std::sync::Arc;
 use tokio::{sync::mpsc, task::JoinHandle};
 use tokio_util::sync::CancellationToken;
-use tracing::{info_span, Instrument};
+use tracing::{info, info_span, Instrument};
 
 #[derive(Debug)]
 pub struct SlotOrderSimResults {
@@ -174,17 +174,24 @@ where
 
                 // clean up
                 {
+                    info!("spawn_sim_job_lock cleaning up, before lock");
                     let mut contexts = current_contexts.lock();
+                    info!("spawn_sim_job_lock cleaning up, lock taken");
                     contexts.contexts.remove(&block_context);
                 }
+
+                info!("spawn_sim_job_lock cleaning up, lock released");
             }
             .instrument(span),
         );
 
         {
+            info!("will take spawn_sim_job_lock");
             let mut tasks = self.running_tasks.lock();
+            info!("spawn_sim_job_lock, taken");
             tasks.retain(|handle| !handle.is_finished());
             tasks.push(handle);
+            info!("spawn_sim_job_lock, released");
         }
 
         SlotOrderSimResults {

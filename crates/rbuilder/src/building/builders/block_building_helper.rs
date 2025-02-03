@@ -6,7 +6,7 @@ use std::{
 };
 use time::OffsetDateTime;
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, debug_span, error, trace};
+use tracing::{debug, debug_span, error, info_span, trace};
 
 use crate::{
     building::{
@@ -164,6 +164,11 @@ where
         enforce_sorting: Option<Sorting>,
         cancel_on_fatal_error: CancellationToken,
     ) -> Result<Self, BlockBuildingHelperError> {
+        let id: u64 = rand::random();
+        let nb = building_ctx.block();
+        let span = info_span!("block_building_helper_new", nb, id);
+        let _guard = span.enter();
+
         // @Maybe an issue - we have 2 db txs here (one for hash and one for finalize)
         let state_provider = provider.history_by_block_hash(building_ctx.attributes.parent)?;
 
