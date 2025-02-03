@@ -1,7 +1,6 @@
+use alloy_consensus::SignableTransaction;
 use alloy_primitives::{Address, PrimitiveSignature as Signature, B256, U256};
-use reth_primitives::{
-    public_key_to_address, Transaction, TransactionSigned, TransactionSignedEcRecovered,
-};
+use reth_primitives::{public_key_to_address, Recovered, Transaction, TransactionSigned};
 use secp256k1::{Message, SecretKey, SECP256K1};
 
 /// Simple struct to sign txs/messages.
@@ -37,10 +36,10 @@ impl Signer {
     pub fn sign_tx(
         &self,
         tx: Transaction,
-    ) -> Result<TransactionSignedEcRecovered, secp256k1::Error> {
+    ) -> Result<Recovered<TransactionSigned>, secp256k1::Error> {
         let signature = self.sign_message(tx.signature_hash())?;
         let signed = TransactionSigned::new_unhashed(tx, signature);
-        Ok(TransactionSignedEcRecovered::new_unchecked(
+        Ok(Recovered::<TransactionSigned>::new_unchecked(
             signed,
             self.address,
         ))
@@ -80,6 +79,6 @@ mod test {
         assert_eq!(signed_tx.signer(), address);
 
         let signed = signed_tx.into_tx();
-        assert_eq!(signed.recover_signer(), Some(address));
+        assert_eq!(signed.recover_signer().ok(), Some(address));
     }
 }

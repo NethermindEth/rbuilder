@@ -5,20 +5,17 @@ pub mod mev_boost;
 
 use crate::{
     backtest::{
-        fetch::data_source::{BlockRef, DataSource},
-        BlockData,
+        fetch::{
+            data_source::{BlockRef, DataSource},
+            mev_boost::PayloadDeliveredFetcher,
+        },
+        BlockData, OrdersWithTimestamp,
     },
     mev_boost::BuilderBlockReceived,
     utils::timestamp_as_u64,
 };
-
-use alloy_provider::Provider;
+use alloy_provider::{Provider, RootProvider};
 use alloy_rpc_types::{Block, BlockId, BlockNumberOrTag, BlockTransactionsKind};
-
-use crate::{
-    backtest::{fetch::mev_boost::PayloadDeliveredFetcher, OrdersWithTimestamp},
-    utils::BoxedProvider,
-};
 use eyre::WrapErr;
 use flashbots_db::RelayDB;
 use futures::TryStreamExt;
@@ -41,14 +38,14 @@ use tracing::{info, trace};
 /// 2 - call [HistoricalDataFetcher::fetch_historical_data] for all the needed blocks
 #[derive(Debug, Clone)]
 pub struct HistoricalDataFetcher {
-    eth_provider: BoxedProvider,
+    eth_provider: RootProvider,
     eth_rpc_parallel: usize,
     data_sources: Vec<Box<dyn DataSource>>,
     payload_delivered_fetcher: PayloadDeliveredFetcher,
 }
 
 impl HistoricalDataFetcher {
-    pub fn new(eth_provider: BoxedProvider, eth_rpc_parallel: usize) -> Self {
+    pub fn new(eth_provider: RootProvider, eth_rpc_parallel: usize) -> Self {
         Self {
             eth_provider,
             eth_rpc_parallel,

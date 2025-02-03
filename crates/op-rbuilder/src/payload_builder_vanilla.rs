@@ -16,10 +16,14 @@ use alloy_eips::merge::BEACON_NONCE;
 use alloy_primitives::{Address, Bytes, TxKind, B256, U256};
 use alloy_rpc_types_engine::PayloadId;
 use op_alloy_consensus::{OpDepositReceipt, OpTxType, OpTypedTransaction};
+use alloy_rpc_types_eth::Withdrawals;
+use reth::core::primitives::InMemorySize;
 use reth_basic_payload_builder::*;
-use reth_chain_state::ExecutedBlock;
+use reth_chain_state::{ExecutedBlock, ExecutedBlockWithTrieUpdates};
 use reth_chainspec::{ChainSpecProvider, EthereumHardforks};
-use reth_evm::{env::EvmEnv, system_calls::SystemCaller, ConfigureEvm, NextBlockEnvAttributes};
+use reth_evm::{
+    env::EvmEnv, system_calls::SystemCaller, ConfigureEvm, Evm, NextBlockEnvAttributes,
+};
 use reth_execution_types::ExecutionOutcome;
 use reth_optimism_chainspec::OpChainSpec;
 use reth_optimism_consensus::calculate_receipt_root_no_memo_optimism;
@@ -33,24 +37,22 @@ use reth_payload_builder_primitives::PayloadBuilderError;
 use reth_payload_primitives::PayloadBuilderAttributes;
 use reth_payload_util::PayloadTransactions;
 use reth_primitives::{
-    proofs, transaction::SignedTransactionIntoRecoveredExt, Block, BlockBody, BlockExt,
-    SealedHeader, TxType,
+    transaction::SignedTransactionIntoRecoveredExt, Block, BlockBody, RecoveredBlock, SealedHeader,
 };
+use reth_primitives_traits::{proofs, Block as _};
 use reth_provider::{
     HashedPostStateProvider, ProviderError, StateProviderFactory, StateRootProvider,
 };
 use reth_revm::database::StateProviderDatabase;
 use reth_transaction_pool::pool::BestPayloadTransactions;
-use reth_transaction_pool::{BestTransactionsAttributes, TransactionPool};
+use reth_transaction_pool::{BestTransactionsAttributes, PoolTransaction, TransactionPool};
 use revm::{
     db::{states::bundle_state::BundleRetention, State},
-    primitives::{
-        BlockEnv, CfgEnvWithHandlerCfg, EVMError, EnvWithHandlerCfg, InvalidTransaction,
-        ResultAndState, TxEnv,
-    },
+    primitives::{EVMError, InvalidTransaction, ResultAndState, SpecId},
     Database, DatabaseCommit,
 };
 use tokio_util::sync::CancellationToken;
+use std::{fmt::Display, sync::Arc, time::Instant};
 use tracing::{info, trace, warn};
 
 /// Optimism's payload builder
@@ -83,7 +85,12 @@ impl<EvmConfig, Pool, Client> PayloadBuilder<Pool, Client> for OpPayloadBuilderV
 where
     Client: StateProviderFactory + ChainSpecProvider<ChainSpec = OpChainSpec>,
     Pool: TransactionPool<Transaction: PoolTransaction<Consensus = EvmConfig::Transaction>>,
-    EvmConfig: ConfigureEvm<Header = Header, Transaction = OpTransactionSigned>,
+    EvmConfig: ConfigureEvm<
+        Spec = SpecId,
+        Header = Header,
+        Transaction = OpTransactionSigned,
+        EvmError<ProviderError> = EVMError<ProviderError>,
+    >,
 {
     type Attributes = OpPayloadBuilderAttributes;
     type BuiltPayload = OpBuiltPayload;
@@ -129,7 +136,12 @@ where
 
 impl<EvmConfig> OpPayloadBuilderVanilla<EvmConfig>
 where
-    EvmConfig: ConfigureEvm<Header = Header, Transaction = OpTransactionSigned>,
+    EvmConfig: ConfigureEvm<
+        Spec = SpecId,
+        Header = Header,
+        Transaction = OpTransactionSigned,
+        EvmError<ProviderError> = EVMError<ProviderError>,
+    >,
 {
     /// Constructs an Optimism payload from the transactions sent via the
     /// Payload attributes by the sequencer. If the `no_tx_pool` argument is passed in
@@ -152,10 +164,6 @@ where
         let evm_env = self
             .cfg_and_block_env(&args.config.attributes, &args.config.parent_header)
             .map_err(PayloadBuilderError::other)?;
-        let EvmEnv {
-            cfg_env_with_handler_cfg,
-            block_env,
-        } = evm_env;
 
         let BuildArguments {
             client,
@@ -169,8 +177,7 @@ where
             evm_config: self.evm_config.clone(),
             chain_spec: client.chain_spec(),
             config,
-            initialized_cfg: cfg_env_with_handler_cfg,
-            initialized_block_env: block_env,
+            evm_env,
             cancel,
             builder_signer: self.builder_signer,
             metrics: Default::default(),
@@ -201,7 +208,7 @@ where
 
 impl<EvmConfig, Txs> OpPayloadBuilderVanilla<EvmConfig, Txs>
 where
-    EvmConfig: ConfigureEvm<Header = Header>,
+    EvmConfig: ConfigureEvm<Spec = SpecId, Header = Header>,
 {
     /// Returns the configured [`EvmEnv`] for the targeted payload
     /// (that has the `parent` as its parent).
@@ -216,8 +223,7 @@ where
             prev_randao: attributes.prev_randao(),
             gas_limit: attributes.gas_limit.unwrap_or(parent.gas_limit),
         };
-        self.evm_config
-            .next_cfg_and_block_env(parent, next_attributes)
+        self.evm_config.next_evm_env(parent, next_attributes)
     }
 }
 
@@ -261,7 +267,12 @@ where
         ctx: &OpPayloadBuilderCtx<EvmConfig>,
     ) -> Result<BuildOutcomeKind<ExecutedPayload>, PayloadBuilderError>
     where
-        EvmConfig: ConfigureEvm<Header = Header, Transaction = OpTransactionSigned>,
+        EvmConfig: ConfigureEvm<
+            Spec = SpecId,
+            Header = Header,
+            Transaction = OpTransactionSigned,
+            EvmError<ProviderError> = EVMError<ProviderError>,
+        >,
         DB: Database<Error = ProviderError>,
     {
         let Self { best } = self;
@@ -339,7 +350,12 @@ where
         ctx: OpPayloadBuilderCtx<EvmConfig>,
     ) -> Result<BuildOutcomeKind<OpBuiltPayload>, PayloadBuilderError>
     where
-        EvmConfig: ConfigureEvm<Header = Header, Transaction = OpTransactionSigned>,
+        EvmConfig: ConfigureEvm<
+            Spec = SpecId,
+            Header = Header,
+            Transaction = OpTransactionSigned,
+            EvmError<ProviderError> = EVMError<ProviderError>,
+        >,
         DB: Database<Error = ProviderError> + AsRef<P>,
         P: StateRootProvider + HashedPostStateProvider,
     {
@@ -407,7 +423,7 @@ where
         let header = Header {
             parent_hash: ctx.parent().hash(),
             ommers_hash: EMPTY_OMMER_ROOT_HASH,
-            beneficiary: ctx.initialized_block_env.coinbase,
+            beneficiary: ctx.evm_env.block_env.coinbase,
             state_root,
             transactions_root,
             receipts_root,
@@ -439,14 +455,18 @@ where
         };
 
         let sealed_block = Arc::new(block.seal_slow());
-        info!(target: "payload_builder", id=%ctx.attributes().payload_id(), sealed_block_header = ?sealed_block.header, "sealed built block");
+        info!(target: "payload_builder", id=%ctx.attributes().payload_id(), sealed_block_header = ?sealed_block.header(), "sealed built block");
 
         // create the executed block data
-        let executed: ExecutedBlock<OpPrimitives> = ExecutedBlock {
-            block: sealed_block.clone(),
-            senders: Arc::new(info.executed_senders),
-            execution_output: Arc::new(execution_outcome),
-            hashed_state: Arc::new(hashed_state),
+        let executed: ExecutedBlockWithTrieUpdates<OpPrimitives> = ExecutedBlockWithTrieUpdates {
+            block: ExecutedBlock {
+                recovered_block: Arc::new(RecoveredBlock::new_sealed(
+                    sealed_block.as_ref().clone(),
+                    info.executed_senders,
+                )),
+                execution_output: Arc::new(execution_outcome),
+                hashed_state: Arc::new(hashed_state),
+            },
             trie: Arc::new(trie_output),
         };
 
@@ -547,10 +567,8 @@ pub struct OpPayloadBuilderCtx<EvmConfig> {
     pub chain_spec: Arc<OpChainSpec>,
     /// How to build the payload.
     pub config: PayloadConfig<OpPayloadBuilderAttributes>,
-    /// Evm Settings
-    pub initialized_cfg: CfgEnvWithHandlerCfg,
-    /// Block config
-    pub initialized_block_env: BlockEnv,
+    /// EVM environment.
+    pub evm_env: EvmEnv,
     /// Marker to check whether the job has been cancelled.
     pub cancel: CancellationToken,
     /// The builder signer
@@ -581,22 +599,23 @@ impl<EvmConfig> OpPayloadBuilderCtx<EvmConfig> {
     pub fn block_gas_limit(&self) -> u64 {
         self.attributes()
             .gas_limit
-            .unwrap_or_else(|| self.initialized_block_env.gas_limit.saturating_to())
+            .unwrap_or_else(|| self.evm_env.block_env.gas_limit.saturating_to())
     }
 
     /// Returns the block number for the block.
     pub fn block_number(&self) -> u64 {
-        self.initialized_block_env.number.to()
+        self.evm_env.block_env.number.to()
     }
 
     /// Returns the current base fee
     pub fn base_fee(&self) -> u64 {
-        self.initialized_block_env.basefee.to()
+        self.evm_env.block_env.basefee.to()
     }
 
     /// Returns the current blob gas price.
     pub fn get_blob_gasprice(&self) -> Option<u64> {
-        self.initialized_block_env
+        self.evm_env
+            .block_env
             .get_blob_gasprice()
             .map(|gasprice| gasprice as u64)
     }
@@ -712,7 +731,12 @@ impl<EvmConfig> OpPayloadBuilderCtx<EvmConfig> {
 
 impl<EvmConfig> OpPayloadBuilderCtx<EvmConfig>
 where
-    EvmConfig: ConfigureEvm<Header = Header, Transaction = OpTransactionSigned>,
+    EvmConfig: ConfigureEvm<
+        Spec = SpecId,
+        Header = Header,
+        Transaction = OpTransactionSigned,
+        EvmError<ProviderError> = EVMError<ProviderError>,
+    >,
 {
     /// apply eip-4788 pre block contract call
     pub fn apply_pre_beacon_root_contract_call<DB>(
@@ -720,14 +744,12 @@ where
         db: &mut DB,
     ) -> Result<(), PayloadBuilderError>
     where
-        DB: Database + DatabaseCommit,
-        DB::Error: Display,
+        DB: Database<Error = ProviderError> + DatabaseCommit,
     {
         SystemCaller::new(self.evm_config.clone(), self.chain_spec.clone())
             .pre_block_beacon_root_contract_call(
                 db,
-                &self.initialized_cfg,
-                &self.initialized_block_env,
+                &self.evm_env,
                 self.attributes()
                     .payload_attributes
                     .parent_beacon_block_root,
@@ -754,13 +776,7 @@ where
     {
         let mut info = ExecutionInfo::with_capacity(self.attributes().transactions.len());
 
-        let env = EnvWithHandlerCfg::new_with_cfg_env(
-            self.initialized_cfg.clone(),
-            self.initialized_block_env.clone(),
-            TxEnv::default(),
-        );
-        let mut evm = self.evm_config.evm_with_env(&mut *db, env);
-
+        let mut evm = self.evm_config.evm_with_env(&mut *db, self.evm_env.clone());
         for sequencer_tx in &self.attributes().transactions {
             // A sequencer's block should never contain blob transactions.
             if sequencer_tx.value().is_eip4844() {
@@ -769,14 +785,13 @@ where
                 ));
             }
 
-            // Convert the transaction to a [TransactionSignedEcRecovered]. This is
+            // Convert the transaction to a [RecoveredTx]. This is
             // purely for the purposes of utilizing the `evm_config.tx_env`` function.
             // Deposit transactions do not have signatures, so if the tx is a deposit, this
             // will just pull in its `from` address.
             let sequencer_tx = sequencer_tx
                 .value()
-                .clone()
-                .try_into_ecrecovered()
+                .try_clone_into_recovered()
                 .map_err(|_| {
                     PayloadBuilderError::other(OpPayloadBuilderError::TransactionEcRecoverFailed)
                 })?;
@@ -799,11 +814,11 @@ where
                     ))
                 })?;
 
-            *evm.tx_mut() = self
+            let tx_env = self
                 .evm_config
                 .tx_env(sequencer_tx.tx(), sequencer_tx.signer());
 
-            let ResultAndState { result, state } = match evm.transact() {
+            let ResultAndState { result, state } = match evm.transact(tx_env) {
                 Ok(res) => res,
                 Err(err) => {
                     match err {
@@ -813,7 +828,7 @@ where
                         }
                         err => {
                             // this is an error that we should treat as fatal for this attempt
-                            return Err(PayloadBuilderError::EvmExecutionError(err));
+                            return Err(PayloadBuilderError::EvmExecutionError(Box::new(err)));
                         }
                     }
                 }
@@ -878,13 +893,7 @@ where
         let mut num_txs_simulated_fail = 0;
         let base_fee = self.base_fee();
 
-        let env = EnvWithHandlerCfg::new_with_cfg_env(
-            self.initialized_cfg.clone(),
-            self.initialized_block_env.clone(),
-            TxEnv::default(),
-        );
-        let mut evm = self.evm_config.evm_with_env(&mut *db, env);
-
+        let mut evm = self.evm_config.evm_with_env(&mut *db, self.evm_env.clone());
         while let Some(tx) = best_txs.next(()) {
             num_txs_considered += 1;
             // ensure we still have capacity for this transaction
@@ -897,7 +906,7 @@ where
             }
 
             // A sequencer's block should never contain blob or deposit transactions from the pool.
-            if tx.is_eip4844() || tx.tx_type() == TxType::Deposit as u8 {
+            if tx.is_eip4844() || tx.tx_type() == OpTxType::Deposit as u8 {
                 best_txs.mark_invalid(tx.signer(), tx.nonce());
                 continue;
             }
@@ -908,11 +917,11 @@ where
             }
 
             // Configure the environment for the tx.
-            *evm.tx_mut() = self.evm_config.tx_env(tx.tx(), tx.signer());
+            let tx_env = self.evm_config.tx_env(tx.tx(), tx.signer());
 
             let tx_simulation_start_time = Instant::now();
 
-            let ResultAndState { result, state } = match evm.transact() {
+            let ResultAndState { result, state } = match evm.transact(tx_env) {
                 Ok(res) => res,
                 Err(err) => {
                     match err {
@@ -931,7 +940,7 @@ where
                         }
                         err => {
                             // this is an error that we should treat as fatal for this attempt
-                            return Err(PayloadBuilderError::EvmExecutionError(err));
+                            return Err(PayloadBuilderError::EvmExecutionError(Box::new(err)));
                         }
                     }
                 }
@@ -1046,17 +1055,11 @@ where
                 // Sign the transaction
                 let builder_tx = signer.sign_tx(tx).map_err(PayloadBuilderError::other)?;
 
-                let env = EnvWithHandlerCfg::new_with_cfg_env(
-                    self.initialized_cfg.clone(),
-                    self.initialized_block_env.clone(),
-                    TxEnv::default(),
-                );
-                let mut evm = self.evm_config.evm_with_env(&mut *db, env);
-                *evm.tx_mut() = self.evm_config.tx_env(builder_tx.tx(), builder_tx.signer());
-
+                let mut evm = self.evm_config.evm_with_env(&mut *db, self.evm_env.clone());
+                let tx_env = self.evm_config.tx_env(builder_tx.tx(), builder_tx.signer());
                 let ResultAndState { result, state } = evm
-                    .transact()
-                    .map_err(PayloadBuilderError::EvmExecutionError)?;
+                    .transact(tx_env)
+                    .map_err(|err| PayloadBuilderError::EvmExecutionError(Box::new(err)))?;
 
                 // Release the db reference by dropping evm
                 drop(evm);

@@ -2,22 +2,29 @@ use clap::Parser;
 use generator::CustomOpPayloadBuilder;
 use monitoring::Monitoring;
 use payload_builder_vanilla::OpPayloadBuilderVanilla;
-use reth::builder::Node;
-use reth::providers::CanonStateSubscriptions;
 use reth::{
-    builder::{engine_tree_config::TreeConfig, EngineNodeLauncher},
-    providers::providers::BlockchainProvider2,
+    builder::{
+        components::PayloadServiceBuilder, engine_tree_config::TreeConfig, node::FullNodeTypes,
+        BuilderContext, EngineNodeLauncher, Node,
+    },
+    payload::PayloadBuilderHandle,
+    providers::{providers::BlockchainProvider, CanonStateSubscriptions},
+    transaction_pool::TransactionPool,
 };
+use reth_basic_payload_builder::BasicPayloadJobGeneratorConfig;
+use reth_node_api::{NodeTypesWithEngine, TxTy};
+use reth_optimism_chainspec::OpChainSpec;
 use reth_optimism_cli::{chainspec::OpChainSpecParser, Cli};
 use reth_optimism_evm::OpEvmConfig;
-use reth_optimism_node::OpNode;
+use reth_optimism_node::{OpEngineTypes, OpNode};
+use reth_payload_builder::PayloadBuilderService;
+use tx_signer::Signer;
 
 /// CLI argument parsing.
 pub mod args;
 
 pub mod generator;
-#[cfg(test)]
-mod integration;
+
 mod metrics;
 mod monitoring;
 pub mod payload_builder;
@@ -37,12 +44,12 @@ fn main() {
             );
 
             let engine_tree_config = TreeConfig::default()
-                .with_persistence_threshold(rollup_args.persistence_threshold)
-                .with_memory_block_buffer_target(rollup_args.memory_block_buffer_target);
+                .with_persistence_threshold(builder_args.engine.persistence_threshold)
+                .with_memory_block_buffer_target(builder_args.engine.memory_block_buffer_target);
 
-            let op_node = OpNode::new(rollup_args.clone());
+            let op_node = OpNode::new(builder_args.rollup_args);
             let handle = builder
-                .with_types_and_provider::<OpNode, BlockchainProvider2<_>>()
+                .with_types_and_provider::<OpNode, BlockchainProvider<_>>()
                 .with_components(
                     op_node
                         .components()

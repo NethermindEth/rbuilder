@@ -103,8 +103,7 @@ fn test_read_balance() -> eyre::Result<()> {
 
     let mev_test_contract_addr = test_setup.named_address(NamedAddr::MevTest)?;
     let dummy_addr = test_setup.named_address(NamedAddr::Dummy)?;
-    let tx: reth_primitives::TransactionSignedEcRecovered =
-        test_setup.make_test_read_balance_tx(dummy_addr, 100)?;
+    let tx = test_setup.make_test_read_balance_tx(dummy_addr, 100)?;
     let used_state_trace = test_setup.inspect_tx_without_commit(tx)?;
 
     assert_eq!(used_state_trace.read_balances.len(), 2);
@@ -125,8 +124,7 @@ fn test_ephemeral_contract_destruct() -> eyre::Result<()> {
     let test_setup = TestSetup::new()?;
 
     let refund_addr = test_setup.named_address(NamedAddr::Dummy)?;
-    let tx: reth_primitives::TransactionSignedEcRecovered =
-        test_setup.make_test_ephemeral_contract_destruct_tx(refund_addr, 100)?;
+    let tx = test_setup.make_test_ephemeral_contract_destruct_tx(refund_addr, 100)?;
     let used_state_trace = test_setup.inspect_tx_without_commit(tx)?;
 
     assert_eq!(used_state_trace.created_contracts.len(), 1);

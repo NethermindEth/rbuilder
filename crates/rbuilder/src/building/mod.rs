@@ -10,10 +10,6 @@ pub mod payout_tx;
 pub mod sim;
 pub mod testing;
 pub mod tracers;
-use alloy_consensus::{Header, EMPTY_OMMER_ROOT_HASH};
-use alloy_primitives::{Address, Bytes, U256};
-use builders::mock_block_building_helper::MockRootHasher;
-use reth_primitives::{BlockBody, BlockExt};
 
 use crate::{
     primitives::{Order, OrderId, SimValue, SimulatedOrder, TransactionSignedEcRecoveredWithBlobs},
@@ -22,6 +18,7 @@ use crate::{
     utils::{a2r_withdrawal, timestamp_as_u64, Signer},
 };
 use ahash::HashSet;
+use alloy_consensus::{Header, EMPTY_OMMER_ROOT_HASH};
 use alloy_eips::{
     eip1559::{calculate_block_gas_limit, ETHEREUM_BLOCK_GAS_LIMIT},
     eip4844::BlobTransactionSidecar,
@@ -33,11 +30,13 @@ use alloy_eips::{
     eip7840::BlobParams,
     merge::BEACON_NONCE,
 };
+use alloy_primitives::{Address, Bytes, U256};
 use alloy_rpc_types_beacon::events::PayloadAttributesEvent;
+use builders::mock_block_building_helper::MockRootHasher;
 use jsonrpsee::core::Serialize;
 use reth::{
     payload::PayloadId,
-    primitives::{proofs, Block, Receipt, Receipts, SealedBlock},
+    primitives::{Block, Receipt, Receipts, SealedBlock},
     providers::ExecutionOutcome,
     revm::cached::CachedReads,
 };
@@ -50,9 +49,11 @@ use reth_evm_ethereum::{
 };
 use reth_node_api::{EngineApiMessageVersion, PayloadBuilderAttributes};
 use reth_payload_builder::EthPayloadBuilderAttributes;
+use reth_primitives::BlockBody;
+use reth_primitives_traits::{proofs, Block as _};
 use revm::{
     db::states::bundle_state::BundleRetention,
-    primitives::{BlobExcessGasAndPrice, BlockEnv, CfgEnvWithHandlerCfg, SpecId},
+    primitives::{BlobExcessGasAndPrice, BlockEnv, SpecId},
 };
 use revm_primitives::InvalidTransaction;
 use serde::Deserialize;
@@ -77,8 +78,7 @@ pub use sim::simulate_order;
 
 #[derive(Debug, Clone)]
 pub struct BlockBuildingContext {
-    pub block_env: BlockEnv,
-    pub initialized_cfg: CfgEnvWithHandlerCfg,
+    pub evm_env: EvmEnv,
     pub attributes: EthPayloadBuilderAttributes,
     pub chain_spec: Arc<ChainSpec>,
     /// Signer to sign builder payoffs (end of block and mev-share).
@@ -98,7 +98,7 @@ pub struct BlockBuildingContext {
 impl BlockBuildingContext {
     #[allow(clippy::too_many_arguments)]
     /// spec_id None: we use the proper SpecId for the block timestamp.
-    /// We are forced to return Option since next_cfg_and_block_env returns Result although it never fails! (reth v1.1.1)
+    /// We are forced to return Option since next_evm_env returns Result although it never fails! (reth v1.1.1)
     pub fn from_attributes(
         attributes: PayloadAttributesEvent,
         parent: &Header,
@@ -123,11 +123,9 @@ impl BlockBuildingContext {
             // the protocol does NOT cap the block to ETHEREUM_BLOCK_GAS_LIMIT.
             prefer_gas_limit.unwrap_or(ETHEREUM_BLOCK_GAS_LIMIT),
         );
-        let EvmEnv {
-            cfg_env_with_handler_cfg,
-            mut block_env,
-        } = eth_evm_config
-            .next_cfg_and_block_env(
+
+        let mut evm_env = eth_evm_config
+            .next_evm_env(
                 parent,
                 NextBlockEnvAttributes {
                     timestamp: attributes.timestamp(),
@@ -137,7 +135,7 @@ impl BlockBuildingContext {
                 },
             )
             .ok()?;
-        block_env.coinbase = signer.address;
+        evm_env.block_env.coinbase = signer.address;
 
         let excess_blob_gas = if chain_spec.is_cancun_active_at_timestamp(attributes.timestamp) {
             if chain_spec.is_cancun_active_at_timestamp(parent.timestamp) {
@@ -165,8 +163,7 @@ impl BlockBuildingContext {
             )
         });
         Some(BlockBuildingContext {
-            block_env,
-            initialized_cfg: cfg_env_with_handler_cfg,
+            evm_env,
             attributes,
             chain_spec,
             builder_signer: Some(signer),
@@ -247,9 +244,12 @@ impl BlockBuildingContext {
                 onchain_block.header.number,
             )
         });
+
+        // TODO: revise
+        let evm_env = EvmEnv::from((cfg, block_env));
+
         BlockBuildingContext {
-            block_env,
-            initialized_cfg: cfg,
+            evm_env,
             attributes,
             chain_spec,
             builder_signer,
@@ -279,7 +279,7 @@ impl BlockBuildingContext {
 
     pub fn modify_use_suggested_fee_recipient_as_coinbase(&mut self) {
         self.builder_signer = None;
-        self.block_env.coinbase = self.attributes.suggested_fee_recipient;
+        self.evm_env.block_env.coinbase = self.attributes.suggested_fee_recipient;
     }
 
     pub fn timestamp(&self) -> OffsetDateTime {
@@ -288,11 +288,11 @@ impl BlockBuildingContext {
     }
 
     pub fn block(&self) -> u64 {
-        self.block_env.number.to()
+        self.evm_env.block_env.number.to()
     }
 
     pub fn coinbase_is_suggested_fee_recipient(&self) -> bool {
-        self.block_env.coinbase == self.attributes.suggested_fee_recipient
+        self.evm_env.block_env.coinbase == self.attributes.suggested_fee_recipient
     }
 }
 
@@ -558,7 +558,7 @@ impl<Tracer: SimulationTracer> PartialBlock<Tracer> {
         ctx: &BlockBuildingContext,
     ) -> Result<U256, InsertPayoutTxErr> {
         self.coinbase_profit
-            .checked_sub(U256::from(gas_limit) * ctx.block_env.basefee)
+            .checked_sub(U256::from(gas_limit) * ctx.evm_env.block_env.basefee)
             .ok_or(InsertPayoutTxErr::ProfitTooLow)
     }
 
@@ -581,7 +581,7 @@ impl<Tracer: SimulationTracer> PartialBlock<Tracer> {
             .map_err(CriticalCommitOrderError::Reth)?;
         let tx = create_payout_tx(
             ctx.chain_spec.as_ref(),
-            ctx.block_env.basefee,
+            ctx.evm_env.block_env.basefee,
             builder_signer,
             nonce,
             ctx.attributes.suggested_fee_recipient,
@@ -626,18 +626,10 @@ impl<Tracer: SimulationTracer> PartialBlock<Tracer> {
                 parse_deposits_from_receipts(&ctx.chain_spec, self.receipts.iter())
                     .map_err(|err| FinalizeError::Other(err.into()))?;
             let withdrawal_requests = system_caller
-                .post_block_withdrawal_requests_contract_call(
-                    db.as_mut(),
-                    &ctx.initialized_cfg,
-                    &ctx.block_env,
-                )
+                .post_block_withdrawal_requests_contract_call(db.as_mut(), &ctx.evm_env)
                 .map_err(|err| FinalizeError::Other(err.into()))?;
             let consolidation_requests = system_caller
-                .post_block_consolidation_requests_contract_call(
-                    db.as_mut(),
-                    &ctx.initialized_cfg,
-                    &ctx.block_env,
-                )
+                .post_block_consolidation_requests_contract_call(db.as_mut(), &ctx.evm_env)
                 .map_err(|err| FinalizeError::Other(err.into()))?;
 
             let mut requests = Requests::default();
@@ -671,16 +663,12 @@ impl<Tracer: SimulationTracer> PartialBlock<Tracer> {
         };
 
         let (cached_reads, bundle) = state.clone_bundle_and_cache();
-        let block_number = ctx.block_env.number.to::<u64>();
+        let block_number = ctx.evm_env.block_env.number.to::<u64>();
 
         let requests_hash = requests.as_ref().map(|requests| requests.requests_hash());
         let execution_outcome = ExecutionOutcome::new(
             bundle,
-            Receipts::from(vec![self
-                .receipts
-                .into_iter()
-                .map(Option::Some)
-                .collect::<Vec<_>>()]),
+            Receipts::from(vec![self.receipts]),
             block_number,
             vec![requests.clone().unwrap_or_default()],
         );
@@ -733,7 +721,7 @@ impl<Tracer: SimulationTracer> PartialBlock<Tracer> {
         let header = Header {
             parent_hash: ctx.attributes.parent,
             ommers_hash: EMPTY_OMMER_ROOT_HASH,
-            beneficiary: ctx.block_env.coinbase,
+            beneficiary: ctx.evm_env.block_env.coinbase,
             state_root,
             transactions_root,
             receipts_root,
@@ -742,9 +730,9 @@ impl<Tracer: SimulationTracer> PartialBlock<Tracer> {
             timestamp: ctx.attributes.timestamp,
             mix_hash: ctx.attributes.prev_randao,
             nonce: BEACON_NONCE.into(),
-            base_fee_per_gas: Some(ctx.block_env.basefee.to()),
+            base_fee_per_gas: Some(ctx.evm_env.block_env.basefee.to()),
             number: block_number,
-            gas_limit: ctx.block_env.gas_limit.to(),
+            gas_limit: ctx.evm_env.block_env.gas_limit.to(),
             difficulty: U256::ZERO,
             gas_used: self.gas_used,
             extra_data: ctx.extra_data.clone().into(),
@@ -766,7 +754,7 @@ impl<Tracer: SimulationTracer> PartialBlock<Tracer> {
                 transactions: self
                     .executed_tx
                     .into_iter()
-                    .map(|t| t.into_internal_tx_unsecure().into())
+                    .map(|t| t.into_internal_tx_unsecure().into_tx())
                     .collect(),
                 ommers: vec![],
                 withdrawals,
@@ -794,14 +782,12 @@ impl<Tracer: SimulationTracer> PartialBlock<Tracer> {
         );
         system_caller.pre_block_beacon_root_contract_call(
             db.as_mut(),
-            &ctx.initialized_cfg,
-            &ctx.block_env,
+            &ctx.evm_env,
             ctx.attributes.parent_beacon_block_root(),
         )?;
         system_caller.pre_block_blockhashes_contract_call(
             db.as_mut(),
-            &ctx.initialized_cfg,
-            &ctx.block_env,
+            &ctx.evm_env,
             ctx.attributes.parent,
         )?;
         db.as_mut().merge_transitions(BundleRetention::Reverts);
