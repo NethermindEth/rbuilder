@@ -22,7 +22,7 @@ use tracing::error;
 /// It's blocking so it's expected to run in its own thread.
 pub async fn run_sim_worker<P>(
     worker_id: usize,
-    ctx: Arc<Mutex<CurrentSimulationContexts>>,
+    ctx: Arc<CurrentSimulationContexts>,
     provider: P,
     global_cancellation: CancellationToken,
 ) where
@@ -33,10 +33,7 @@ pub async fn run_sim_worker<P>(
             return;
         }
         let current_sim_context = loop {
-            let next_ctx = {
-                let ctxs = ctx.lock();
-                ctxs.contexts.iter().next().map(|(_, c)| c.clone())
-            };
+            let next_ctx = { ctx.contexts.iter().next().map(|kv| kv.clone()) };
             // @Perf chose random context so its more fair when we have 2 instead of 1
             if let Some(ctx) = next_ctx {
                 break ctx;

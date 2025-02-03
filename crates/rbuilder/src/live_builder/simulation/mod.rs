@@ -12,6 +12,7 @@ use crate::{
     utils::{gen_uid, Signer},
 };
 use ahash::HashMap;
+use dashmap::DashMap;
 use parking_lot::Mutex;
 use simulation_job::SimulationJob;
 use std::sync::Arc;
@@ -39,7 +40,7 @@ pub struct SimulationContext {
 /// All active SimulationContexts
 #[derive(Debug)]
 pub struct CurrentSimulationContexts {
-    pub contexts: HashMap<BlockContextId, SimulationContext>,
+    pub contexts: DashMap<BlockContextId, SimulationContext>,
 }
 
 /// Struct that creates several [`sim_worker::run_sim_worker`] threads to allow concurrent simulation for the same block.
@@ -53,7 +54,7 @@ pub struct CurrentSimulationContexts {
 pub struct OrderSimulationPool<P> {
     provider: P,
     running_tasks: Arc<Mutex<Vec<JoinHandle<()>>>>,
-    current_contexts: Arc<Mutex<CurrentSimulationContexts>>,
+    current_contexts: Arc<CurrentSimulationContexts>,
     worker_threads: Vec<JoinHandle<()>>,
 }
 
@@ -74,9 +75,9 @@ where
         let mut result = Self {
             provider,
             running_tasks: Arc::new(Mutex::new(Vec::new())),
-            current_contexts: Arc::new(Mutex::new(CurrentSimulationContexts {
-                contexts: HashMap::default(),
-            })),
+            current_contexts: Arc::new(CurrentSimulationContexts {
+                contexts: DashMap::default(),
+            }),
             worker_threads: Vec::new(),
         };
         //for i in 0..num_workers {
@@ -153,13 +154,12 @@ where
                 let (sim_req_sender, sim_req_receiver) = flume::unbounded();
                 let (sim_results_sender, sim_results_receiver) = mpsc::channel(1024);
                 {
-                    let mut contexts = current_contexts.lock();
                     let sim_context = SimulationContext {
                         block_ctx: ctx,
                         requests: sim_req_receiver,
                         results: sim_results_sender,
                     };
-                    contexts.contexts.insert(block_context, sim_context);
+                    current_contexts.contexts.insert(block_context, sim_context);
                 }
                 let mut simulation_job = SimulationJob::new(
                     block_cancellation,
@@ -174,10 +174,7 @@ where
 
                 // clean up
                 {
-                    info!("spawn_sim_job_lock cleaning up, before lock");
-                    let mut contexts = current_contexts.lock();
-                    info!("spawn_sim_job_lock cleaning up, lock taken");
-                    contexts.contexts.remove(&block_context);
+                    current_contexts.contexts.remove(&block_context);
                 }
 
                 info!("spawn_sim_job_lock cleaning up, lock released");
