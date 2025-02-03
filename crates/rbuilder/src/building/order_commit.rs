@@ -768,7 +768,8 @@ impl<'a, 'b, Tracer: SimulationTracer> PartialBlockFork<'a, 'b, Tracer> {
         allow_tx_skip: bool,
     ) -> Result<Result<ShareBundleCommitResult, BundleErr>, CriticalCommitOrderError> {
         let id: u64 = rand::random();
-        let span = info_span!("commit share budle inner no rollback", id, new_block);
+        let block = ctx.block_env.number.to::<u64>();
+        let span = info_span!("commit share budle inner no rollback", id, block,);
         let _guard = span.enter();
 
         let mut insert = BundleOk {
