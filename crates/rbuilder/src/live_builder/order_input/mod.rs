@@ -37,11 +37,9 @@ impl OrderPoolSubscriber {
         block_number: u64,
         sink: Box<dyn ReplaceableOrderSink>,
     ) -> OrderPoolSubscriptionId {
+        info!("Adding sink for block {} TAKING LOCK", block_number);
         let id = self.orderpool.lock().add_sink(block_number, sink);
-        info!(
-            "Adding sink for block {}, this takes lock, {}",
-            block_number, id
-        );
+        info!("Adding sink for block {}, LOCK TAKEN, {}", block_number, id);
         id
     }
 
@@ -50,7 +48,9 @@ impl OrderPoolSubscriber {
         id: &OrderPoolSubscriptionId,
     ) -> Option<Box<dyn ReplaceableOrderSink>> {
         info!("Removing sink for subs id: {}, this takes lock", id);
-        self.orderpool.lock().remove_sink(id)
+        let r = self.orderpool.lock().remove_sink(id);
+        info!("Removing sink for subs id: {} LOCK ACQUIRED", id);
+        r
     }
 
     /// Returned AutoRemovingOrderPoolSubscriptionId will call remove when dropped
@@ -76,7 +76,15 @@ pub struct AutoRemovingOrderPoolSubscriptionId {
 
 impl Drop for AutoRemovingOrderPoolSubscriptionId {
     fn drop(&mut self) {
+        info!(
+            "DROP AutoRemovingOrderPoolSubscriptionId: removing sink {}",
+            self.id
+        );
         self.orderpool.lock().remove_sink(&self.id);
+        info!(
+            "DROP AutoRemovingOrderPoolSubscriptionId: removing sink {} DONE",
+            self.id
+        );
     }
 }
 
