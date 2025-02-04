@@ -283,7 +283,7 @@ where
                 })
             }
 
-            info!("Going to process order pool commands and take the lock");
+            debug!("Going to process order pool commands and take the lock");
             if let Some(mut orderpool) = orderpool.try_lock_for(Duration::from_millis(10)) {
                 info!("Got lock");
                 orderpool.process_commands(new_commands.clone());
@@ -347,7 +347,9 @@ where
                         let mut orderpool = orderpool.lock();
                         let start = Instant::now();
 
+                        info!("Clean orderpool job: cleaning orderpool {}", block_number);
                         orderpool.head_updated(block_number, &state);
+                        info!("DONE Clean orderpool job: cleaning orderpool {}", block_number);
 
                         let update_time = start.elapsed();
                         let (tx_count, bundle_count) = orderpool.content_count();
