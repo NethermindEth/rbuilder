@@ -367,9 +367,10 @@ where
                         };
 
                         let start = Instant::now();
+                        info!("head cleaner TAKING THE LOCK");
                         if let Some(mut orderpool) = orderpool.try_lock_for(Duration::from_millis(10)) {
 
-                            info!("Calling head updated");
+                        info!("head cleaner GOT THE LOCK");
                         orderpool.head_updated(block_number, &state);
                         let update_time = start.elapsed();
                         let (tx_count, bundle_count) = orderpool.content_count();
@@ -384,6 +385,7 @@ where
                             "Cleaned orderpool",
                         );
                         }
+                        info!("head cleaner LOCK RELEASED");
                     } else {
                         info!("Clean orderpool job: channel ended");
                         if !global_cancellation.is_cancelled(){
