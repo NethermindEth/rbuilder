@@ -136,20 +136,20 @@ where
                     .unwrap(),
             };
             let builder = builder.clone();
-            tokio::task::spawn_blocking(move || {
+            std::thread::spawn(move || {
                 builder.build_blocks(input);
                 debug!(block = block_number, builder_name, "Stopped builder job");
             });
         }
 
-        if self.run_sparse_trie_prefetcher {
-            let input = broadcast_input.subscribe();
-
-            tokio::task::spawn_blocking(move || {
-                ctx.root_hasher.run_prefetcher(input, cancel);
-            });
-        }
-
+        //if self.run_sparse_trie_prefetcher {
+        //    let input = broadcast_input.subscribe();
+        //
+        //    tokio::task::spawn_blocking(move || {
+        //        ctx.root_hasher.run_prefetcher(input, cancel);
+        //    });
+        //}
+        //
         let sbundle_merger_selected_signers = self.sbundle_merger_selected_signers.clone();
         tokio::spawn(async move {
             merge_and_send(

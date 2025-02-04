@@ -280,9 +280,9 @@ where
                 let cancel = block_cancellation.clone();
                 let blk_num = block_ctx.block_env.number.to::<u64>();
 
-                tokio::spawn(async move {
+                std::thread::spawn(move || {
                     let start = std::time::Instant::now();
-                    tokio::time::sleep(max_time_to_build).await;
+                    std::thread::sleep(max_time_to_build);
                     info!("Block building time out: will cancel {}", blk_num);
                     cancel.cancel();
 
@@ -299,13 +299,13 @@ where
                     max_time_to_build.as_millis()
                 );
 
-                for (num, t) in cacnelation_tokens.drain(0..) {
-                    t.cancel();
-                    info!("Cancelling token {}", num);
-                    info!("Is cancelled? {}", t.is_cancelled());
-                }
+                //for (num, t) in cacnelation_tokens.drain(0..) {
+                //    t.cancel();
+                //    info!("Cancelling token {}", num);
+                //    info!("Is cancelled? {}", t.is_cancelled());
+                //}
 
-                cacnelation_tokens.push((blk_num, block_cancellation.clone()));
+                //                cacnelation_tokens.push((blk_num, block_cancellation.clone()));
 
                 builder_pool.start_block_building(
                     payload,
