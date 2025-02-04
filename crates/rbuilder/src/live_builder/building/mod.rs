@@ -93,12 +93,10 @@ where
         // sink removal is automatic via OrderSink::is_alive false
 
         let oredepool = self.orderpool_subscriber.clone();
-        tokio::task::spawn_blocking(move || {
-            let _block_sub = oredepool.add_sink(
-                block_ctx.block_env.number.to(),
-                Box::new(order_replacement_manager),
-            );
-        });
+        let _block_sub = oredepool.add_sink(
+            block_ctx.block_env.number.to(),
+            Box::new(order_replacement_manager),
+        );
 
         let simulations_for_block = self.order_simulation_pool.spawn_simulation_job(
             block_ctx.clone(),
