@@ -3,6 +3,7 @@ use std::{
     future::{Future, IntoFuture},
     ops::Deref,
     sync::Arc,
+    time::Duration,
 };
 
 use alloy_consensus::{constants::KECCAK_EMPTY, Header};
@@ -710,8 +711,15 @@ impl FutureRunner {
     /// Creates new instance of  FutureRunner
     /// IMPORTANT: MUST be called from within tokio context, otherwise will panic
     fn new() -> Self {
+        let tokio_handle = tokio::runtime::Handle::current();
+        let rt_handle = tokio_handle.clone();
+        std::thread::spawn(move || loop {
+            std::thread::sleep(Duration::from_secs(12));
+            rt_handle.spawn(std::future::ready(()));
+        });
+
         Self {
-            runtime_handle: tokio::runtime::Handle::current(),
+            runtime_handle: tokio_handle,
         }
     }
 
