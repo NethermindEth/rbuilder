@@ -26,7 +26,7 @@ use tracing::{debug, debug_span, error, info, info_span, trace, warn};
 use super::base_config::BaseConfig;
 
 /// Thread safe access to OrderPool to get orderflow
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct OrderPoolSubscriber {
     orderpool: Arc<Mutex<OrderPool>>,
 }

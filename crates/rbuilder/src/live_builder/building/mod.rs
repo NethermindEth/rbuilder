@@ -19,7 +19,9 @@ use tracing::{debug, debug_span, trace};
 
 use super::{
     order_input::{
-        self, order_replacement_manager::OrderReplacementManager, orderpool::OrdersForBlock,
+        self,
+        order_replacement_manager::OrderReplacementManager,
+        orderpool::{self, OrdersForBlock},
     },
     payload_events,
     simulation::{OrderSimulationPool, SimulatedOrderCommand},
@@ -89,10 +91,14 @@ where
         // add OrderReplacementManager to manage replacements and cancellations
         let order_replacement_manager = OrderReplacementManager::new(Box::new(sink));
         // sink removal is automatic via OrderSink::is_alive false
-        let _block_sub = self.orderpool_subscriber.add_sink(
-            block_ctx.block_env.number.to(),
-            Box::new(order_replacement_manager),
-        );
+
+        let oredepool = self.orderpool_subscriber.clone();
+        tokio::task::spawn_blocking(move || {
+            let _block_sub = oredepool.add_sink(
+                block_ctx.block_env.number.to(),
+                Box::new(order_replacement_manager),
+            );
+        });
 
         let simulations_for_block = self.order_simulation_pool.spawn_simulation_job(
             block_ctx.clone(),
