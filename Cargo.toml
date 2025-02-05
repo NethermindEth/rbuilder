@@ -139,7 +139,7 @@ eyre = { version = "0.6.12" }
 jsonrpsee = { version = "0.24.4" }
 jsonrpsee-types = { version = "0.24.4" }
 parking_lot = { version = "0.12.3" }
-tokio = { version = "1.40.0" }
+tokio = { version = "1.40.0", features = ["default", "tracing"] }
 auto_impl = { version = "1.2.0" }
 reqwest = { version = "0.12.8" }
 serde = { version = "1.0.210" }

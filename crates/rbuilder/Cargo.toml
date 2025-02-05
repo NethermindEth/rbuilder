@@ -133,6 +133,7 @@ sysperf.workspace = true
 crossbeam = "0.8.4"
 parking_lot = "0.12.3"
 dashmap = "6.1.0"
+console-subscriber = "0.4.1"
 
 [build-dependencies]
 built = { version = "0.7.1", features = ["git2", "chrono"] }
@@ -155,3 +156,6 @@ redact-sensitive = []
 [[bench]]
 name = "bench_main"
 harness = false
+
+[build]
+rustflags = ["--cfg", "tokio_unstable"]
