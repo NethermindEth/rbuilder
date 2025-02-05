@@ -302,7 +302,6 @@ where
                 })
             }
 
-            info!("order pool command processor take the LOCK");
             orderpool.lock().await.process_commands(new_commands.clone());
             new_commands.clear();
 
