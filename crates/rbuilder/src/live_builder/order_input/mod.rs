@@ -303,9 +303,10 @@ where
                 info!("order pool command processor GOT LOCK");
                 orderpool.process_commands(new_commands.clone());
                 new_commands.clear();
+                info!("order pool command processor LOCK RELEASED");
+            } else {
+                info!("order pool command processor LOCK COULD NOT BE TAKEN");
             }
-
-            info!("order pool command processor LOCK RELEASED");
         }
 
         for handle in handles {
@@ -369,23 +370,24 @@ where
                         let start = Instant::now();
                         info!("head cleaner TAKING THE LOCK");
                         if let Some(mut orderpool) = orderpool.try_lock_for(Duration::from_millis(10)) {
+                            info!("head cleaner GOT THE LOCK");
+                            orderpool.head_updated(block_number, &state);
+                            let update_time = start.elapsed();
+                            let (tx_count, bundle_count) = orderpool.content_count();
 
-                        info!("head cleaner GOT THE LOCK");
-                        orderpool.head_updated(block_number, &state);
-                        let update_time = start.elapsed();
-                        let (tx_count, bundle_count) = orderpool.content_count();
+                            set_ordepool_count(tx_count, bundle_count);
 
-                        set_ordepool_count(tx_count, bundle_count);
-
-                        info!(
-                            block_number,
-                            tx_count,
-                            bundle_count,
-                            update_time_ms = update_time.as_millis(),
-                            "Cleaned orderpool",
-                        );
+                            info!(
+                                block_number,
+                                tx_count,
+                                bundle_count,
+                                update_time_ms = update_time.as_millis(),
+                                "Cleaned orderpool",
+                            );
+                            info!("head cleaner LOCK RELEASED");
+                        } else {
+                            info!("head cleaner LOCK COULD NOT BE TAKEN");
                         }
-                        info!("head cleaner LOCK RELEASED");
                     } else {
                         info!("Clean orderpool job: channel ended");
                         if !global_cancellation.is_cancelled(){
