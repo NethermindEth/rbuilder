@@ -290,13 +290,22 @@ where
                 })
             }
 
-            debug!("Going to process order pool commands and take the lock");
-            if let Some(mut orderpool) = orderpool.try_lock_for(Duration::from_millis(10)) {
-                debug!("Got lock");
+            //debug!("Going to process order pool commands and take the lock");
+            //if let Some(mut orderpool) = orderpool.try_lock_for(Duration::from_millis(10)) {
+            //    debug!("Got lock");
+            //    orderpool.process_commands(new_commands.clone());
+            //    debug!("Done orderpoool command processing");
+            //    new_commands.clear();
+            //}
+
+            info!("order_pool command processing WAITING FOR LOCK");
+            {
+                let mut orderpool = orderpool.lock();
+                info!("order_pool command processing GOT LOCK");
                 orderpool.process_commands(new_commands.clone());
-                debug!("Done orderpoool command processing");
                 new_commands.clear();
             }
+            info!("order_pool command processing RELEASED LOCK");
         }
 
         for handle in handles {
@@ -358,23 +367,31 @@ where
                         };
 
                         let start = Instant::now();
-                        if let Some(mut orderpool) = orderpool.try_lock_for(Duration::from_millis(10)) {
+                        //if let Some(mut orderpool) = orderpool.try_lock_for(Duration::from_millis(10)) {
 
-                            info!("Calling head updated");
-                        orderpool.head_updated(block_number, &state);
-                        let update_time = start.elapsed();
-                        let (tx_count, bundle_count) = orderpool.content_count();
 
-                        set_ordepool_count(tx_count, bundle_count);
 
-                        info!(
-                            block_number,
-                            tx_count,
-                            bundle_count,
-                            update_time_ms = update_time.as_millis(),
-                            "Cleaned orderpool",
-                        );
+
+                        {
+                            info!("odrder pool cleaner WAITING FOR LOCK");
+                            let mut orderpool = orderpool.lock();
+                            info!("odrder pool cleaner GOT LOCK");
+                            orderpool.head_updated(block_number, &state);
+                            let update_time = start.elapsed();
+                            let (tx_count, bundle_count) = orderpool.content_count();
+
+                            set_ordepool_count(tx_count, bundle_count);
+
+                            info!(
+                                block_number,
+                                tx_count,
+                                bundle_count,
+                                update_time_ms = update_time.as_millis(),
+                                "Cleaned orderpool",
+                            );
                         }
+                            info!("odrder pool cleaner RELEASED LOCK");
+                        //}
                     } else {
                         info!("Clean orderpool job: channel ended");
                         if !global_cancellation.is_cancelled(){
