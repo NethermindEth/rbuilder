@@ -312,7 +312,7 @@ where
                     block_ctx,
                     block_cancellation,
                     max_time_to_build,
-                );
+                ).await;
 
                 if let Some(watchdog_sender) = watchdog_sender.as_ref() {
                     watchdog_sender.try_send(()).unwrap_or_default();

@@ -63,7 +63,7 @@ where
     }
 
     /// Connects OrdersForBlock->OrderReplacementManager->Simulations and calls start_building_job
-    pub fn start_block_building(
+    pub async fn start_block_building(
         &mut self,
         payload: payload_events::MevBoostSlotData,
         block_ctx: BlockBuildingContext,

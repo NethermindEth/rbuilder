@@ -16,7 +16,8 @@ use crate::provider::StateProviderFactory;
 use crate::telemetry::{set_current_block, set_ordepool_count};
 use alloy_consensus::Header;
 use jsonrpsee::RpcModule;
-use parking_lot::Mutex;
+use tokio::sync::Mutex;
+// use parking_lot::Mutex;
 use std::{net::Ipv4Addr, path::PathBuf, sync::Arc, time::Duration};
 use std::{path::Path, time::Instant};
 use tokio::{sync::mpsc, task::JoinHandle};
@@ -32,13 +33,13 @@ pub struct OrderPoolSubscriber {
 }
 
 impl OrderPoolSubscriber {
-    pub fn add_sink(
+    pub async fn add_sink(
         &self,
         block_number: u64,
         sink: Box<dyn ReplaceableOrderSink>,
     ) -> OrderPoolSubscriptionId {
         info!("Adding sink for block {} WAITING TO LOCK", block_number);
-        let id = self.orderpool.lock().add_sink(block_number, sink);
+        let id = self.orderpool.lock().await.add_sink(block_number, sink);
         info!(
             "Adding sink for block {}, LOCK RELEASED, {}",
             block_number, id
@@ -46,25 +47,25 @@ impl OrderPoolSubscriber {
         id
     }
 
-    pub fn remove_sink(
+    pub async fn remove_sink(
         &self,
         id: &OrderPoolSubscriptionId,
     ) -> Option<Box<dyn ReplaceableOrderSink>> {
         info!("Removing sink for subs id: {}, this takes lock", id);
-        let r = self.orderpool.lock().remove_sink(id);
+        let r = self.orderpool.lock().await.remove_sink(id);
         info!("Removing sink for subs id: {} LOCK ACQUIRED", id);
         r
     }
 
     /// Returned AutoRemovingOrderPoolSubscriptionId will call remove when dropped
-    pub fn add_sink_auto_remove(
+    pub async fn add_sink_auto_remove(
         &self,
         block_number: u64,
         sink: Box<dyn ReplaceableOrderSink>,
     ) -> AutoRemovingOrderPoolSubscriptionId {
         AutoRemovingOrderPoolSubscriptionId {
             orderpool: self.orderpool.clone(),
-            id: self.add_sink(block_number, sink),
+            id: self.add_sink(block_number, sink).await,
         }
     }
 }
@@ -83,7 +84,7 @@ impl Drop for AutoRemovingOrderPoolSubscriptionId {
             "DROP AutoRemovingOrderPoolSubscriptionId: removing sink {}",
             self.id
         );
-        self.orderpool.lock().remove_sink(&self.id);
+        self.orderpool.blocking_lock().remove_sink(&self.id);
         info!(
             "DROP AutoRemovingOrderPoolSubscriptionId: removing sink {} DONE",
             self.id
@@ -302,14 +303,9 @@ where
             }
 
             info!("order pool command processor take the LOCK");
-            if let Some(mut orderpool) = orderpool.try_lock_for(Duration::from_millis(10)) {
-                info!("order pool command processor GOT LOCK");
-                orderpool.process_commands(new_commands.clone());
-                new_commands.clear();
-                info!("order pool command processor LOCK RELEASED");
-            } else {
-                info!("order pool command processor LOCK COULD NOT BE TAKEN");
-            }
+            orderpool.lock().await.process_commands(new_commands.clone());
+            new_commands.clear();
+
         }
 
         for handle in handles {
@@ -371,26 +367,29 @@ where
                         };
 
                         let start = Instant::now();
-                        info!("head cleaner TAKING THE LOCK");
-                        if let Some(mut orderpool) = orderpool.try_lock_for(Duration::from_millis(10)) {
-                            info!("head cleaner GOT THE LOCK");
+                        let orderpool = orderpool.clone();
+
+                        let count = {
+                            let mut orderpool = orderpool.lock().await;
+
+                            info!("Calling head updated");
+
                             orderpool.head_updated(block_number, &state);
-                            let update_time = start.elapsed();
-                            let (tx_count, bundle_count) = orderpool.content_count();
+                            orderpool.content_count()
+                        };
 
-                            set_ordepool_count(tx_count, bundle_count);
+                        let update_time = start.elapsed();
+                        let (tx_count, bundle_count) = count;
 
-                            info!(
-                                block_number,
-                                tx_count,
-                                bundle_count,
-                                update_time_ms = update_time.as_millis(),
-                                "Cleaned orderpool",
-                            );
-                            info!("head cleaner LOCK RELEASED");
-                        } else {
-                            info!("head cleaner LOCK COULD NOT BE TAKEN");
-                        }
+                        set_ordepool_count(tx_count, bundle_count);
+
+                        info!(
+                            block_number,
+                            tx_count,
+                            bundle_count,
+                            update_time_ms = update_time.as_millis(),
+                            "Cleaned orderpool",
+                        );
                     } else {
                         info!("Clean orderpool job: channel ended");
                         if !global_cancellation.is_cancelled(){
