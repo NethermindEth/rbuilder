@@ -37,9 +37,12 @@ impl OrderPoolSubscriber {
         block_number: u64,
         sink: Box<dyn ReplaceableOrderSink>,
     ) -> OrderPoolSubscriptionId {
-        info!("Adding sink for block {} TAKING LOCK", block_number);
+        info!("Adding sink for block {} WAITING TO LOCK", block_number);
         let id = self.orderpool.lock().add_sink(block_number, sink);
-        info!("Adding sink for block {}, LOCK TAKEN, {}", block_number, id);
+        info!(
+            "Adding sink for block {}, LOCK RELEASED, {}",
+            block_number, id
+        );
         id
     }
 
