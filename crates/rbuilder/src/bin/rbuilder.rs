@@ -6,9 +6,7 @@ use rbuilder::{
     utils::build_info::print_version_info,
 };
 use tokio::runtime::Builder;
-use console_subscriber;
 fn main() -> eyre::Result<()> {
-    console_subscriber::init();
 
     let runtime = Builder::new_multi_thread()
         .max_blocking_threads(2048)
