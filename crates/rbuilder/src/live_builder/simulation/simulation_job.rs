@@ -135,6 +135,7 @@ where
     fn send_new_tasks_for_simulation(&mut self) {
         // submit sim tasks loop
         loop {
+            info!("Starting sending tasks for simulation");
             let mut new_sim_request = self.sim_tree.pop_simulation_tasks(1024);
             if new_sim_request.is_empty() {
                 break;

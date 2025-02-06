@@ -15,7 +15,8 @@ use std::{
     time::{Duration, Instant},
 };
 use tokio_util::sync::CancellationToken;
-use tracing::error;
+use tracing::{debug, error, info, trace, warn};
+
 
 /// Function that continuously looks for a SimulationContext on ctx and when it finds one it polls its "request for simulation" channel (SimulationContext::requests).
 /// When the channel closes it goes back to waiting for a new SimulationContext.
@@ -36,9 +37,9 @@ pub fn run_sim_worker<P>(
             let next_ctx = { ctx.contexts.iter().next().map(|kv| kv.clone()) };
             // @Perf chose random context so its more fair when we have 2 instead of 1
             if let Some(ctx) = next_ctx {
+                info!("Got ctx for simualtion {:?}", ctx);
                 break ctx;
             } else {
-                println!("Sleep because no ctx");
                 // contexts are created for a duration of the slot so this is not a problem
                 std::thread::sleep(Duration::from_millis(50));
             }
@@ -47,6 +48,7 @@ pub fn run_sim_worker<P>(
         let mut cached_reads = CachedReads::default();
         let mut last_sim_finished = Instant::now();
         while let Ok(task) = current_sim_context.requests.recv() {
+            info!("Get task {:?}", task);
             let sim_thread_wait_time = last_sim_finished.elapsed();
             let sim_start = Instant::now();
 

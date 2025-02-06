@@ -159,6 +159,7 @@ where
                         requests: sim_req_receiver,
                         results: sim_results_sender,
                     };
+                    info!("Inserting {:?} {:?} into contextx", block_context, sim_context);
                     current_contexts.contexts.insert(block_context, sim_context);
                 }
                 let mut simulation_job = SimulationJob::new(
