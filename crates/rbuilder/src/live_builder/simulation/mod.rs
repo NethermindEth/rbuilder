@@ -53,7 +53,7 @@ pub struct CurrentSimulationContexts {
 #[derive(Debug)]
 pub struct OrderSimulationPool<P> {
     provider: P,
-    //running_tasks: Arc<Mutex<Vec<JoinHandle<()>>>>,
+    running_tasks: Arc<Mutex<Vec<JoinHandle<()>>>>,
     current_contexts: Arc<CurrentSimulationContexts>,
     worker_threads: Vec<std::thread::JoinHandle<()>>,
 }
@@ -74,7 +74,7 @@ where
     pub fn new(provider: P, num_workers: usize, global_cancellation: CancellationToken) -> Self {
         let mut result = Self {
             provider,
-            //running_tasks: Arc::new(Mutex::new(Vec::new())),
+            running_tasks: Arc::new(Mutex::new(Vec::new())),
             current_contexts: Arc::new(CurrentSimulationContexts {
                 contexts: DashMap::default(),
             }),
@@ -182,14 +182,14 @@ where
             .instrument(span),
         );
 
-        //{
-        //    info!("will take spawn_sim_job_lock");
-        //    let mut tasks = self.running_tasks.lock();
-        //    info!("spawn_sim_job_lock, taken");
-        //    tasks.retain(|handle| !handle.is_finished());
-        //    tasks.push(handle);
-        //    info!("spawn_sim_job_lock, released");
-        //}
+        {
+           info!("will take spawn_sim_job_lock");
+           let mut tasks = self.running_tasks.lock();
+           info!("spawn_sim_job_lock, taken");
+           tasks.retain(|handle| !handle.is_finished());
+           tasks.push(handle);
+           info!("spawn_sim_job_lock, released");
+        }
 
         SlotOrderSimResults {
             orders: slot_sim_results_receiver,
