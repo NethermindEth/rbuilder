@@ -55,7 +55,7 @@ pub struct OrderSimulationPool<P> {
     provider: P,
     //running_tasks: Arc<Mutex<Vec<JoinHandle<()>>>>,
     current_contexts: Arc<CurrentSimulationContexts>,
-    worker_threads: Vec<JoinHandle<()>>,
+    worker_threads: Vec<std::thread::JoinHandle<()>>,
 }
 
 /// Result of a simulation.
@@ -80,30 +80,30 @@ where
             }),
             worker_threads: Vec::new(),
         };
-        //for i in 0..num_workers {
-        //    let ctx = Arc::clone(&result.current_contexts);
-        //    let provider = result.provider.clone();
-        //    let cancel = global_cancellation.clone();
-        //    let handle = std::thread::Builder::new()
-        //        .name(format!("sim_thread:{}", i))
-        //        .spawn(move || {
-        //            sim_worker::run_sim_worker(i, ctx, provider, cancel);
-        //        })
-        //        .expect("Failed to start sim worker thread");
-        //    result.worker_threads.push(handle);
-        //}
         for i in 0..num_workers {
-            let ctx = Arc::clone(&result.current_contexts);
-            let provider = result.provider.clone();
-            let cancel = global_cancellation.clone();
-            let _task_name = format!("sim_task:{}", i);
-
-            let handle = tokio::task::spawn(async move {
-                sim_worker::run_sim_worker(i, ctx, provider, cancel).await;
-            });
-
-            result.worker_threads.push(handle);
+           let ctx = Arc::clone(&result.current_contexts);
+           let provider = result.provider.clone();
+           let cancel = global_cancellation.clone();
+           let handle = std::thread::Builder::new()
+               .name(format!("sim_thread:{}", i))
+               .spawn(move || {
+                   sim_worker::run_sim_worker(i, ctx, provider, cancel);
+               })
+               .expect("Failed to start sim worker thread");
+           result.worker_threads.push(handle);
         }
+        // for i in 0..num_workers {
+        //     let ctx = Arc::clone(&result.current_contexts);
+        //     let provider = result.provider.clone();
+        //     let cancel = global_cancellation.clone();
+        //     let _task_name = format!("sim_task:{}", i);
+        //
+        //     let handle = tokio::task::spawn(async move {
+        //         sim_worker::run_sim_worker(i, ctx, provider, cancel).await;
+        //     });
+        //
+        //     result.worker_threads.push(handle);
+        // }
 
         //let ctx = Arc::clone(&result.current_contexts);
         //let provider = result.provider.clone();

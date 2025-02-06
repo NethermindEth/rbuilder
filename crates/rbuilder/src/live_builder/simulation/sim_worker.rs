@@ -20,7 +20,7 @@ use tracing::error;
 /// Function that continuously looks for a SimulationContext on ctx and when it finds one it polls its "request for simulation" channel (SimulationContext::requests).
 /// When the channel closes it goes back to waiting for a new SimulationContext.
 /// It's blocking so it's expected to run in its own thread.
-pub async fn run_sim_worker<P>(
+pub fn run_sim_worker<P>(
     worker_id: usize,
     ctx: Arc<CurrentSimulationContexts>,
     provider: P,
@@ -38,8 +38,9 @@ pub async fn run_sim_worker<P>(
             if let Some(ctx) = next_ctx {
                 break ctx;
             } else {
+                println!("Sleep because no ctx");
                 // contexts are created for a duration of the slot so this is not a problem
-                tokio::time::sleep(Duration::from_millis(50)).await;
+                std::thread::sleep(Duration::from_millis(50));
             }
         };
 
