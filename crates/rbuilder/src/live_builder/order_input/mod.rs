@@ -41,7 +41,7 @@ impl OrderPoolSubscriber {
         info!("Adding sink for block {} WAITING TO LOCK", block_number);
         let id = self.orderpool.lock().await.add_sink(block_number, sink);
         info!(
-            "Adding sink for block {}, LOCK RELEASED, {}",
+"Adding sink for block {}, LOCK RELEASED, {}",
             block_number, id
         );
         id
@@ -302,7 +302,12 @@ where
                 })
             }
 
-            orderpool.lock().await.process_commands(new_commands.clone());
+            info!("Taking LOCK for process commands");
+            let mut orderpool = orderpool.lock().await;
+            info!("LOCK for process commands");
+            orderpool.process_commands(new_commands.clone());
+            info!("Commands processed");
+
             new_commands.clear();
 
         }
@@ -369,9 +374,9 @@ where
                         let orderpool = orderpool.clone();
 
                         let count = {
+                            info!("Trying take pool lock for head update");
                             let mut orderpool = orderpool.lock().await;
-
-                            info!("Calling head updated");
+                            info!("Pool lock taken. Calling head updated");
 
                             orderpool.head_updated(block_number, &state);
                             orderpool.content_count()
