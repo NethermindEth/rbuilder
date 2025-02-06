@@ -313,10 +313,6 @@ where
                     block_cancellation,
                     max_time_to_build,
                 );
-
-                if let Some(watchdog_sender) = watchdog_sender.as_ref() {
-                    watchdog_sender.try_send(()).unwrap_or_default();
-                };
             } else {
                 error!("Failed to create block building context");
             }
@@ -324,12 +320,12 @@ where
 
         info!("Builder shutting down");
         self.global_cancellation.cancel();
-        for handle in inner_jobs_handles {
-            handle
-                .await
-                .map_err(|err| warn!("Job handle await error: {:?}", err))
-                .unwrap_or_default();
-        }
+        //for handle in inner_jobs_handles {
+        //    handle
+        //        .await
+        //        .map_err(|err| warn!("Job handle await error: {:?}", err))
+        //        .unwrap_or_default();
+        //}
         Ok(())
     }
 

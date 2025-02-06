@@ -206,7 +206,7 @@ pub async fn start_orderpool_jobs<P>(
     order_sender: mpsc::Sender<ReplaceableOrderPoolCommand>,
     order_receiver: mpsc::Receiver<ReplaceableOrderPoolCommand>,
     header_receiver: mpsc::Receiver<Header>,
-) -> eyre::Result<(JoinHandle<()>, OrderPoolSubscriber)>
+) -> eyre::Result<((), OrderPoolSubscriber)>
 where
     P: StateProviderFactory + 'static,
 {
@@ -222,11 +222,12 @@ where
         orderpool: orderpool.clone(),
     };
 
-    let clean_job = spawn_clean_orderpool_job(
+    spawn_clean_orderpool_job(
         header_receiver,
         provider_factory,
         orderpool.clone(),
         global_cancel.clone(),
+        tokio::runtime::Handle::current(),
     )?;
     let rpc_server = rpc_server::start_server_accepting_bundles(
         config.clone(),
@@ -236,7 +237,7 @@ where
     )
     .await?;
 
-    let mut handles = vec![clean_job, rpc_server];
+    let mut handles = vec![rpc_server];
 
     if config.ipc_path.is_some() {
         info!("IPC path configured, starting txpool subscription");
@@ -251,7 +252,9 @@ where
         info!("No IPC path configured, skipping txpool subscription");
     }
 
-    let handle = tokio::spawn(async move {
+    let rt = tokio::runtime::Handle::current();
+    std::thread::spawn(move || {
+        rt.spawn(async move {
         let id: u64 = rand::random();
         let span = info_span!("Main Orderpool job", id);
         let _guard = span.enter();
@@ -301,15 +304,23 @@ where
                 })
             }
 
+            //info!("order pool command processor take the LOCK");
+            //if let Some(mut orderpool) = orderpool.try_lock_for(Duration::from_millis(10)) {
+            //    info!("order pool command processor GOT LOCK");
+            //    orderpool.process_commands(new_commands.clone());
+            //    new_commands.clear();
+            //    info!("order pool command processor LOCK RELEASED");
+            //} else {
+            //    info!("order pool command processor LOCK COULD NOT BE TAKEN");
+            //}
+
+
             info!("order pool command processor take the LOCK");
-            if let Some(mut orderpool) = orderpool.try_lock_for(Duration::from_millis(10)) {
-                info!("order pool command processor GOT LOCK");
-                orderpool.process_commands(new_commands.clone());
-                new_commands.clear();
-                info!("order pool command processor LOCK RELEASED");
-            } else {
-                info!("order pool command processor LOCK COULD NOT BE TAKEN");
-            }
+            let mut orderpool = orderpool.lock();
+            info!("order pool command processor GOT LOCK");
+            orderpool.process_commands(new_commands.clone());
+            new_commands.clear();
+            info!("order pool command processor LOCK RELEASED");
         }
 
         for handle in handles {
@@ -322,8 +333,9 @@ where
         }
         info!("OrderPoolJobs: finished");
     });
+    });
 
-    Ok((handle, subscriber))
+    Ok(((), subscriber))
 }
 
 pub fn expand_path(path: &Path) -> eyre::Result<PathBuf> {
@@ -341,73 +353,94 @@ fn spawn_clean_orderpool_job<P>(
     provider_factory: P,
     orderpool: Arc<Mutex<OrderPool>>,
     global_cancellation: CancellationToken,
-) -> eyre::Result<JoinHandle<()>>
+    rt: tokio::runtime::Handle,
+) -> eyre::Result<()>
 where
     P: StateProviderFactory + 'static,
 {
     let mut header_receiver: mpsc::Receiver<Header> = header_receiver;
 
-    let handle = tokio::spawn(async move {
-        info!("Clean orderpool job: started");
+    std::thread::spawn(move || {
+        rt.spawn(async move {
+            info!("Clean orderpool job: started");
 
-        loop {
-            tokio::select! {
-                header = header_receiver.recv() => {
-                    if let Some(header) = header {
-                        let block_number = header.number;
-                        set_current_block(block_number);
+            loop {
+                tokio::select! {
+                    header = header_receiver.recv() => {
+                        if let Some(header) = header {
+                            let block_number = header.number;
+                            set_current_block(block_number);
 
-                        let id: u64 = rand::random();
-                        let span = info_span!("new head_cleaner", id, block = block_number);
-                        let _guard = span.enter();
+                            let id: u64 = rand::random();
+                            let span = info_span!("new head_cleaner", id, block = block_number);
+                            let _guard = span.enter();
 
-                        let state = match provider_factory.latest() {
-                            Ok(state) => state,
-                            Err(err) => {
-                                error!("Failed to get latest state: {}", err);
-                                // @Metric error count
-                                continue;
-                            }
-                        };
+                            let state = match provider_factory.latest() {
+                                Ok(state) => state,
+                                Err(err) => {
+                                    error!("Failed to get latest state: {}", err);
+                                    // @Metric error count
+                                    continue;
+                                }
+                            };
 
-                        let start = Instant::now();
-                        info!("head cleaner TAKING THE LOCK");
-                        if let Some(mut orderpool) = orderpool.try_lock_for(Duration::from_millis(10)) {
-                            info!("head cleaner GOT THE LOCK");
-                            orderpool.head_updated(block_number, &state);
-                            let update_time = start.elapsed();
-                            let (tx_count, bundle_count) = orderpool.content_count();
+                            let start = Instant::now();
+                            info!("head cleaner TAKING THE LOCK");
+                            //if let Some(mut orderpool) = orderpool.try_lock_for(Duration::from_millis(10)) {
+                            //    info!("head cleaner GOT THE LOCK");
+                            //    orderpool.head_updated(block_number, &state);
+                            //    let update_time = start.elapsed();
+                            //    let (tx_count, bundle_count) = orderpool.content_count();
+                            //
+                            //    set_ordepool_count(tx_count, bundle_count);
+                            //
+                            //    info!(
+                            //        block_number,
+                            //        tx_count,
+                            //        bundle_count,
+                            //        update_time_ms = update_time.as_millis(),
+                            //        "Cleaned orderpool",
+                            //    );
+                            //    info!("head cleaner LOCK RELEASED");
+                            //} else {
+                            //    info!("head cleaner LOCK COULD NOT BE TAKEN");
+                            //}
 
-                            set_ordepool_count(tx_count, bundle_count);
+                            let mut orderpool = orderpool.lock();
+                                info!("head cleaner GOT THE LOCK");
+                                orderpool.head_updated(block_number, &state);
+                                let update_time = start.elapsed();
+                                let (tx_count, bundle_count) = orderpool.content_count();
 
-                            info!(
-                                block_number,
-                                tx_count,
-                                bundle_count,
-                                update_time_ms = update_time.as_millis(),
-                                "Cleaned orderpool",
-                            );
-                            info!("head cleaner LOCK RELEASED");
+                                set_ordepool_count(tx_count, bundle_count);
+
+                                info!(
+                                    block_number,
+                                    tx_count,
+                                    bundle_count,
+                                    update_time_ms = update_time.as_millis(),
+                                    "Cleaned orderpool",
+                                );
+                                info!("head cleaner LOCK RELEASED");
                         } else {
-                            info!("head cleaner LOCK COULD NOT BE TAKEN");
+                            info!("Clean orderpool job: channel ended");
+                            if !global_cancellation.is_cancelled(){
+                                error!("Clean orderpool job: channel ended with no cancellation");
+                            }
+                            break;
                         }
-                    } else {
-                        info!("Clean orderpool job: channel ended");
-                        if !global_cancellation.is_cancelled(){
-                            error!("Clean orderpool job: channel ended with no cancellation");
-                        }
+                    },
+                    _ = global_cancellation.cancelled() => {
+                        info!("Clean orderpool job: received cancellation signal");
                         break;
                     }
-                },
-                _ = global_cancellation.cancelled() => {
-                    info!("Clean orderpool job: received cancellation signal");
-                    break;
                 }
             }
-        }
 
-        global_cancellation.cancel();
-        info!("Clean orderpool job: finished");
+            global_cancellation.cancel();
+            info!("Clean orderpool job: finished");
+        });
     });
-    Ok(handle)
+    //Ok(handle)
+    Ok(())
 }
