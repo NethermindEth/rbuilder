@@ -41,10 +41,10 @@ pub struct RemoteStateProviderFactory<T> {
     remote_provider: RootProvider<T>,
     future_runner: FutureRunner,
 
-    block_hash_cache: Arc<DashMap<u64, BlockHash>>,
+    //block_hash_cache: Arc<DashMap<u64, BlockHash>>,
     code_cache: Arc<DashMap<B256, Bytecode>>,
 
-    state_provider_by_num: Arc<DashMap<BlockNumber, Box<ArcRemoteStateProvider<T>>>>,
+    //state_provider_by_num: Arc<DashMap<BlockNumber, Box<ArcRemoteStateProvider<T>>>>,
     state_provider_by_hash: Arc<DashMap<BlockHash, Box<ArcRemoteStateProvider<T>>>>,
 }
 
@@ -59,9 +59,9 @@ where
         Self {
             remote_provider,
             future_runner,
-            block_hash_cache: Arc::new(DashMap::new()),
+            //block_hash_cache: Arc::new(DashMap::new()),
             code_cache: Arc::new(DashMap::new()),
-            state_provider_by_num: Arc::new(DashMap::new()),
+            // state_provider_by_num: Arc::new(DashMap::new()),
             state_provider_by_hash: Arc::new(DashMap::new()),
             //account_cache: Arc:BlockNumber:new(DashMap::new()),
             //block_num_cache: Arc::new(DashMap::new()),
@@ -74,9 +74,9 @@ where
         Self {
             remote_provider: root_provider,
             future_runner,
-            block_hash_cache: Arc::new(DashMap::new()),
+            //block_hash_cache: Arc::new(DashMap::new()),
             code_cache: Arc::new(DashMap::new()),
-            state_provider_by_num: Arc::new(DashMap::new()),
+            // state_provider_by_num: Arc::new(DashMap::new()),
             state_provider_by_hash: Arc::new(DashMap::new()),
             //account_cache: Arc::new(DashMap::new()),
             //block_num_cache: Arc::new(DashMap::new()),
@@ -99,7 +99,7 @@ where
             self.remote_provider.clone(),
             self.future_runner.clone(),
             BlockNumberOrTag::Latest.into(),
-            self.block_hash_cache.clone(),
+            //self.block_hash_cache.clone(),
             // self.block_num_cache.clone(),
             self.code_cache.clone(),
             //self.account_cache.clone(),
@@ -111,22 +111,22 @@ where
     }
 
     fn history_by_block_number(&self, block: BlockNumber) -> ProviderResult<StateProviderBox> {
-        if let Some(state) = self.state_provider_by_num.get(&block) {
-            return Ok(state.clone());
-        }
+        //if let Some(state) = self.state_provider_by_num.get(&block) {
+        //    return Ok(state.clone());
+        //}
 
         let state = RemoteStateProvider::new(
             self.remote_provider.clone(),
             self.future_runner.clone(),
             block.into(),
-            self.block_hash_cache.clone(),
+            //self.block_hash_cache.clone(),
             //self.block_num_cache.clone(),
             self.code_cache.clone(),
             //self.account_cache.clone(),
         );
 
         let state = ArcRemoteStateProvider::boxed(state);
-        self.state_provider_by_num.insert(block, state.clone());
+        //self.state_provider_by_num.insert(block, state.clone());
         Ok(state)
     }
 
@@ -139,7 +139,7 @@ where
             self.remote_provider.clone(),
             self.future_runner.clone(),
             block.into(),
-            self.block_hash_cache.clone(),
+            //self.block_hash_cache.clone(),
             //self.block_num_cache.clone(),
             self.code_cache.clone(),
             //self.account_cache.clone(),
@@ -173,7 +173,7 @@ where
 
         let header = header.unwrap();
 
-        self.block_hash_cache.insert(header.number, *block_hash);
+        //self.block_hash_cache.insert(header.number, *block_hash);
         trace!("header: got");
 
         Ok(Some(header))
@@ -185,10 +185,10 @@ where
         let _guard = span.enter();
         trace!("block_hash:get");
 
-        if let Some(hash) = self.block_hash_cache.get(&number) {
-            trace!("block_hash:cache hit");
-            return Ok(Some(*hash));
-        }
+        //if let Some(hash) = self.block_hash_cache.get(&number) {
+        //    trace!("block_hash:cache hit");
+        //    return Ok(Some(*hash));
+        //}
 
         let future = self
             .remote_provider
@@ -199,7 +199,7 @@ where
             .run(future)
             .map_err(transport_to_provider_error)?;
 
-        self.block_hash_cache.insert(number, block_hash);
+        // self.block_hash_cache.insert(number, block_hash);
         trace!("block_hash: got");
         Ok(Some(block_hash))
     }
@@ -235,7 +235,7 @@ where
         let hash = block.header.hash;
         let header = block.header.inner;
 
-        self.block_hash_cache.insert(header.number, hash);
+        //self.block_hash_cache.insert(header.number, hash);
 
         trace!("header_by_num: got");
         Ok(Some(header))
@@ -306,13 +306,12 @@ impl<T> RemoteStateProvider<T> {
         remote_provider: RootProvider<T>,
         future_runner: FutureRunner,
         block_id: BlockId,
-        block_hash_cache: Arc<DashMap<u64, BlockHash>>,
         code_cache: Arc<DashMap<B256, Bytecode>>,
     ) -> Self {
         Self {
             remote_provider,
             block_id,
-            block_hash_cache,
+            block_hash_cache: Arc::new(DashMap::new()),
             future_runner,
 
             code_cache,
@@ -334,7 +333,6 @@ impl<T> RemoteStateProvider<T> {
             remote_provider,
             future_runner,
             block_id,
-            block_hash_cache,
             code_cache,
         ))
     }
