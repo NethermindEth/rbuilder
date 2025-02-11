@@ -38,7 +38,7 @@ impl OrderPoolSubscriber {
         sink: Box<dyn ReplaceableOrderSink>,
     ) -> OrderPoolSubscriptionId {
         let id = self.orderpool.lock().add_sink(block_number, sink);
-        info!(
+        debug!(
             "Adding sink for block {}, this takes lock, {}",
             block_number, id
         );
@@ -49,7 +49,7 @@ impl OrderPoolSubscriber {
         &self,
         id: &OrderPoolSubscriptionId,
     ) -> Option<Box<dyn ReplaceableOrderSink>> {
-        info!("Removing sink for subs id: {}, this takes lock", id);
+        debug!("Removing sink for subs id: {}, this takes lock", id);
         self.orderpool.lock().remove_sink(id)
     }
 
@@ -298,14 +298,14 @@ where
             //    new_commands.clear();
             //}
 
-            info!("order_pool command processing WAITING FOR LOCK");
+            debug!("order_pool command processing WAITING FOR LOCK");
             {
                 let mut orderpool = orderpool.lock();
-                info!("order_pool command processing GOT LOCK");
+                debug!("order_pool command processing GOT LOCK");
                 orderpool.process_commands(new_commands.clone());
                 new_commands.clear();
             }
-            info!("order_pool command processing RELEASED LOCK");
+            debug!("order_pool command processing RELEASED LOCK");
         }
 
         for handle in handles {
@@ -373,9 +373,9 @@ where
 
 
                         {
-                            info!("odrder pool cleaner WAITING FOR LOCK");
+                            debug!("odrder pool cleaner WAITING FOR LOCK");
                             let mut orderpool = orderpool.lock();
-                            info!("odrder pool cleaner GOT LOCK");
+                            debug!("odrder pool cleaner GOT LOCK");
                             orderpool.head_updated(block_number, &state);
                             let update_time = start.elapsed();
                             let (tx_count, bundle_count) = orderpool.content_count();
@@ -390,7 +390,7 @@ where
                                 "Cleaned orderpool",
                             );
                         }
-                            info!("odrder pool cleaner RELEASED LOCK");
+                            debug!("odrder pool cleaner RELEASED LOCK");
                         //}
                     } else {
                         info!("Clean orderpool job: channel ended");
