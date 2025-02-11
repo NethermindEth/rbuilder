@@ -3,7 +3,7 @@ name: Release
 on:
   push:
     tags:
-      - "v*"
+      - "op-v*"
   workflow_dispatch:
     inputs:
       draft-release:
@@ -41,7 +41,7 @@ jobs:
         id: extract_version
         run: |
           if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
-            VERSION="${GITHUB_REF#refs/tags/}"
+            VERSION="${GITHUB_REF#refs/tags/op-}"
           else
             VERSION="$(echo ${GITHUB_SHA} | cut -c1-7)"
           fi
@@ -77,7 +77,7 @@ jobs:
           # - target: aarch64-apple-darwin
           #   runner: warp-macos-14-arm64-6x
         features:
-          - ${{ github.event.inputs.features || '' }}
+          - ${{ github.event.inputs.features }}${{ github.event.inputs.features && ',' }}optimism
 
     steps:
       - name: Install dependencies
@@ -95,17 +95,17 @@ jobs:
 
       - uses: actions/checkout@v4 # must install git before checkout and set safe.directory after checkout because of container
 
-      - name: Build rbuilder binary
+      - name: Build op-rbuilder binary
         run: |
           git config --global --add safe.directory "$(pwd)"
           . $HOME/.cargo/env
-          cargo build --release --features=${{ matrix.features }} --target ${{ matrix.configs.target }} --package rbuilder
+          cargo build --release --features=${{ matrix.features }} --target ${{ matrix.configs.target }} --package op-rbuilder
 
-      - name: Upload rbuilder artifact
+      - name: Upload op-rbuilder artifact
         uses: actions/upload-artifact@v4
         with:
-          name: rbuilder-${{ needs.extract-version.outputs.VERSION }}-${{ matrix.configs.target }}${{ matrix.features && '-' }}${{ matrix.features }}
-          path: target/${{ matrix.configs.target }}/release/rbuilder
+          name: op-rbuilder-${{ needs.extract-version.outputs.VERSION }}-${{ matrix.configs.target }}${{ matrix.features && '-' }}${{ matrix.features }}
+          path: target/${{ matrix.configs.target }}/release/op-rbuilder
 
   draft-release:
     name: Draft release
@@ -174,7 +174,7 @@ jobs:
         uses: docker/metadata-action@v5
         id: meta
         with:
-          images: ghcr.io/${{ github.repository_owner }}/rbuilder
+          images: ghcr.io/${{ github.repository_owner }}/op-rbuilder
           labels: org.opencontainers.image.source=${{ github.repositoryUrl }}
           tags: |
             type=sha
@@ -192,13 +192,13 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: docker build and push rbuilder
+      - name: docker build and push op-rbuilder
         uses: docker/build-push-action@v5
         with:
           cache-from: type=gha
           cache-to: type=gha,mode=max
           context: .
-          file: Dockerfile.rbuilder
+          file: Dockerfile.op-rbuilder
           labels: ${{ steps.meta.outputs.labels }}
           platforms: linux/amd64,linux/arm64
           push: true

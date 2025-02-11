@@ -6,7 +6,7 @@
 #
 # Based on https://depot.dev/blog/rust-dockerfile-best-practices
 #
-FROM rust:1.82 as base
+FROM rust:1.82 AS base
 
 ARG FEATURES
 
@@ -25,7 +25,9 @@ ENV SCCACHE_DIR=/sccache
 #
 FROM base AS planner
 WORKDIR /app
+
 COPY . .
+
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
     --mount=type=cache,target=$SCCACHE_DIR,sharing=locked \
@@ -34,37 +36,27 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
 #
 # Builder container (running "cargo chef cook" and "cargo build --release")
 #
-FROM base as builder
+FROM base AS builder
 WORKDIR /app
+
 COPY --from=planner /app/recipe.json recipe.json
+
 RUN --mount=type=cache,target=$SCCACHE_DIR,sharing=locked \
     cargo chef cook --release --recipe-path recipe.json
+
 COPY . .
 
-
-FROM builder as rbuilder
-ARG RBUILDER_BIN="rbuilder"
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
     --mount=type=cache,target=$SCCACHE_DIR,sharing=locked \
-    cargo build --release --features="$FEATURES" --package=${RBUILDER_BIN}
+    cargo build --release --features="$FEATURES" --package=op-rbuilder
 
-FROM builder as test-relay
-RUN --mount=type=cache,target=/usr/local/cargo/registry \
-    --mount=type=cache,target=/usr/local/cargo/git \
-    --mount=type=cache,target=$SCCACHE_DIR,sharing=locked \
-    cargo build --release --features="$FEATURES" --package=test-relay
-
-
-
-# Runtime container for rbuilder
-FROM gcr.io/distroless/cc-debian12 as rbuilder-runtime
+#
+# Runtime container
+#
+FROM gcr.io/distroless/cc-debian12
 WORKDIR /app
-COPY --from=rbuilder /app/target/release/rbuilder /app/rbuilder
-ENTRYPOINT ["/app/rbuilder"]
 
-# Runtime container for test-relay
-FROM gcr.io/distroless/cc-debian12 as test-relay-runtime
-WORKDIR /app
-COPY --from=test-relay /app/target/release/test-relay /app/test-relay
-ENTRYPOINT ["/app/test-relay"]
+COPY --from=builder /app/target/release/op-rbuilder /app/op-rbuilder
+
+ENTRYPOINT ["/app/op-rbuilder"]

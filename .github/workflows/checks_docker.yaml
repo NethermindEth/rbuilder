@@ -2,6 +2,15 @@ name: Docker Build
 
 on:
   workflow_dispatch:
+    inputs:
+      features:
+        default: ''
+        description: "Binary Compilation Features"
+        options:
+          - ''
+          - 'redact-sensitive'
+        required: false
+        type: choice
   pull_request:
   merge_group:
   push:
@@ -11,6 +20,16 @@ jobs:
   build-docker:
     name: Build Docker image
     runs-on: warp-ubuntu-latest-x64-32x
+    strategy:
+      matrix:
+        projects:
+          - features: ${{ github.event.inputs.features || '' }}
+            name: rbuilder
+          - features: ${{ github.event.inputs.features || '' }}
+            name: reth-rbuilder
+          # Append optimism to provided features
+          - features: "${{ github.event.inputs.features }}${{ github.event.inputs.features && ',' }}optimism"
+            name: op-rbuilder
 
     steps:
       - name: Checkout sources
@@ -22,11 +41,14 @@ jobs:
       - name: Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Docker Build
+      - name: Docker build ${{ matrix.projects.name }}
         uses: docker/build-push-action@v5
         with:
           cache-from: type=gha
           cache-to: type=gha,mode=max
           platforms: linux/amd64
           context: .
+          file: Dockerfile.${{ matrix.projects.name }}
           push: false
+          build-args: |
+            FEATURES=${{ matrix.projects.features }}
