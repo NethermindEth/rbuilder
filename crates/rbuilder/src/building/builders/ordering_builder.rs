@@ -97,7 +97,10 @@ where
         }
 
         if no_more_time {
-            error!("=== BUILDER NOT CANCELED BY TOKEN ===");
+            println!(
+                "=== BUILDER NOT CANCELED BY TOKEN block: {}  id: {} ===",
+                blk_num, build_attempt_id
+            );
             input.cancel.cancel();
             break 'building;
         }
