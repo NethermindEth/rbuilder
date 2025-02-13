@@ -145,10 +145,12 @@ where
         let provider = self.provider.clone();
         let current_contexts = Arc::clone(&self.current_contexts);
         let block_context: BlockContextId = gen_uid();
-        let span = info_span!("sim_ctx", block = ctx.block_env.number.to::<u64>(), parent = ?ctx.attributes.parent);
+        let block_num = ctx.block_env.number.to::<u64>();
+        let span = info_span!("sim_ctx", block = block_num, parent = ?ctx.attributes.parent);
 
         let handle = tokio::spawn(
             async move {
+                info!("Start sim");
                 let sim_tree = SimTree::new(provider, ctx.attributes.parent);
                 let new_order_sub = input.new_order_sub;
                 let (sim_req_sender, sim_req_receiver) = flume::unbounded();
@@ -177,7 +179,7 @@ where
                     current_contexts.contexts.remove(&block_context);
                 }
 
-                info!("spawn_sim_job_lock cleaning up, lock released");
+                info!("Finished sim");
             }
             .instrument(span),
         );
