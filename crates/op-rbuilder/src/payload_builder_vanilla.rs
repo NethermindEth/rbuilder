@@ -1,8 +1,3 @@
-use alloy_rpc_types_eth::Withdrawals;
-use reth::core::primitives::InMemorySize;
-use reth_transaction_pool::PoolTransaction;
-use std::{fmt::Display, sync::Arc, time::Instant};
-
 use crate::generator::BuildArguments;
 use crate::{
     generator::{BlockCell, PayloadBuilder},
@@ -44,7 +39,7 @@ use reth_provider::{
     HashedPostStateProvider, ProviderError, StateProviderFactory, StateRootProvider,
 };
 use reth_revm::database::StateProviderDatabase;
-use reth_transaction_pool::pool::BestPayloadTransactions;
+use reth_payload_util::BestPayloadTransactions;
 use reth_transaction_pool::{BestTransactionsAttributes, PoolTransaction, TransactionPool};
 use revm::{
     db::{states::bundle_state::BundleRetention, State},

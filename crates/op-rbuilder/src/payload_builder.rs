@@ -1,4 +1,4 @@
-use std::{fmt::Display, sync::Arc, sync::Mutex};
+use std::{sync::Mutex};
 
 use crate::generator::{BlockCell, BuildArguments, PayloadBuilder};
 use alloy_consensus::{Eip658Value, Header, Transaction, Typed2718, EMPTY_OMMER_ROOT_HASH};

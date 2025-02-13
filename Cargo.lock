@@ -1452,7 +1452,7 @@ dependencies = [
  "bitflags 2.8.0",
  "cexpr",
  "clang-sys",
- "itertools 0.13.0",
+ "itertools 0.11.0",
  "proc-macro2",
  "quote",
  "regex",
@@ -2517,7 +2517,7 @@ dependencies = [
  "cssparser-macros",
  "dtoa-short",
  "itoa",
- "phf 0.11.3",
+ "phf 0.10.1",
  "smallvec",
 ]
 
@@ -3189,7 +3189,9 @@ dependencies = [
  "alloy-rlp",
  "alloy-trie",
  "criterion 0.4.0",
+ "eth-sparse-mpt",
  "eyre",
+ "flate2",
  "hash-db",
  "proptest",
  "rand 0.8.5",
@@ -6444,7 +6446,7 @@ version = "0.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "af1844ef2428cc3e1cb900be36181049ef3d3193c63e43026cfe202983b27a56"
 dependencies = [
- "proc-macro-crate 3.2.0",
+ "proc-macro-crate 1.1.3",
  "proc-macro2",
  "quote",
  "syn 2.0.98",
@@ -6615,7 +6617,9 @@ dependencies = [
  "jsonrpsee 0.24.8",
  "metrics",
  "op-alloy-consensus",
+ "op-alloy-network",
  "op-alloy-rpc-types-engine",
+ "rand 0.8.5",
  "reth",
  "reth-basic-payload-builder",
  "reth-chain-state",
@@ -6646,6 +6650,7 @@ dependencies = [
  "reth-provider",
  "reth-revm",
  "reth-rpc-layer",
+ "reth-testing-utils",
  "reth-transaction-pool",
  "reth-trie",
  "revm",
@@ -6656,6 +6661,8 @@ dependencies = [
  "tikv-jemallocator",
  "time",
  "tokio",
+ "tokio-tungstenite 0.26.1",
+ "tokio-util",
  "tower 0.4.13",
  "tracing",
  "uuid",
@@ -6944,7 +6951,9 @@ version = "0.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fabbf1ead8a5bcbc20f5f8b939ee3f5b0f6f281b6ad3468b84656b658b455259"
 dependencies = [
+ "phf_macros 0.10.0",
  "phf_shared 0.10.0",
+ "proc-macro-hack",
 ]
 
 [[package]]
@@ -6953,7 +6962,7 @@ version = "0.11.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1fd6780a80ae0c52cc120a26a1a42c1ae51b247a253e4e06113d23d2c2edd078"
 dependencies = [
- "phf_macros",
+ "phf_macros 0.11.3",
  "phf_shared 0.11.3",
 ]
 
@@ -6985,6 +6994,20 @@ checksum = "3c80231409c20246a13fddb31776fb942c38553c51e871f8cbd687a4cfb5843d"
 dependencies = [
  "phf_shared 0.11.3",
  "rand 0.8.5",
+]
+
+[[package]]
+name = "phf_macros"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "58fdf3184dd560f160dd73922bea2d5cd6e8f064bf4b13110abd81b03697b4e0"
+dependencies = [
+ "phf_generator 0.10.0",
+ "phf_shared 0.10.0",
+ "proc-macro-hack",
+ "proc-macro2",
+ "quote",
+ "syn 1.0.109",
 ]
 
 [[package]]
@@ -7563,6 +7586,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "proc-macro-hack"
+version = "0.5.20+deprecated"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dc375e1527247fe1a97d8b7156678dfe7c1af2fc075c9a4db3690ecd2a148068"
+
+[[package]]
 name = "proc-macro2"
 version = "1.0.93"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8020,7 +8049,6 @@ dependencies = [
  "futures",
  "governor",
  "humantime",
- "hyper 1.6.0",
  "integer-encoding",
  "itertools 0.11.0",
  "jsonrpsee 0.20.4",
@@ -10857,6 +10885,21 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-futures",
+]
+
+[[package]]
+name = "reth-testing-utils"
+version = "1.2.0"
+source = "git+https://github.com/paradigmxyz/reth?tag=v1.2.0#1e965caf5fa176f244a31c0d2662ba1b590938db"
+dependencies = [
+ "alloy-consensus",
+ "alloy-eips",
+ "alloy-genesis",
+ "alloy-primitives 0.8.21",
+ "rand 0.8.5",
+ "reth-primitives",
+ "reth-primitives-traits",
+ "secp256k1",
 ]
 
 [[package]]
