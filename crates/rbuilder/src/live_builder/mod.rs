@@ -280,9 +280,9 @@ where
                 let cancel = block_cancellation.clone();
                 let blk_num = block_ctx.block_env.number.to::<u64>();
 
-                tokio::spawn(async move {
+                std::thread::spawn(move || {
                     let start = std::time::Instant::now();
-                    tokio::time::sleep(max_time_to_build).await;
+                    std::thread::sleep(max_time_to_build);
                     debug!("Block building time out: will cancel {}", blk_num);
                     cancel.cancel();
 
