@@ -97,7 +97,8 @@ where
         }
 
         if no_more_time {
-            info!("no more time");
+            error!("=== BUILDER NOT CANCELED BY TOKEN ===");
+            input.cancel.cancel();
             break 'building;
         }
 

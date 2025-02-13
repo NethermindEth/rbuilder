@@ -283,10 +283,10 @@ where
                 tokio::spawn(async move {
                     let start = std::time::Instant::now();
                     tokio::time::sleep(max_time_to_build).await;
-                    info!("Block building time out: will cancel {}", blk_num);
+                    debug!("Block building time out: will cancel {}", blk_num);
                     cancel.cancel();
 
-                    info!(
+                    debug!(
                         "CANCEL block building:{}, time  {}",
                         blk_num,
                         start.elapsed().as_millis()
@@ -299,13 +299,13 @@ where
                     max_time_to_build.as_millis()
                 );
 
-                for (num, t) in cacnelation_tokens.drain(0..) {
-                    t.cancel();
-                    info!("Cancelling token {}", num);
-                    info!("Is cancelled? {}", t.is_cancelled());
-                }
-
-                cacnelation_tokens.push((blk_num, block_cancellation.clone()));
+                //for (num, t) in cacnelation_tokens.drain(0..) {
+                //    t.cancel();
+                //    info!("Cancelling token {}", num);
+                //    info!("Is cancelled? {}", t.is_cancelled());
+                //}
+                //
+                //cacnelation_tokens.push((blk_num, block_cancellation.clone()));
 
                 builder_pool.start_block_building(
                     payload,

@@ -155,14 +155,14 @@ where
                 let new_order_sub = input.new_order_sub;
                 let (sim_req_sender, sim_req_receiver) = flume::unbounded();
                 let (sim_results_sender, sim_results_receiver) = mpsc::channel(1024);
-                {
-                    let sim_context = SimulationContext {
-                        block_ctx: ctx,
-                        requests: sim_req_receiver,
-                        results: sim_results_sender,
-                    };
-                    current_contexts.contexts.insert(block_context, sim_context);
-                }
+
+                let sim_context = SimulationContext {
+                    block_ctx: ctx,
+                    requests: sim_req_receiver,
+                    results: sim_results_sender,
+                };
+                current_contexts.contexts.insert(block_context, sim_context);
+
                 let mut simulation_job = SimulationJob::new(
                     block_cancellation,
                     new_order_sub,
