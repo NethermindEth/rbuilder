@@ -42,13 +42,13 @@ RUN --mount=type=cache,target=$SCCACHE_DIR,sharing=locked \
     cargo chef cook --release --recipe-path recipe.json
 COPY . .
 
-FROM builder as rbuilder
+FROM builder AS rbuilder
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
     --mount=type=cache,target=$SCCACHE_DIR,sharing=locked \
     cargo build --release --features="$FEATURES" --package=rbuilder
 
-FROM builder as test-relay
+FROM builder AS test-relay
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
     --mount=type=cache,target=$SCCACHE_DIR,sharing=locked \
@@ -57,13 +57,13 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
 
 
 # Runtime container for rbuilder
-FROM gcr.io/distroless/cc-debian12 as rbuilder-runtime
+FROM gcr.io/distroless/cc-debian12 AS rbuilder-runtime
 WORKDIR /app
 COPY --from=rbuilder /app/target/release/rbuilder /app/rbuilder
 ENTRYPOINT ["/app/rbuilder"]
 
 # Runtime container for test-relay
-FROM gcr.io/distroless/cc-debian12 as test-relay-runtime
+FROM gcr.io/distroless/cc-debian12 AS test-relay-runtime
 WORKDIR /app
 COPY --from=test-relay /app/target/release/test-relay /app/test-relay
 ENTRYPOINT ["/app/test-relay"]
