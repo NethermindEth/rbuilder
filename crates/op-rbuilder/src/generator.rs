@@ -7,8 +7,9 @@ use reth::{
     providers::CanonStateSubscriptions,
     transaction_pool::TransactionPool,
 };
+use reth_primitives_traits::HeaderTy;
 use reth::{providers::StateProviderFactory, tasks::TaskSpawner};
-use reth_basic_payload_builder::{BasicPayloadJobGeneratorConfig, PayloadConfig};
+use reth_basic_payload_builder::{BasicPayloadJobGeneratorConfig, BuildOutcome, HeaderForPayload, PayloadConfig, ResolveBestPayload};
 use reth_revm::{cancelled::CancelOnDrop};
 use reth_node_api::NodeTypesWithEngine;
 use reth_node_api::PayloadBuilderAttributes;
@@ -18,7 +19,7 @@ use reth_node_api::TxTy;
 use reth_optimism_chainspec::OpChainSpec;
 use reth_optimism_node::OpEngineTypes;
 use reth_optimism_payload_builder::OpPayloadBuilderAttributes;
-use reth_optimism_primitives::OpPrimitives;
+use reth_optimism_primitives::{OpPrimitives, OpTransactionSigned};
 use reth_payload_builder::PayloadBuilderService;
 use reth_payload_builder::PayloadJobGenerator;
 use reth_payload_builder::{KeepPayloadJobAlive, PayloadBuilderError, PayloadJob};
@@ -186,7 +187,7 @@ where
     Builder::Attributes: Unpin + Clone,
     Builder::BuiltPayload: Unpin + Clone,
 {
-    type Job = BasicPayloadJob<Client, Pool, Tasks, Builder>;
+    type Job = BasicPayloadJob<Client, Pool>;
 
     /// This is invoked when the node receives payload attributes from the beacon node via
     /// `engine_forkchoiceUpdatedV1`
@@ -354,14 +355,12 @@ impl<Attributes, Payload: BuiltPayload> BuildArguments<Attributes, Payload> {
 }
 
 /// A [PayloadJob] is a future that's being polled by the `PayloadBuilderService`
-impl<Client, Pool, Tasks, Builder> BasicPayloadJob<Client, Pool, Tasks, Builder>
+impl<Tasks, Builder> BasicPayloadJob<Tasks, Builder>
 where
-    Client: StateProviderFactory + Clone + Unpin + 'static,
-    Pool: TransactionPool + Unpin + 'static,
     Tasks: TaskSpawner + Clone + 'static,
-    Builder: PayloadBuilder<Pool, Client> + Unpin + 'static,
-    <Builder as PayloadBuilder<Pool, Client>>::Attributes: Unpin + Clone,
-    <Builder as PayloadBuilder<Pool, Client>>::BuiltPayload: Unpin + Clone,
+    Builder: PayloadBuilder + Unpin + 'static,
+    <Builder as PayloadBuilder>::Attributes: Unpin + Clone,
+    <Builder as PayloadBuilder>::BuiltPayload: Unpin + Clone,
 {
     pub fn spawn_build_job(&mut self) {
         let builder = self.builder.clone();
@@ -390,14 +389,12 @@ where
 }
 
 /// A [PayloadJob] is a a future that's being polled by the `PayloadBuilderService`
-impl<Client, Pool, Tasks, Builder> Future for BasicPayloadJob<Client, Pool, Tasks, Builder>
+impl<Tasks, Builder> Future for BasicPayloadJob<Tasks, Builder>
 where
-    Client: StateProviderFactory + Clone + Unpin + 'static,
-    Pool: TransactionPool + Unpin + 'static,
     Tasks: TaskSpawner + Clone + 'static,
-    Builder: PayloadBuilder<Pool, Client> + Unpin + 'static,
-    <Builder as PayloadBuilder<Pool, Client>>::Attributes: Unpin + Clone,
-    <Builder as PayloadBuilder<Pool, Client>>::BuiltPayload: Unpin + Clone,
+    Builder: PayloadBuilder + Unpin + 'static,
+    <Builder as PayloadBuilder>::Attributes: Unpin + Clone,
+    <Builder as PayloadBuilder>::BuiltPayload: Unpin + Clone,
 {
     type Output = Result<(), PayloadBuilderError>;
 

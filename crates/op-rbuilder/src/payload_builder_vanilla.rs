@@ -92,7 +92,7 @@ where
 
     fn try_build(
         &self,
-        args: BuildArguments<Pool, Client, Self::Attributes>,
+        args: BuildArguments<Self::Attributes, Self::BuiltPayload>,
         best_payload: BlockCell<Self::BuiltPayload>,
     ) -> Result<(), PayloadBuilderError> {
         let pool = args.pool.clone();
