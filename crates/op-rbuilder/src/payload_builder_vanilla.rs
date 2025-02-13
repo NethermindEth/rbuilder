@@ -69,7 +69,7 @@ pub struct OpPayloadBuilderVanilla<EvmConfig, Txs = ()> {
     pub metrics: OpRBuilderMetrics,
 }
 
-impl<EvmConfig> OpPayloadBuilderVanilla<EvmConfig> {
+impl<Pool, EvmConfig> OpPayloadBuilderVanilla<Pool, EvmConfig> {
     /// `OpPayloadBuilder` constructor.
     pub fn new(evm_config: EvmConfig, builder_signer: Option<Signer>) -> Self {
         Self {
@@ -92,7 +92,7 @@ where
         EvmError<ProviderError> = EVMError<ProviderError>,
     >,
 {
-    type Attributes = OpPayloadBuilderAttributes;
+    type Attributes = OpPayloadBuilderAttributes<OpTransactionSigned>;
     type BuiltPayload = OpBuiltPayload;
 
     fn try_build(
@@ -166,8 +166,6 @@ where
             .map_err(PayloadBuilderError::other)?;
 
         let BuildArguments {
-            client,
-            pool: _,
             mut cached_reads,
             config,
             cancel,
@@ -214,7 +212,7 @@ where
     /// (that has the `parent` as its parent).
     pub fn cfg_and_block_env(
         &self,
-        attributes: &OpPayloadBuilderAttributes,
+        attributes: &OpPayloadBuilderAttributes<OpTransactionSigned>,
         parent: &Header,
     ) -> Result<EvmEnv, EvmConfig::Error> {
         let next_attributes = NextBlockEnvAttributes {
@@ -476,8 +474,6 @@ where
             ctx.payload_id(),
             sealed_block,
             info.total_fees,
-            ctx.chain_spec.clone(),
-            ctx.config.attributes,
             Some(executed),
         );
 
@@ -566,7 +562,7 @@ pub struct OpPayloadBuilderCtx<EvmConfig> {
     /// The chainspec
     pub chain_spec: Arc<OpChainSpec>,
     /// How to build the payload.
-    pub config: PayloadConfig<OpPayloadBuilderAttributes>,
+    pub config: PayloadConfig<OpPayloadBuilderAttributes<OpTransactionSigned>>,
     /// EVM environment.
     pub evm_env: EvmEnv,
     /// Marker to check whether the job has been cancelled.
@@ -584,7 +580,7 @@ impl<EvmConfig> OpPayloadBuilderCtx<EvmConfig> {
     }
 
     /// Returns the builder attributes.
-    pub const fn attributes(&self) -> &OpPayloadBuilderAttributes {
+    pub const fn attributes(&self) -> &OpPayloadBuilderAttributes<OpTransactionSigned> {
         &self.config.attributes
     }
 

@@ -26,7 +26,7 @@ use reth_primitives_traits::{proofs, SealedBlock};
 use reth_provider::{
     HashedPostStateProvider, ProviderError, StateProviderFactory, StateRootProvider,
 };
-use reth_revm::database::StateProviderDatabase;
+use reth_revm::{database::StateProviderDatabase, cancelled::CancelOnDrop};
 use reth_transaction_pool::{BestTransactionsAttributes, PoolTransaction, TransactionPool};
 use revm::{
     db::{states::bundle_state::BundleRetention, BundleState, State},
@@ -42,7 +42,7 @@ use reth_optimism_payload_builder::{
     error::OpPayloadBuilderError,
     payload::{OpBuiltPayload, OpPayloadBuilderAttributes},
 };
-use reth_transaction_pool::pool::BestPayloadTransactions;
+use reth_payload_util::BestPayloadTransactions;
 
 use futures_util::FutureExt;
 use futures_util::SinkExt;
@@ -284,7 +284,7 @@ where
     /// (that has the `parent` as its parent).
     pub fn cfg_and_block_env(
         &self,
-        attributes: &OpPayloadBuilderAttributes,
+        attributes: &OpPayloadBuilderAttributes<OpTransactionSigned>,
         parent: &Header,
     ) -> Result<EvmEnv, EvmConfig::Error> {
         let next_attributes = NextBlockEnvAttributes {
@@ -308,7 +308,7 @@ where
         EvmError<ProviderError> = EVMError<ProviderError>,
     >,
 {
-    type Attributes = OpPayloadBuilderAttributes;
+    type Attributes = OpPayloadBuilderAttributes<OpTransactionSigned>;
     type BuiltPayload = OpBuiltPayload;
 
     fn try_build(
@@ -538,7 +538,7 @@ pub struct OpPayloadBuilderCtx<EvmConfig> {
     /// The chainspec
     pub chain_spec: Arc<OpChainSpec>,
     /// How to build the payload.
-    pub config: PayloadConfig<OpPayloadBuilderAttributes>,
+    pub config: PayloadConfig<OpPayloadBuilderAttributes<OpTransactionSigned>>,
     /// EVM environment.
     pub evm_env: EvmEnv,
     /// Marker to check whether the job has been cancelled.
@@ -552,7 +552,7 @@ impl<EvmConfig> OpPayloadBuilderCtx<EvmConfig> {
     }
 
     /// Returns the builder attributes.
-    pub const fn attributes(&self) -> &OpPayloadBuilderAttributes {
+    pub const fn attributes(&self) -> &OpPayloadBuilderAttributes<OpTransactionSigned> {
         &self.config.attributes
     }
 
