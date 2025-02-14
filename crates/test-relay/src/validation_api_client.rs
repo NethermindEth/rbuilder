@@ -34,7 +34,7 @@ pub enum ValidationError {
     FailedToSerializeRequest,
     #[error("Failed to validate block, no valid responses from validation nodes")]
     NoValidResponseFromValidationNodes,
-    #[error("Validation failed")]
+    #[error("Validation failed: {0}")]
     ValidationFailed(ErrorPayload),
 
     #[error("Local usage error: {0}")]
