@@ -9,8 +9,7 @@ use reth::{
 };
 use reth_primitives_traits::HeaderTy;
 use reth::{providers::StateProviderFactory, tasks::TaskSpawner};
-use reth_basic_payload_builder::{BasicPayloadJobGeneratorConfig, BuildOutcome, HeaderForPayload, PayloadConfig, ResolveBestPayload};
-use reth_revm::{cancelled::CancelOnDrop};
+use reth_basic_payload_builder::{BasicPayloadJobGeneratorConfig, BuildOutcome, HeaderForPayload, PayloadConfig, PayloadState, PayloadTaskGuard, PendingPayload, ResolveBestPayload};
 use reth_node_api::NodeTypesWithEngine;
 use reth_node_api::PayloadBuilderAttributes;
 use reth_node_api::PayloadKind;
@@ -258,6 +257,7 @@ use std::{
     pin::Pin,
     task::{Context, Poll},
 };
+use tracing::log::trace;
 
 /// A [PayloadJob] that builds empty blocks.
 #[derive(Debug)]
@@ -269,16 +269,27 @@ where
     pub(crate) config: PayloadConfig<Builder::Attributes>,
     /// How to spawn building tasks
     pub(crate) executor: Tasks,
+    /// The deadline when this job should resolve.
+    deadline: Pin<Box<Sleep>>,
+    /// The best payload so far and its state.
+    best_payload: PayloadState<Builder::BuiltPayload>,
+    /// Restricts how many generator tasks can be executed at once.
+    payload_task_guard: PayloadTaskGuard,
+    /// Caches all disk reads for the state the new payloads builds on
+    ///
+    /// This is used to avoid reading the same state over and over again when new attempts are
+    /// triggered, because during the building process we'll repeatedly execute the transactions.
+    cached_reads: Option<CachedReads>,
+    /// Receiver for the block that is currently being built.
+    pending_block: Option<oneshot::Receiver<Result<BuildOutcome<Builder::BuiltPayload>, PayloadBuilderError>>>,
+    /// Cancellation token for the running job
+    pub(crate) cancel: CancellationToken,
+
+    // pub(crate) build_complete: Option<oneshot::Receiver<Result<(), PayloadBuilderError>>>,
     /// The type responsible for building payloads.
     ///
     /// See [PayloadBuilder]
     pub(crate) builder: Builder,
-    /// The cell that holds the built payload.
-    pub(crate) cell: BlockCell<Builder::BuiltPayload>,
-    /// Cancellation token for the running job
-    pub(crate) cancel: CancellationToken,
-    pub(crate) deadline: Pin<Box<Sleep>>, // Add deadline
-    pub(crate) build_complete: Option<oneshot::Receiver<Result<(), PayloadBuilderError>>>,
 }
 
 impl<Tasks, Builder> PayloadJob for BasicPayloadJob<Tasks, Builder>
@@ -302,7 +313,6 @@ where
             // Note: it is assumed that this is unlikely to happen, as the payload job is
             // started right away and the first full block should have been
             // built by the time CL is requesting the payload.
-            self.metrics.inc_requested_empty_payload();
             self.builder.build_empty_payload(self.config.clone())
         }
     }
@@ -316,6 +326,16 @@ where
         kind: PayloadKind,
     ) -> (Self::ResolvePayloadFuture, KeepPayloadJobAlive) {
         tracing::info!("Resolve kind {:?}", kind);
+
+        let best_payload = self.best_payload.payload().cloned();
+        if best_payload.is_none() && self.pending_block.is_none() {
+            // ensure we have a job scheduled if we don't have a best payload yet and none is active
+            self.spawn_build_job();
+        }
+        let maybe_better = self.pending_block.take();
+
+
+
 
         // check if self.cell has a payload
         self.cancel.cancel();
@@ -337,7 +357,7 @@ pub struct BuildArguments<Attributes, Payload: BuiltPayload> {
     /// How to configure the payload.
     pub config: PayloadConfig<Attributes, HeaderTy<Payload::Primitives>>,
     /// A marker that can be used to cancel the job.
-    pub cancel: CancelOnDrop,
+    pub cancel: CancellationToken,
     /// The best payload achieved so far.
     pub best_payload: Option<Payload>,
 }
@@ -347,7 +367,7 @@ impl<Attributes, Payload: BuiltPayload> BuildArguments<Attributes, Payload> {
     pub const fn new(
         cached_reads: CachedReads,
         config: PayloadConfig<Attributes, HeaderTy<Payload::Primitives>>,
-        cancel: CancelOnDrop,
+        cancel: CancellationToken,
         best_payload: Option<Payload>,
     ) -> Self {
         Self { cached_reads, config, cancel, best_payload }
@@ -359,30 +379,31 @@ impl<Tasks, Builder> BasicPayloadJob<Tasks, Builder>
 where
     Tasks: TaskSpawner + Clone + 'static,
     Builder: PayloadBuilder + Unpin + 'static,
-    <Builder as PayloadBuilder>::Attributes: Unpin + Clone,
-    <Builder as PayloadBuilder>::BuiltPayload: Unpin + Clone,
+    Builder::Attributes: Unpin + Clone,
+    Builder::BuiltPayload: Unpin + Clone,
 {
     pub fn spawn_build_job(&mut self) {
-        let builder = self.builder.clone();
-        let client = self.client.clone();
-        let pool = self.pool.clone();
-        let payload_config = self.config.clone();
-        let cell = self.cell.clone();
-        let cancel = self.cancel.clone();
-
+        trace!(target: "payload_builder", id = %self.config.payload_id(), "spawn new payload build task");
         let (tx, rx) = oneshot::channel();
-        self.build_complete = Some(rx);
+        let cancel = self.cancel.clone();
+        let guard = self.payload_task_guard.clone();
+        let payload_config = self.config.clone();
+        let best_payload = self.best_payload.payload().cloned();
+        let cached_reads = self.cached_reads.take().unwrap_or_default();
+        let builder = self.builder.clone();
+
+        self.pending_block = Some(rx);
 
         self.executor.spawn_blocking(Box::pin(async move {
+            let _permit = guard.acquire().await;
             let args = BuildArguments {
-                client,
-                pool,
-                cached_reads: Default::default(),
+                cached_reads,
                 config: payload_config,
                 cancel,
+                best_payload,
             };
 
-            let result = builder.try_build(args, cell);
+            let result = builder.try_build(args);
             let _ = tx.send(result);
         }));
     }
@@ -393,8 +414,8 @@ impl<Tasks, Builder> Future for BasicPayloadJob<Tasks, Builder>
 where
     Tasks: TaskSpawner + Clone + 'static,
     Builder: PayloadBuilder + Unpin + 'static,
-    <Builder as PayloadBuilder>::Attributes: Unpin + Clone,
-    <Builder as PayloadBuilder>::BuiltPayload: Unpin + Clone,
+    Builder::Attributes: Unpin + Clone,
+    Builder::BuiltPayload: Unpin + Clone,
 {
     type Output = Result<(), PayloadBuilderError>;
 

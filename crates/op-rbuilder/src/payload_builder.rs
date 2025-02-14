@@ -26,7 +26,7 @@ use reth_primitives_traits::{proofs, SealedBlock};
 use reth_provider::{
     HashedPostStateProvider, ProviderError, StateProviderFactory, StateRootProvider,
 };
-use reth_revm::{database::StateProviderDatabase, cancelled::CancelOnDrop};
+use reth_revm::{database::StateProviderDatabase};
 use reth_transaction_pool::{BestTransactionsAttributes, PoolTransaction, TransactionPool};
 use revm::{
     db::{states::bundle_state::BundleRetention, BundleState, State},
