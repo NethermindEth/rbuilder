@@ -78,7 +78,14 @@ pub fn setup_reloadable_tracing_subscriber(config: LoggerConfig) -> eyre::Result
         let mut handle = RELOAD_HANDLE.lock();
         *handle = Some(reload_handle);
     }
-    tracing_subscriber::registry().with(reload_layer).init();
+    tracing_subscriber::registry()
+        .with(reload_layer)
+        .with(
+            fmt::Layer::default()
+                .with_ansi(true)
+                .with_writer(std::io::stdout),
+        )
+        .init();
 
     Ok(())
 }
