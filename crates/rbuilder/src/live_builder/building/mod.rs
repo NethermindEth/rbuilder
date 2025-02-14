@@ -65,25 +65,29 @@ where
         &mut self,
         payload: payload_events::MevBoostSlotData,
         block_ctx: BlockBuildingContext,
-        block_cancellation: CancellationToken,
+        global_cancellation: CancellationToken,
         max_time_to_build: Duration,
     ) {
+        let block_cancellation = global_cancellation.child_token();
+        let cancel = block_cancellation.clone();
+
         let build_attempt_id: u32 = rand::random();
         let blk_num = block_ctx.block_env.number.to::<u64>();
         let span = debug_span!("start_block_build", blk_num, build_attempt_id);
         let _guard = span.enter();
 
-        //let cancel = block_cancellation.clone();
-        //std::thread::spawn(move || {
-        //    std::thread::sleep(max_time_to_build);
-        //    cancel.cancel();
-        //});
-        //
+        std::thread::spawn(move || {
+            let start = std::time::Instant::now();
+            std::thread::sleep(max_time_to_build);
+            debug!("Block building time out: will cancel {}", blk_num);
+            cancel.cancel();
 
-        //tokio::spawn(async move {
-        //    tokio::time::sleep(max_time_to_build).await;
-        //    cancel.cancel();
-        //});
+            debug!(
+                "CANCEL block building:{}, time  {}",
+                blk_num,
+                start.elapsed().as_millis()
+            );
+        });
 
         let (orders_for_block, sink) = OrdersForBlock::new_with_sink();
         // add OrderReplacementManager to manage replacements and cancellations
@@ -151,13 +155,12 @@ where
         }
 
         let sbundle_merger_selected_signers = self.sbundle_merger_selected_signers.clone();
-        tokio::spawn(async move {
+        std::thread::spawn(move || {
             merge_and_send(
                 input.orders,
                 broadcast_input,
                 &sbundle_merger_selected_signers,
             )
-            .await;
         });
 
         //        tokio::spawn();
@@ -201,18 +204,18 @@ impl SimulatedOrderSink for SimulatedOrderSinkToChannel {
 }
 
 /// Merges (see [`MultiShareBundleMerger`]) simulated orders from input and forwards the result to sender.
-async fn merge_and_send(
+fn merge_and_send(
     mut input: mpsc::Receiver<SimulatedOrderCommand>,
     sender: broadcast::Sender<SimulatedOrderCommand>,
     sbundle_merger_selected_signers: &[Address],
 ) {
-    let mut sender = SimulatedOrderSinkToChannel::new(sender);
-    //let mut merger = MultiShareBundleMerger::new(sbundle_merger_selected_signers, sender.clone());
+    let sender = Rc::new(RefCell::new(SimulatedOrderSinkToChannel::new(sender)));
+    let mut merger = MultiShareBundleMerger::new(sbundle_merger_selected_signers, sender.clone());
     // we don't worry about waiting for input forever because it will be closed by producer job
-    while let Some(input) = input.recv().await {
-        simulated_order_command_to_sink(input, &mut sender);
+    while let Some(input) = input.blocking_recv() {
+        simulated_order_command_to_sink(input, &mut merger);
         // we don't create new subscribers to the broadcast so here we can be sure that err means end of receivers
-        if sender.sender_returned_error() {
+        if sender.borrow().sender_returned_error() {
             trace!("Cancelling merge_and_send job, destination stopped");
             return;
         }

@@ -275,23 +275,10 @@ where
                 None,
                 root_hasher,
             ) {
-                let max_time_to_build = time_until_slot_end.try_into().unwrap_or_default();
-                let block_cancellation = self.global_cancellation.child_token();
-                let cancel = block_cancellation.clone();
+                let max_time_to_build: Duration =
+                    time_until_slot_end.try_into().unwrap_or_default();
+
                 let blk_num = block_ctx.block_env.number.to::<u64>();
-
-                std::thread::spawn(move || {
-                    let start = std::time::Instant::now();
-                    std::thread::sleep(max_time_to_build);
-                    debug!("Block building time out: will cancel {}", blk_num);
-                    cancel.cancel();
-
-                    debug!(
-                        "CANCEL block building:{}, time  {}",
-                        blk_num,
-                        start.elapsed().as_millis()
-                    );
-                });
 
                 info!(
                     "Started block building:{}, time to build: {}",
@@ -299,18 +286,10 @@ where
                     max_time_to_build.as_millis()
                 );
 
-                //for (num, t) in cacnelation_tokens.drain(0..) {
-                //    t.cancel();
-                //    info!("Cancelling token {}", num);
-                //    info!("Is cancelled? {}", t.is_cancelled());
-                //}
-                //
-                //cacnelation_tokens.push((blk_num, block_cancellation.clone()));
-
                 builder_pool.start_block_building(
                     payload,
                     block_ctx,
-                    block_cancellation,
+                    self.global_cancellation.clone(),
                     max_time_to_build,
                 );
 
