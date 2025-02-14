@@ -76,9 +76,22 @@ where
         let span = info_span!("start_block_build", blk_num, build_attempt_id);
         let _guard = span.enter();
 
-        std::thread::spawn(move || {
+        //std::thread::spawn(move || {
+        //    let start = std::time::Instant::now();
+        //    std::thread::sleep(max_time_to_build);
+        //    debug!("Block building time out: will cancel {}", blk_num);
+        //    cancel.cancel();
+        //
+        //    debug!(
+        //        "CANCEL block building:{}, time  {}",
+        //        blk_num,
+        //        start.elapsed().as_millis()
+        //    );
+        //});
+
+        tokio::task::spawn(async move {
             let start = std::time::Instant::now();
-            std::thread::sleep(max_time_to_build);
+            tokio::time::sleep(max_time_to_build).await;
             debug!("Block building time out: will cancel {}", blk_num);
             cancel.cancel();
 
@@ -141,7 +154,11 @@ where
                     .unwrap(),
             };
             let builder = builder.clone();
-            std::thread::spawn(move || {
+            //std::thread::spawn(move || {
+            //    builder.build_blocks(input);
+            //    info!(block = block_number, builder_name, "Stopped builder job");
+            //});
+            tokio::task::spawn_blocking(move || {
                 builder.build_blocks(input);
                 info!(block = block_number, builder_name, "Stopped builder job");
             });
