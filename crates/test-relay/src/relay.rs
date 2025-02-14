@@ -3,7 +3,7 @@ use crate::{
         add_payload_processing_time, add_payload_validation_time, add_winning_bid,
         inc_payload_validation_errors, inc_payloads_received, inc_relay_errors,
     },
-    validation_api_client::ValidationAPIClient,
+    validation_api_client::{ValidationAPIClient, ValidationError},
 };
 use ahash::HashMap;
 use alloy_consensus::proofs::calculate_withdrawals_root;
@@ -29,7 +29,7 @@ use std::{io::Read, net::SocketAddr};
 use time::OffsetDateTime;
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, info, warn};
+use tracing::{debug, error, info, warn};
 use warp::body;
 use warp::{
     http::status::StatusCode,
@@ -94,12 +94,14 @@ pub fn spawn_relay_server(
     validation_client: Option<ValidationAPIClient>,
     cl_clients: Vec<Client>,
     relay: MevBoostRelaySlotInfoProvider,
+    builder_names: HashMap<String, String>,
     cancellation_token: CancellationToken,
 ) -> eyre::Result<()> {
     let relay_state = RelayState {
         validation_client,
         relay_for_slot_data: relay.clone(),
         pending_slot_data: Arc::new(Mutex::new(None)),
+        builder_names,
     };
     spawn_mev_boost_slot_data_generator(
         relay_state.clone(),
@@ -147,6 +149,7 @@ struct RelayState {
     relay_for_slot_data: MevBoostRelaySlotInfoProvider,
     // Slot data for the last payload arguments received from CL nodes and relay
     pending_slot_data: Arc<Mutex<Option<PendingSlotData>>>,
+    builder_names: HashMap<String, String>,
 }
 
 impl RelayState {
@@ -228,7 +231,10 @@ impl RelayState {
             }
         };
 
-        let builder_id = builder_id(submission.bid_trace().builder_pubkey.as_ref());
+        let builder_id = builder_id(
+            submission.bid_trace().builder_pubkey.as_ref(),
+            &self.builder_names,
+        );
 
         inc_payloads_received(&builder_id);
 
@@ -270,10 +276,15 @@ impl RelayState {
                 .await
             {
                 Ok(_) => {}
-                Err(err) => {
-                    warn!(?err, "Failed to validate block");
+                Err(ValidationError::ValidationFailed(payload)) => {
+                    error!(err = ?payload, "Block validation failed");
                     inc_payload_validation_errors(&builder_id);
-                    return RelayError::SimulationFailed(err.to_string()).reply();
+                    let msg = serde_json::to_string(&payload).unwrap_or_default();
+                    return RelayError::SimulationFailed(msg).reply();
+                }
+                Err(err) => {
+                    warn!(?err, "Unable to validate block");
+                    return RelayError::BlockProcessing.reply();
                 }
             }
 
@@ -390,7 +401,7 @@ async fn run_winner_sampler(relay_state: RelayState, cancellation_token: Cancell
                 continue 'sampling;
             }
 
-            let builder = builder_id(&best_bid.builder);
+            let builder = builder_id(&best_bid.builder, &relay_state.builder_names);
             add_winning_bid(&builder, best_bid.advantage);
         }
     }
@@ -557,15 +568,21 @@ struct BestBidData {
 }
 
 /// short readable builder id for metrics
-fn builder_id(pubkey: &[u8]) -> String {
+fn builder_id(pubkey: &[u8], builder_names: &HashMap<String, String>) -> String {
     let pubkey_hex = alloy_primitives::hex::encode(pubkey);
     if pubkey_hex.len() < 8 {
         return "incorrect_pubkey".to_string();
     }
 
-    format!(
+    let pubkey_name = format!(
         "{}..{}",
         &pubkey_hex[0..4],
         &pubkey_hex[pubkey_hex.len() - 4..]
-    )
+    );
+
+    if let Some(name) = builder_names.get(&pubkey_name) {
+        name.clone()
+    } else {
+        pubkey_name
+    }
 }
