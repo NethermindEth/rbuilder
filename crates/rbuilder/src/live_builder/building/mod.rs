@@ -15,7 +15,7 @@ use crate::{
 use revm_primitives::Address;
 use tokio::sync::{broadcast, mpsc};
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, debug_span, trace};
+use tracing::{debug, debug_span, info, info_span, trace};
 
 use super::{
     order_input::{
@@ -73,7 +73,7 @@ where
 
         let build_attempt_id: u32 = rand::random();
         let blk_num = block_ctx.block_env.number.to::<u64>();
-        let span = debug_span!("start_block_build", blk_num, build_attempt_id);
+        let span = info_span!("start_block_build", blk_num, build_attempt_id);
         let _guard = span.enter();
 
         std::thread::spawn(move || {
@@ -103,6 +103,7 @@ where
             orders_for_block,
             block_cancellation.clone(),
         );
+        info!("Finished preparing for block building");
         self.start_building_job(
             block_ctx,
             payload,
@@ -128,7 +129,7 @@ where
 
         for builder in self.builders.iter() {
             let builder_name = builder.name();
-            debug!(block = block_number, builder_name, "Spawning builder job");
+            info!(block = block_number, builder_name, "Spawning builder job");
             let input = BlockBuildingAlgorithmInput::<P> {
                 provider: self.provider.clone(),
                 ctx: ctx.clone(),
@@ -142,7 +143,7 @@ where
             let builder = builder.clone();
             std::thread::spawn(move || {
                 builder.build_blocks(input);
-                debug!(block = block_number, builder_name, "Stopped builder job");
+                info!(block = block_number, builder_name, "Stopped builder job");
             });
         }
 

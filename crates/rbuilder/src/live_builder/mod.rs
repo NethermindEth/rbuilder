@@ -281,16 +281,24 @@ where
                 let blk_num = block_ctx.block_env.number.to::<u64>();
 
                 info!(
-                    "Started block building:{}, time to build: {}",
+                    "Going to start block building:{}, time to build: {}",
                     blk_num,
                     max_time_to_build.as_millis()
                 );
+
+                let before_start = std::time::Instant::now();
 
                 builder_pool.start_block_building(
                     payload,
                     block_ctx,
                     self.global_cancellation.clone(),
                     max_time_to_build,
+                );
+
+                info!(
+                    "Started block building:{}, time to build: {}",
+                    blk_num,
+                    before_start.elapsed().as_millis()
                 );
 
                 if let Some(watchdog_sender) = watchdog_sender.as_ref() {
