@@ -712,7 +712,7 @@ impl FutureRunner {
         let tokio_handle = tokio::runtime::Handle::current();
         let rt_handle = tokio_handle.clone();
         std::thread::spawn(move || loop {
-            std::thread::sleep(Duration::from_secs(2));
+            std::thread::sleep(Duration::from_secs(6));
             rt_handle.spawn(std::future::ready(()));
         });
 

@@ -373,16 +373,16 @@ where
 
 
                         {
-                            debug!("odrder pool cleaner WAITING FOR LOCK");
+                            info!("odrder pool cleaner WAITING FOR LOCK");
                             let mut orderpool = orderpool.lock();
-                            debug!("odrder pool cleaner GOT LOCK");
+                            info!("odrder pool cleaner GOT LOCK");
                             orderpool.head_updated(block_number, &state);
                             let update_time = start.elapsed();
                             let (tx_count, bundle_count) = orderpool.content_count();
 
                             set_ordepool_count(tx_count, bundle_count);
 
-                            info!(
+                            debug!(
                                 block_number,
                                 tx_count,
                                 bundle_count,
@@ -390,7 +390,7 @@ where
                                 "Cleaned orderpool",
                             );
                         }
-                            debug!("odrder pool cleaner RELEASED LOCK");
+                            info!("odrder pool cleaner RELEASED LOCK");
                         //}
                     } else {
                         info!("Clean orderpool job: channel ended");
