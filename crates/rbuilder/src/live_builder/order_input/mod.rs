@@ -298,14 +298,14 @@ where
             //    new_commands.clear();
             //}
 
-            debug!("order_pool command processing WAITING FOR LOCK");
+            info!("order_pool command processing WAITING FOR LOCK");
             {
                 let mut orderpool = orderpool.lock();
-                debug!("order_pool command processing GOT LOCK");
+                info!("order_pool command processing GOT LOCK");
                 orderpool.process_commands(new_commands.clone());
-                new_commands.clear();
             }
-            debug!("order_pool command processing RELEASED LOCK");
+            info!("order_pool command processing RELEASED LOCK");
+            new_commands.clear();
         }
 
         for handle in handles {
