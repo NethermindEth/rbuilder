@@ -281,9 +281,9 @@ where
                 let blk_num = block_ctx.block_env.number.to::<u64>();
 
                 info!(
-                    "Going to start block building:{}, time to build: {}",
+                    "Going to start block building:{}, time to build: {}s",
                     blk_num,
-                    max_time_to_build.as_millis()
+                    max_time_to_build.as_secs()
                 );
 
                 let before_start = std::time::Instant::now();
@@ -296,7 +296,7 @@ where
                 );
 
                 info!(
-                    "Started block building:{}, time to build: {}",
+                    "Started block building:{}, in {}ms",
                     blk_num,
                     before_start.elapsed().as_millis()
                 );

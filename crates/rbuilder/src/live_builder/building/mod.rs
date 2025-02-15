@@ -89,6 +89,7 @@ where
         //    );
         //});
 
+        info!("Preparing for block building, will spawn tokio cancellation task");
         tokio::task::spawn(async move {
             let start = std::time::Instant::now();
             tokio::time::sleep(max_time_to_build).await;
@@ -102,15 +103,22 @@ where
             );
         });
 
+        info!("Preparing for block building: done spawning cancellation task");
+
         let (orders_for_block, sink) = OrdersForBlock::new_with_sink();
         // add OrderReplacementManager to manage replacements and cancellations
         let order_replacement_manager = OrderReplacementManager::new(Box::new(sink));
+
+        info!("Preparing for block building: done creating order_replacement_manager");
+
+        info!("Preparing for block building: will add sink");
         // sink removal is automatic via OrderSink::is_alive false
         let _block_sub = self.orderpool_subscriber.add_sink(
             block_ctx.block_env.number.to(),
             Box::new(order_replacement_manager),
         );
 
+        info!("Preparing for block building: will spawn simulation job");
         let simulations_for_block = self.order_simulation_pool.spawn_simulation_job(
             block_ctx.clone(),
             orders_for_block,
