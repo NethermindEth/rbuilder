@@ -98,6 +98,11 @@ where
             self.send_new_tasks_for_simulation();
             // tokio::select appears to be fair so no channel will be polled more than the other
             tokio::select! {
+                biased;
+                _ = self.block_cancellation.cancelled() => {
+                    info!("Cancel sim job");
+                    return;
+                }
                 n = self.new_order_sub.recv_many(&mut new_commands, 1024) => {
                     if n != 0 {
                         if !self.process_new_commands(&new_commands).await {
@@ -117,10 +122,6 @@ where
                         }
                         new_sim_results.clear();
                     }
-                }
-                _ = self.block_cancellation.cancelled() => {
-                        debug!("Cancel sim job");
-                    return;
                 }
             }
         }
