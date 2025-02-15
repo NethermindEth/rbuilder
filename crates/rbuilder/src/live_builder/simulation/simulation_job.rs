@@ -95,20 +95,24 @@ where
         let mut new_commands = Vec::new();
         let mut new_sim_results = Vec::new();
         loop {
+            info!("Sim: send new tasks for simulation");
             self.send_new_tasks_for_simulation();
+            info!("Sim: send new tasks for simulation done");
             // tokio::select appears to be fair so no channel will be polled more than the other
             tokio::select! {
-                biased;
                 _ = self.block_cancellation.cancelled() => {
                     info!("Cancel sim job");
                     return;
                 }
                 n = self.new_order_sub.recv_many(&mut new_commands, 1024) => {
                     if n != 0 {
+                            info!("Sim: process new commands");
                         if !self.process_new_commands(&new_commands).await {
+                            info!("Sim: process new commands done, return");
                             return;
                         }
                         new_commands.clear();
+                        info!("Sim: process new commands done");
                     } else {
                         trace!("New order sub is closed");
                         return;
@@ -117,10 +121,13 @@ where
                 }
                 n = self.sim_results_receiver.recv_many(&mut new_sim_results, 1024) => {
                     if n != 0 {
+                        info!("Sim: process new sim results");
                         if !self.process_new_simulations(&mut new_sim_results).await {
+                        info!("Sim: process new sim results done, return");
                             return;
                         }
                         new_sim_results.clear();
+                        info!("Sim: process new sim results done");
                     }
                 }
             }
