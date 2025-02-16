@@ -288,12 +288,14 @@ where
 
                 let before_start = std::time::Instant::now();
 
-                builder_pool.start_block_building(
-                    payload,
-                    block_ctx,
-                    self.global_cancellation.clone(),
-                    max_time_to_build,
-                );
+                tokio::task::block_in_place(|| {
+                    builder_pool.start_block_building(
+                        payload,
+                        block_ctx,
+                        self.global_cancellation.clone(),
+                        max_time_to_build,
+                    );
+                });
 
                 info!(
                     "Started block building:{}, in {}ms",
