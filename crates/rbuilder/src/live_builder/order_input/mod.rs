@@ -259,52 +259,58 @@ where
                 },
             };
 
-            // Ignore orders with cancellations if we can't support them
-            if config.ignore_cancellable_orders {
-                new_commands.retain(|o| {
-                    let cancellable_order = match o {
-                        ReplaceableOrderPoolCommand::Order(o) => {
-                            if o.replacement_key().is_some() {
-                                trace!(order=?o.id(), "Ignoring cancellable order (config: ignore_cancellable_orders)")
-                            }
-                            o.replacement_key().is_some()
-                        },
-                        ReplaceableOrderPoolCommand::CancelShareBundle(_)|ReplaceableOrderPoolCommand::CancelBundle(_) => true
-                    };
-                    !cancellable_order
-                })
-            }
+            let orderpool = orderpool.clone();
+            let _ = tokio::task::spawn_blocking({
+            let mut new_commands = new_commands.clone();
+                move ||{
+                // Ignore orders with cancellations if we can't support them
+                if config.ignore_cancellable_orders {
+                    new_commands.retain(|o| {
+                        let cancellable_order = match o {
+                            ReplaceableOrderPoolCommand::Order(o) => {
+                                if o.replacement_key().is_some() {
+                                    trace!(order=?o.id(), "Ignoring cancellable order (config: ignore_cancellable_orders)")
+                                }
+                                o.replacement_key().is_some()
+                            },
+                            ReplaceableOrderPoolCommand::CancelShareBundle(_)|ReplaceableOrderPoolCommand::CancelBundle(_) => true
+                        };
+                        !cancellable_order
+                    })
+                }
 
-            if config.ignore_blobs {
-                new_commands.retain(|o| {
-                    let has_blobs = match o {
-                        ReplaceableOrderPoolCommand::Order(o) => {
-                            if o.has_blobs() {
-                                trace!(order=?o.id(), "Ignoring order with blobs (config: ignore_blobs)");
-                            }
-                            o.has_blobs()
-                        },
-                        ReplaceableOrderPoolCommand::CancelShareBundle(_)|ReplaceableOrderPoolCommand::CancelBundle(_) => false
-                    };
-                    !has_blobs
-                })
-            }
+                if config.ignore_blobs {
+                    new_commands.retain(|o| {
+                        let has_blobs = match o {
+                            ReplaceableOrderPoolCommand::Order(o) => {
+                                if o.has_blobs() {
+                                    trace!(order=?o.id(), "Ignoring order with blobs (config: ignore_blobs)");
+                                }
+                                o.has_blobs()
+                            },
+                            ReplaceableOrderPoolCommand::CancelShareBundle(_)|ReplaceableOrderPoolCommand::CancelBundle(_) => false
+                        };
+                        !has_blobs
+                    })
+                }
 
-            //info!("order_pool command processing WAITING FOR LOCK");
-            //if let Some(mut orderpool) = orderpool.try_lock_for(Duration::from_millis(10)) {
-            //    info!("order_pool command processing GOT LOCK");
-            //    orderpool.process_commands(new_commands.clone());
-            //    new_commands.clear();
-            //    info!("order_pool command processing RELEASED LOCK");
-            //}
+                //info!("order_pool command processing WAITING FOR LOCK");
+                //if let Some(mut orderpool) = orderpool.try_lock_for(Duration::from_millis(10)) {
+                //    info!("order_pool command processing GOT LOCK");
+                //    orderpool.process_commands(new_commands.clone());
+                //    new_commands.clear();
+                //    info!("order_pool command processing RELEASED LOCK");
+                //}
 
-            info!("order_pool command processing WAITING FOR LOCK");
-            {
-                let mut orderpool = orderpool.lock();
-                info!("order_pool command processing GOT LOCK");
-                orderpool.process_commands(new_commands.clone());
-            }
-            info!("order_pool command processing RELEASED LOCK");
+                info!("order_pool command processing WAITING FOR LOCK");
+                {
+                    let mut orderpool = orderpool.lock();
+                    info!("order_pool command processing GOT LOCK");
+                    orderpool.process_commands(new_commands.clone());
+                }
+                info!("order_pool command processing RELEASED LOCK");
+            }}).await;
+
             new_commands.clear();
         }
 
