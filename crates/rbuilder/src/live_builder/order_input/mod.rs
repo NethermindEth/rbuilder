@@ -241,9 +241,9 @@ where
     }
 
     let handle = tokio::spawn(async move {
-        let id: u64 = rand::random();
-        let span = info_span!("Main Orderpool job", id);
-        let _guard = span.enter();
+        //let id: u64 = rand::random();
+        //let span = info_span!("Main Orderpool job", id);
+        //let _guard = span.enter();
 
         // @Maybe we should add sleep here because each new order will trigger locking
         let mut new_commands = Vec::new();
@@ -290,22 +290,22 @@ where
                 })
             }
 
-            info!("order_pool command processing WAITING FOR LOCK");
-            if let Some(mut orderpool) = orderpool.try_lock_for(Duration::from_millis(10)) {
-                info!("order_pool command processing GOT LOCK");
-                orderpool.process_commands(new_commands.clone());
-                new_commands.clear();
-                info!("order_pool command processing RELEASED LOCK");
-            }
-
             //info!("order_pool command processing WAITING FOR LOCK");
-            //{
-            //    let mut orderpool = orderpool.lock();
+            //if let Some(mut orderpool) = orderpool.try_lock_for(Duration::from_millis(10)) {
             //    info!("order_pool command processing GOT LOCK");
             //    orderpool.process_commands(new_commands.clone());
+            //    new_commands.clear();
+            //    info!("order_pool command processing RELEASED LOCK");
             //}
-            //info!("order_pool command processing RELEASED LOCK");
-            //new_commands.clear();
+
+            info!("order_pool command processing WAITING FOR LOCK");
+            {
+                let mut orderpool = orderpool.lock();
+                info!("order_pool command processing GOT LOCK");
+                orderpool.process_commands(new_commands.clone());
+            }
+            info!("order_pool command processing RELEASED LOCK");
+            new_commands.clear();
         }
 
         for handle in handles {

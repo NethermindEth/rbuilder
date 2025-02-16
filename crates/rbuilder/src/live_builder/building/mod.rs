@@ -71,28 +71,15 @@ where
         let block_cancellation = global_cancellation.child_token();
         let cancel = block_cancellation.clone();
 
-        let build_attempt_id: u32 = rand::random();
         let blk_num = block_ctx.block_env.number.to::<u64>();
-        let span = info_span!("start_block_build", blk_num, build_attempt_id);
-        let _guard = span.enter();
-
-        //std::thread::spawn(move || {
-        //    let start = std::time::Instant::now();
-        //    std::thread::sleep(max_time_to_build);
-        //    debug!("Block building time out: will cancel {}", blk_num);
-        //    cancel.cancel();
-        //
-        //    debug!(
-        //        "CANCEL block building:{}, time  {}",
-        //        blk_num,
-        //        start.elapsed().as_millis()
-        //    );
-        //});
+        //let build_attempt_id: u32 = rand::random();
+        //let span = info_span!("start_block_build", blk_num, build_attempt_id);
+        //let _guard = span.enter();
 
         info!("Preparing for block building, will spawn tokio cancellation task");
-        tokio::task::spawn(async move {
+        std::thread::spawn(move || {
             let start = std::time::Instant::now();
-            tokio::time::sleep(max_time_to_build).await;
+            std::thread::sleep(max_time_to_build);
             debug!("Block building time out: will cancel {}", blk_num);
             cancel.cancel();
 
@@ -102,6 +89,19 @@ where
                 start.elapsed().as_millis()
             );
         });
+
+        //tokio::task::spawn(async move {
+        //    let start = std::time::Instant::now();
+        //    tokio::time::sleep(max_time_to_build).await;
+        //    debug!("Block building time out: will cancel {}", blk_num);
+        //    cancel.cancel();
+        //
+        //    debug!(
+        //        "CANCEL block building:{}, time  {}",
+        //        blk_num,
+        //        start.elapsed().as_millis()
+        //    );
+        //});
 
         info!("Preparing for block building: done spawning cancellation task");
 
@@ -166,7 +166,7 @@ where
             //    builder.build_blocks(input);
             //    info!(block = block_number, builder_name, "Stopped builder job");
             //});
-            tokio::task::spawn_blocking(move || {
+            std::thread::spawn(move || {
                 builder.build_blocks(input);
                 info!(block = block_number, builder_name, "Stopped builder job");
             });

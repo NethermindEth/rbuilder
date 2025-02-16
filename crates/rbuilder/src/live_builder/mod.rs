@@ -199,7 +199,6 @@ where
             }
         };
 
-        let mut cacnelation_tokens: Vec<(u64, CancellationToken)> = Vec::new();
         while let Some(payload) = payload_events_channel.recv().await {
             if self.blocklist.contains(&payload.fee_recipient()) {
                 warn!(
