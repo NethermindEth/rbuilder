@@ -307,12 +307,9 @@ where
                 //
                 //cacnelation_tokens.push((blk_num, block_cancellation.clone()));
 
-                builder_pool.start_block_building(
-                    payload,
-                    block_ctx,
-                    block_cancellation,
-                    max_time_to_build,
-                );
+                builder_pool
+                    .start_block_building(payload, block_ctx, block_cancellation, max_time_to_build)
+                    .await;
 
                 if let Some(watchdog_sender) = watchdog_sender.as_ref() {
                     watchdog_sender.try_send(()).unwrap_or_default();
