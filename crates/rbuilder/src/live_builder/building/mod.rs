@@ -77,22 +77,9 @@ where
         //let _guard = span.enter();
 
         info!("Preparing for block building, will spawn tokio cancellation task");
-        std::thread::spawn(move || {
-            let start = std::time::Instant::now();
-            std::thread::sleep(max_time_to_build);
-            debug!("Block building time out: will cancel {}", blk_num);
-            cancel.cancel();
-
-            debug!(
-                "CANCEL block building:{}, time  {}",
-                blk_num,
-                start.elapsed().as_millis()
-            );
-        });
-
-        //tokio::task::spawn(async move {
+        //std::thread::spawn(move || {
         //    let start = std::time::Instant::now();
-        //    tokio::time::sleep(max_time_to_build).await;
+        //    std::thread::sleep(max_time_to_build);
         //    debug!("Block building time out: will cancel {}", blk_num);
         //    cancel.cancel();
         //
@@ -102,6 +89,19 @@ where
         //        start.elapsed().as_millis()
         //    );
         //});
+
+        tokio::task::spawn(async move {
+            let start = std::time::Instant::now();
+            tokio::time::sleep(max_time_to_build).await;
+            debug!("Block building time out: will cancel {}", blk_num);
+            cancel.cancel();
+
+            debug!(
+                "CANCEL block building:{}, time  {}",
+                blk_num,
+                start.elapsed().as_millis()
+            );
+        });
 
         info!("Preparing for block building: done spawning cancellation task");
 
@@ -162,14 +162,14 @@ where
                     .unwrap(),
             };
             let builder = builder.clone();
+            tokio::task::spawn_blocking(move || {
+                builder.build_blocks(input);
+                info!(block = block_number, builder_name, "Stopped builder job");
+            });
             //std::thread::spawn(move || {
             //    builder.build_blocks(input);
             //    info!(block = block_number, builder_name, "Stopped builder job");
             //});
-            std::thread::spawn(move || {
-                builder.build_blocks(input);
-                info!(block = block_number, builder_name, "Stopped builder job");
-            });
         }
 
         if self.run_sparse_trie_prefetcher {

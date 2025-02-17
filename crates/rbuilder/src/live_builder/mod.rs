@@ -201,6 +201,7 @@ where
 
         while let Some(payload) = payload_events_channel.recv().await {
             if self.blocklist.contains(&payload.fee_recipient()) {
+                info!("Received payload");
                 warn!(
                     slot = payload.slot(),
                     "Fee recipient is in blocklist: {:?}",
@@ -246,7 +247,7 @@ where
                 }
             };
 
-            debug!(
+            info!(
                 slot = payload.slot(),
                 block = payload.block(),
                 parent_hash = ?payload.parent_block_hash(),

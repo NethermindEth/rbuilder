@@ -359,9 +359,9 @@ where
                         let block_number = header.number;
                         set_current_block(block_number);
 
-                        let id: u64 = rand::random();
-                        let span = info_span!("new head_cleaner", id, block = block_number);
-                        let _guard = span.enter();
+                        //let id: u64 = rand::random();
+                        //let span = info_span!("new head_cleaner", id, block = block_number);
+                        //let _guard = span.enter();
 
                         let state = match provider_factory.latest() {
                             Ok(state) => state,
