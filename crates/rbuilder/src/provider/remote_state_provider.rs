@@ -1,18 +1,20 @@
 use std::{
+    error::Error,
     fmt::Debug,
     future::{Future, IntoFuture},
     ops::Deref,
+    path::Path,
     sync::Arc,
     time::Duration,
 };
 
 use alloy_consensus::{constants::KECCAK_EMPTY, Header};
 use alloy_eips::{BlockId, BlockNumberOrTag};
-use alloy_primitives::{BlockHash, BlockNumber, StorageKey, StorageValue};
-use alloy_provider::{Provider, ProviderBuilder, RootProvider};
-use alloy_rpc_client::RpcClient;
+use alloy_primitives::{BlockHash, BlockNumber, StorageKey, StorageValue, U64};
+use alloy_provider::{Provider, RootProvider};
 use alloy_transport::{Transport, TransportError};
 use dashmap::DashMap;
+use reipc::RpcProvider;
 use reth_errors::{ProviderError, ProviderResult};
 use reth_primitives::{Account, Bytecode};
 use reth_provider::{
@@ -37,29 +39,24 @@ use super::{RootHasher, StateProviderFactory};
 /// Remote state provider factory allows providing state via remote RPC calls
 /// using either IPC or HTTP/WS
 #[derive(Clone)]
-pub struct RemoteStateProviderFactory<T> {
-    remote_provider: RootProvider<T>,
-    future_runner: FutureRunner,
+pub struct RemoteStateProviderFactory {
+    remote_provider: Arc<reipc::RpcProvider>,
 
     //block_hash_cache: Arc<DashMap<u64, BlockHash>>,
     code_cache: Arc<DashMap<B256, Bytecode>>,
 
     //state_provider_by_num: Arc<DashMap<BlockNumber, Box<ArcRemoteStateProvider<T>>>>,
-    state_provider_by_hash: Arc<DashMap<BlockHash, Box<ArcRemoteStateProvider<T>>>>,
+    state_provider_by_hash: Arc<DashMap<BlockHash, Box<ArcRemoteStateProvider>>>,
 }
 
-impl<T> RemoteStateProviderFactory<T>
-where
-    T: Transport + Clone,
-{
-    pub fn new(client: RpcClient<T>) -> Self {
-        let remote_provider = ProviderBuilder::new().on_client(client);
-        let future_runner = FutureRunner::new();
+impl RemoteStateProviderFactory {
+    pub fn new(path: &Path) -> Self {
+        let remote_provider = RpcProvider::try_connect(path, None).expect("Can't connect to IPC");
+
+        //let future_runner = FutureRunner::new();
 
         Self {
             remote_provider,
-            future_runner,
-            //block_hash_cache: Arc::new(DashMap::new()),
             code_cache: Arc::new(DashMap::new()),
             // state_provider_by_num: Arc::new(DashMap::new()),
             state_provider_by_hash: Arc::new(DashMap::new()),
@@ -67,27 +64,9 @@ where
             //block_num_cache: Arc::new(DashMap::new()),
         }
     }
-
-    pub fn from_provider(root_provider: RootProvider<T>) -> Self {
-        let future_runner = FutureRunner::new();
-
-        Self {
-            remote_provider: root_provider,
-            future_runner,
-            //block_hash_cache: Arc::new(DashMap::new()),
-            code_cache: Arc::new(DashMap::new()),
-            // state_provider_by_num: Arc::new(DashMap::new()),
-            state_provider_by_hash: Arc::new(DashMap::new()),
-            //account_cache: Arc::new(DashMap::new()),
-            //block_num_cache: Arc::new(DashMap::new()),
-        }
-    }
 }
 
-impl<T> StateProviderFactory for RemoteStateProviderFactory<T>
-where
-    T: Transport + Clone + Debug,
-{
+impl StateProviderFactory for RemoteStateProviderFactory {
     fn latest(&self) -> ProviderResult<StateProviderBox> {
         //info!("Latest state provider");
         //let num = self.best_block_number()?;
@@ -97,7 +76,6 @@ where
 
         let state = RemoteStateProvider::new(
             self.remote_provider.clone(),
-            self.future_runner.clone(),
             BlockNumberOrTag::Latest.into(),
             //self.block_hash_cache.clone(),
             // self.block_num_cache.clone(),
@@ -117,7 +95,7 @@ where
 
         let state = RemoteStateProvider::new(
             self.remote_provider.clone(),
-            self.future_runner.clone(),
+            //self.future_runner.clone(),
             block.into(),
             //self.block_hash_cache.clone(),
             //self.block_num_cache.clone(),
@@ -137,7 +115,7 @@ where
 
         let state = RemoteStateProvider::new(
             self.remote_provider.clone(),
-            self.future_runner.clone(),
+            //self.future_runner.clone(),
             block.into(),
             //self.block_hash_cache.clone(),
             //self.block_num_cache.clone(),
@@ -156,14 +134,13 @@ where
         let _guard = span.enter();
         trace!("header: get");
 
-        let future = self
-            .remote_provider
-            .get_block_by_hash(*block_hash, false.into());
-
         let header = self
-            .future_runner
-            .run(future)
-            .map_err(transport_to_provider_error)?
+            .remote_provider
+            .call::<_, Option<<alloy_network::Ethereum as alloy_network::Network>::BlockResponse>>(
+                "eth_getBlockByHash",
+                (block_hash, false),
+            )
+            .map_err(|e| transport_to_provider_error(e.into()))?
             .map(|b| b.header.inner);
 
         if header.is_none() {
@@ -190,14 +167,10 @@ where
         //    return Ok(Some(*hash));
         //}
 
-        let future = self
-            .remote_provider
-            .client()
-            .request::<_, B256>("rbuilder_getBlockHash", (BlockNumberOrTag::Number(number),));
         let block_hash = self
-            .future_runner
-            .run(future)
-            .map_err(transport_to_provider_error)?;
+            .remote_provider
+            .call::<_, B256>("rbuilder_getBlockHash", (BlockNumberOrTag::Number(number),))
+            .map_err(|e| transport_to_provider_error(e.into()))?;
 
         // self.block_hash_cache.insert(number, block_hash);
         trace!("block_hash: got");
@@ -216,15 +189,13 @@ where
         let _guard = span.enter();
         trace!("header_by_num:get");
 
-        let future = self
-            .remote_provider
-            .get_block_by_number(num.into(), false.into());
-
         let block = self
-            .future_runner
-            .run(future)
-            .map_err(transport_to_provider_error)?;
-        //.map(|b| b.header.inner);
+            .remote_provider
+            .call::<_, Option<<alloy_network::Ethereum as alloy_network::Network>::BlockResponse>>(
+                "eth_getBlockByNumber",
+                (num, false),
+            )
+            .map_err(|e| transport_to_provider_error(e.into()))?;
 
         if block.is_none() {
             trace!("header_by_num: got none");
@@ -247,12 +218,11 @@ where
         let _guard = span.enter();
         trace!("last_block_num:get");
 
-        let future = self.remote_provider.get_block_number();
-
         let block_num = self
-            .future_runner
-            .run(future)
-            .map_err(transport_to_provider_error)?;
+            .remote_provider
+            .call::<_, U64>("eth_blockNumber", ())
+            .map_err(|e| transport_to_provider_error(e.into()))?
+            .to::<u64>();
 
         trace!("last_block_num: got");
         Ok(block_num)
@@ -261,16 +231,14 @@ where
     fn root_hasher(&self, parent_hash: B256) -> ProviderResult<Box<dyn RootHasher>> {
         Ok(Box::new(StatRootHashCalculator {
             remote_provider: self.remote_provider.clone(),
-            future_runner: self.future_runner.clone(),
             parent_hash,
         }))
     }
 }
 
-#[derive(Clone, Debug)]
-pub struct RemoteStateProvider<T> {
-    remote_provider: RootProvider<T>,
-    future_runner: FutureRunner,
+#[derive(Clone)]
+pub struct RemoteStateProvider {
+    remote_provider: Arc<RpcProvider>,
 
     storage_cache: DashMap<(Address, StorageKey), StorageValue>,
     account_cache: DashMap<Address, Account>,
@@ -281,30 +249,29 @@ pub struct RemoteStateProvider<T> {
     code_cache: Arc<DashMap<B256, Bytecode>>,
 }
 
-#[derive(Clone, Debug)]
-pub struct ArcRemoteStateProvider<T> {
-    inner: Arc<RemoteStateProvider<T>>,
+#[derive(Clone)]
+pub struct ArcRemoteStateProvider {
+    inner: Arc<RemoteStateProvider>,
 }
 
-impl<T> ArcRemoteStateProvider<T> {
-    pub fn new(inner: RemoteStateProvider<T>) -> Self {
+impl ArcRemoteStateProvider {
+    pub fn new(inner: RemoteStateProvider) -> Self {
         Self {
             inner: Arc::new(inner),
         }
     }
 
-    pub fn boxed(inner: RemoteStateProvider<T>) -> Box<Self> {
+    pub fn boxed(inner: RemoteStateProvider) -> Box<Self> {
         Box::new(Self {
             inner: Arc::new(inner),
         })
     }
 }
 
-impl<T> RemoteStateProvider<T> {
+impl RemoteStateProvider {
     /// Crates new instance of state provider
     fn new(
-        remote_provider: RootProvider<T>,
-        future_runner: FutureRunner,
+        remote_provider: Arc<RpcProvider>,
         block_id: BlockId,
         code_cache: Arc<DashMap<B256, Bytecode>>,
     ) -> Self {
@@ -312,7 +279,6 @@ impl<T> RemoteStateProvider<T> {
             remote_provider,
             block_id,
             block_hash_cache: Arc::new(DashMap::new()),
-            future_runner,
 
             code_cache,
 
@@ -323,25 +289,16 @@ impl<T> RemoteStateProvider<T> {
 
     /// Crates new instance of state provider on the heap
     fn boxed(
-        remote_provider: RootProvider<T>,
-        future_runner: FutureRunner,
+        remote_provider: Arc<RpcProvider>,
         block_id: BlockId,
         block_hash_cache: Arc<DashMap<u64, BlockHash>>,
         code_cache: Arc<DashMap<B256, Bytecode>>,
     ) -> Box<Self> {
-        Box::new(Self::new(
-            remote_provider,
-            future_runner,
-            block_id,
-            code_cache,
-        ))
+        Box::new(Self::new(remote_provider, block_id, code_cache))
     }
 }
 
-impl<T> StateProvider for ArcRemoteStateProvider<T>
-where
-    T: Transport + Clone,
-{
+impl StateProvider for ArcRemoteStateProvider {
     /// Get storage of given account
     fn storage(
         &self,
@@ -359,18 +316,12 @@ where
             return Ok(Some(storage_val));
         }
 
-        let future = self
-            .inner
-            .remote_provider
-            .get_storage_at(account, storage_key.into())
-            .block_id(self.inner.block_id.into())
-            .into_future();
-
+        let key: U256 = storage_key.into();
         let storage = self
             .inner
-            .future_runner
-            .run(future)
-            .map_err(transport_to_provider_error)?;
+            .remote_provider
+            .call::<_, StorageValue>("eth_getStorageAt", (account, key))
+            .map_err(|e| transport_to_provider_error(e.into()))?;
 
         self.inner
             .storage_cache
@@ -403,17 +354,11 @@ where
             return Ok(Some(bytecode.clone()));
         }
 
-        let future = self
-            .inner
-            .remote_provider
-            .client()
-            .request::<_, Bytes>("rbuilder_getCodeByHash", (code_hash,));
-
         let bytes = self
             .inner
-            .future_runner
-            .run(future)
-            .map_err(transport_to_provider_error)?;
+            .remote_provider
+            .call::<_, Bytes>("rbuilder_getCodeByHash", (code_hash,))
+            .map_err(|e| transport_to_provider_error(e.into()))?;
 
         let bytecode = Bytecode::new_raw(bytes);
 
@@ -424,10 +369,7 @@ where
     }
 }
 
-impl<T> BlockHashReader for ArcRemoteStateProvider<T>
-where
-    T: Transport + Clone,
-{
+impl BlockHashReader for ArcRemoteStateProvider {
     /// Get the hash of the block with the given number. Returns `None` if no block with this number exists
     fn block_hash(&self, number: BlockNumber) -> ProviderResult<Option<B256>> {
         //let id: u64 = rand::random();
@@ -439,16 +381,11 @@ where
             // trace!("block_hash 2: cache hit");
             return Ok(Some(*hash));
         }
-        let future = self
-            .inner
-            .remote_provider
-            .client()
-            .request::<_, B256>("rbuilder_getBlockHash", (BlockNumberOrTag::Number(number),));
         let block_hash = self
             .inner
-            .future_runner
-            .run(future)
-            .map_err(transport_to_provider_error)?;
+            .remote_provider
+            .call::<_, B256>("rbuilder_getBlockHash", (BlockNumberOrTag::Number(number),))
+            .map_err(|e| transport_to_provider_error(e.into()))?;
 
         self.inner.block_hash_cache.insert(number, block_hash);
         //trace!("block_hash 2: got");
@@ -464,10 +401,7 @@ where
     }
 }
 
-impl<T> AccountReader for ArcRemoteStateProvider<T>
-where
-    T: Transport + Clone,
-{
+impl AccountReader for ArcRemoteStateProvider {
     /// Get basic account information.
     /// Returns `None` if the account doesn't exist.
     fn basic_account(&self, address: &Address) -> ProviderResult<Option<Account>> {
@@ -481,19 +415,11 @@ where
             return Ok(Some(*account));
         }
 
-        let future = self
+        let account = self
             .inner
             .remote_provider
-            .client()
-            .request::<_, AccountState>("rbuilder_getAccount", (*address, self.inner.block_id));
-
-        let account = match self.inner.future_runner.run(future) {
-            Ok(a) => a,
-            Err(e) => {
-                println!("error: {e}, address {address}");
-                return Err(transport_to_provider_error(e));
-            }
-        };
+            .call::<_, AccountState>("rbuilder_getAccount", (*address, self.inner.block_id))
+            .map_err(|e| transport_to_provider_error(e.into()))?;
 
         let account = Account {
             nonce: account.nonce.try_into().unwrap(),
@@ -508,10 +434,7 @@ where
     }
 }
 
-impl<T> StateRootProvider for ArcRemoteStateProvider<T>
-where
-    T: Send + Sync,
-{
+impl StateRootProvider for ArcRemoteStateProvider {
     fn state_root(&self, _hashed_state: HashedPostState) -> ProviderResult<B256> {
         unimplemented!()
     }
@@ -535,10 +458,7 @@ where
     }
 }
 
-impl<T> StorageRootProvider for ArcRemoteStateProvider<T>
-where
-    T: Send + Sync,
-{
+impl StorageRootProvider for ArcRemoteStateProvider {
     fn storage_root(
         &self,
         _address: Address,
@@ -566,10 +486,7 @@ where
     }
 }
 
-impl<T> StateProofProvider for ArcRemoteStateProvider<T>
-where
-    T: Send + Sync,
-{
+impl StateProofProvider for ArcRemoteStateProvider {
     fn proof(
         &self,
         _input: TrieInput,
@@ -596,26 +513,19 @@ where
     }
 }
 
-impl<T> HashedPostStateProvider for ArcRemoteStateProvider<T>
-where
-    T: Transport + Clone,
-{
+impl HashedPostStateProvider for ArcRemoteStateProvider {
     fn hashed_post_state(&self, _bundle_state: &BundleState) -> HashedPostState {
         unimplemented!("hashed_post_state not used in remote provider")
     }
 }
 
-#[derive(Clone, Debug)]
-pub struct StatRootHashCalculator<T> {
-    remote_provider: RootProvider<T>,
-    future_runner: FutureRunner,
+#[derive(Clone)]
+pub struct StatRootHashCalculator {
+    remote_provider: Arc<RpcProvider>,
     parent_hash: B256,
 }
 
-impl<T> RootHasher for StatRootHashCalculator<T>
-where
-    T: Transport + Clone + Debug,
-{
+impl RootHasher for StatRootHashCalculator {
     fn run_prefetcher(
         &self,
         _simulated_orders: broadcast::Receiver<SimulatedOrderCommand>,
@@ -640,18 +550,23 @@ where
             .map(|(address, diff)| (*address, diff.clone().into()))
             .collect();
 
-        let future = self.remote_provider.client().request::<_, B256>(
-            "rbuilder_calculateStateRoot",
-            (BlockId::Hash(self.parent_hash.into()), account_diff),
-        );
-
         let hash = self
-            .future_runner
-            .run(future)
+            .remote_provider
+            .call::<_, B256>(
+                "rbuilder_calculateStateRoot",
+                (BlockId::Hash(self.parent_hash.into()), account_diff),
+            )
             .map_err(|_| crate::roothash::RootHashError::Verification)?;
+
         trace!("state_root: got");
 
         Ok(hash)
+    }
+}
+
+impl derive_more::Debug for StatRootHashCalculator {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("StatRootHashCalculator").finish()
     }
 }
 
@@ -700,54 +615,7 @@ impl From<BundleAccount> for AccountDiff {
     }
 }
 
-#[derive(Clone, Debug)]
-struct FutureRunner {
-    runtime_handle: tokio::runtime::Handle,
-}
-
-impl FutureRunner {
-    /// Creates new instance of  FutureRunner
-    /// IMPORTANT: MUST be called from within tokio context, otherwise will panic
-    fn new() -> Self {
-        let tokio_handle = tokio::runtime::Handle::current();
-        let rt_handle = tokio_handle.clone();
-        std::thread::spawn(move || loop {
-            std::thread::sleep(Duration::from_secs(6));
-            rt_handle.spawn(std::future::ready(()));
-        });
-
-        Self {
-            runtime_handle: tokio_handle,
-        }
-    }
-
-    /// Runs fututre in sync context
-    // StateProvider(Factory) traits require sync context, but calls to remote provider are async
-    // What's more, rbuilder is executed in async context, so we have situation
-    // async -> sync -> async
-    // This helper function allows execution in such environment
-    fn run<F, R>(&self, f: F) -> R
-    where
-        F: Future<Output = R>,
-    {
-        let id: u64 = rand::random();
-        let span = trace_span!("Future runner", id);
-        let _guard = span.enter();
-        trace!("Future::start");
-        let r = tokio::task::block_in_place(move || {
-            trace!("Future::block_in_place");
-            let fut = || {
-                trace!("Future::block_on");
-                f
-            };
-            self.runtime_handle.block_on(fut())
-        });
-        trace!("Future::finished");
-        r
-    }
-}
-
 //TODO: this is temp hack, fix it properly
-fn transport_to_provider_error(transport_error: TransportError) -> ProviderError {
-    ProviderError::Database(reth_db::DatabaseError::Other(transport_error.to_string()))
+fn transport_to_provider_error(_e: Box<dyn Error>) -> ProviderError {
+    ProviderError::Database(reth_db::DatabaseError::Other("IPC ERROR".into()))
 }

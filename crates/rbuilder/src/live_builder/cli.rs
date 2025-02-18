@@ -129,10 +129,10 @@ where
         .clone()
         .ok_or_else(|| eyre::eyre!("No IPC path configured"))?;
 
-    let ipc = IpcConnect::new(ipc_path);
-    let ipc_provider = ProviderBuilder::new().on_ipc(ipc).await?;
-
-    let provider = RemoteStateProviderFactory::from_provider(ipc_provider);
+    //let ipc = IpcConnect::new(ipc_path);
+    //let ipc_provider = ProviderBuilder::new().on_ipc(ipc).await?;
+    //
+    let provider = RemoteStateProviderFactory::new(&ipc_path);
 
     let builder = config.new_builder(provider, cancel.clone()).await?;
 

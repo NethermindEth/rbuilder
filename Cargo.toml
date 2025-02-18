@@ -108,7 +108,7 @@ revm-primitives = { version = "15.1.0", features = [
 ethereum_ssz_derive = "0.8"
 ethereum_ssz = "0.8"
 
-alloy-primitives = { version = "0.8.15", default-features = false }
+alloy-primitives = { version = "0.8.21"}
 alloy-rlp = "0.3.10"
 alloy-chains = "0.1.33"
 alloy-provider = { version = "0.9.2", features = ["ipc", "pubsub"] }
@@ -166,3 +166,6 @@ metrics = { version = "0.24.1" }
 
 eth-sparse-mpt = { path = "crates/eth-sparse-mpt" }
 sysperf = { path = "crates/sysperf" }
+
+
+reipc = { git = "https://github.com/nethermindeth/reipc.git" }
