@@ -19,6 +19,7 @@ use op_alloy_consensus::{OpDepositReceipt, OpTypedTransaction};
 use reth::builder::{components::PayloadServiceBuilder, node::FullNodeTypes, BuilderContext};
 use reth::core::primitives::InMemorySize;
 use reth::payload::PayloadBuilderHandle;
+use reth::tasks::{TaskExecutor, TaskSpawner};
 use reth_basic_payload_builder::{
     BasicPayloadJobGeneratorConfig, BuildOutcome, BuildOutcomeKind, PayloadConfig,
 };
@@ -73,6 +74,7 @@ use revm::{
 };
 use std::error::Error as StdError;
 use std::{fmt::Display, sync::Arc, time::Instant};
+use tokio::sync::oneshot;
 use tokio_util::sync::CancellationToken;
 use tracing::{info, trace, warn};
 
@@ -101,7 +103,8 @@ where
         + Unpin
         + 'static,
 {
-    type PayloadBuilder = OpPayloadBuilderVanilla<Pool, Node::Provider, OpEvmConfig, OpPrimitives>;
+    type PayloadBuilder =
+        OpPayloadBuilderVanilla<Pool, Node::Provider, OpEvmConfig, OpPrimitives, TaskExecutor>;
 
     async fn build_payload_builder(
         &self,
@@ -114,6 +117,7 @@ where
             pool,
             ctx.provider().clone(),
             Arc::new(BasicOpReceiptBuilder::default()),
+            ctx.task_executor().clone(),
         ))
     }
 
@@ -127,7 +131,6 @@ where
 
         let payload_generator = BlockPayloadJobGenerator::with_builder(
             ctx.provider().clone(),
-            ctx.task_executor().clone(),
             payload_job_config,
             payload_builder,
             false,
@@ -145,14 +148,15 @@ where
     }
 }
 
-impl<Pool, Client, EvmConfig, N, Txs> reth_basic_payload_builder::PayloadBuilder
-    for OpPayloadBuilderVanilla<Pool, Client, EvmConfig, N, Txs>
+impl<Pool, Client, EvmConfig, N, Tasks, Txs> reth_basic_payload_builder::PayloadBuilder
+    for OpPayloadBuilderVanilla<Pool, Client, EvmConfig, N, Tasks, Txs>
 where
     Pool: Clone + Send + Sync,
     Client: Clone + Send + Sync,
     EvmConfig: Clone + Send + Sync,
     N: NodePrimitives,
     Txs: Clone + Send + Sync,
+    Tasks: TaskSpawner + Clone + Unpin + 'static,
 {
     type Attributes = OpPayloadBuilderAttributes<N::SignedTx>;
     type BuiltPayload = OpBuiltPayload<N>;
@@ -177,7 +181,10 @@ where
 
 /// Optimism's payload builder
 #[derive(Debug, Clone)]
-pub struct OpPayloadBuilderVanilla<Pool, Client, EvmConfig, N: NodePrimitives, Txs = ()> {
+pub struct OpPayloadBuilderVanilla<Pool, Client, EvmConfig, N: NodePrimitives, Tasks, Txs = ()>
+where
+    Tasks: TaskSpawner + Clone + Unpin + 'static,
+{
     /// The type responsible for creating the evm.
     pub evm_config: EvmConfig,
     /// The builder's signer key to use for an end of block tx
@@ -195,10 +202,14 @@ pub struct OpPayloadBuilderVanilla<Pool, Client, EvmConfig, N: NodePrimitives, T
     pub metrics: OpRBuilderMetrics,
     /// Node primitive types.
     pub receipt_builder: Arc<dyn OpReceiptBuilder<N::SignedTx, Receipt = N::Receipt>>,
+    /// Executor to spawn tasks
+    pub executor: Tasks,
 }
 
-impl<Pool, Client, EvmConfig, N: NodePrimitives>
-    OpPayloadBuilderVanilla<Pool, Client, EvmConfig, N>
+impl<Pool, Client, EvmConfig, N: NodePrimitives, Tasks>
+    OpPayloadBuilderVanilla<Pool, Client, EvmConfig, N, Tasks>
+where
+    Tasks: TaskSpawner + Clone + Unpin + 'static,
 {
     /// `OpPayloadBuilder` constructor.
     pub fn new(
@@ -207,6 +218,7 @@ impl<Pool, Client, EvmConfig, N: NodePrimitives>
         pool: Pool,
         client: Client,
         receipt_builder: Arc<dyn OpReceiptBuilder<N::SignedTx, Receipt = N::Receipt>>,
+        executor: Tasks,
     ) -> Self {
         Self::with_builder_config(
             evm_config,
@@ -214,6 +226,7 @@ impl<Pool, Client, EvmConfig, N: NodePrimitives>
             pool,
             client,
             receipt_builder,
+            executor,
             Default::default(),
         )
     }
@@ -224,6 +237,7 @@ impl<Pool, Client, EvmConfig, N: NodePrimitives>
         pool: Pool,
         client: Client,
         receipt_builder: Arc<dyn OpReceiptBuilder<N::SignedTx, Receipt = N::Receipt>>,
+        executor: Tasks,
         config: OpBuilderConfig,
     ) -> Self {
         Self {
@@ -235,18 +249,23 @@ impl<Pool, Client, EvmConfig, N: NodePrimitives>
             best_transactions: (),
             metrics: Default::default(),
             builder_signer,
+            executor,
         }
     }
 }
 
-impl<EvmConfig, Pool, Client, N, Txs> PayloadBuilder
-    for OpPayloadBuilderVanilla<Pool, Client, EvmConfig, N, Txs>
+impl<EvmConfig, Pool, Client, N, Tasks, Txs> PayloadBuilder
+    for OpPayloadBuilderVanilla<Pool, Client, EvmConfig, N, Tasks, Txs>
 where
-    Client: StateProviderFactory + ChainSpecProvider<ChainSpec: EthChainSpec + OpHardforks> + Clone,
+    Client: StateProviderFactory
+        + ChainSpecProvider<ChainSpec: EthChainSpec + OpHardforks>
+        + Clone
+        + 'static,
     N: OpPayloadPrimitives<_TX = OpTransactionSigned>,
-    Pool: TransactionPool<Transaction: PoolTransaction<Consensus = N::SignedTx>>,
+    Pool: TransactionPool<Transaction: PoolTransaction<Consensus = N::SignedTx>> + 'static,
     EvmConfig: ConfigureEvmFor<N>,
     Txs: OpPayloadTransactions<Pool::Transaction>,
+    Tasks: TaskSpawner + Clone + Unpin + 'static,
 {
     type Attributes = OpPayloadBuilderAttributes<N::SignedTx>;
     type BuiltPayload = OpBuiltPayload<N>;
@@ -258,44 +277,56 @@ where
     ) -> Result<(), PayloadBuilderError> {
         let pool = self.pool.clone();
         let block_build_start_time = Instant::now();
-
-        match self.build_payload(args, |attrs| {
-            #[allow(clippy::unit_arg)]
-            self.best_transactions.best_transactions(pool, attrs)
-        })? {
-            BuildOutcome::Better { payload, .. } => {
-                best_payload.set(payload);
-                self.metrics
-                    .total_block_built_duration
-                    .record(block_build_start_time.elapsed());
-                self.metrics.block_built_success.increment(1);
-                Ok(())
+        let (tx, rx) = oneshot::channel();
+        let ctx = self.clone();
+        self.executor.spawn_blocking(Box::pin(async move {
+            match ctx.build_payload(args, |attrs| {
+                #[allow(clippy::unit_arg)]
+                ctx.best_transactions.best_transactions(pool, attrs)
+            }) {
+                Ok(BuildOutcome::Better { payload, .. }) => {
+                    best_payload.set(payload);
+                    ctx.metrics
+                        .total_block_built_duration
+                        .record(block_build_start_time.elapsed());
+                    ctx.metrics.block_built_success.increment(1);
+                    let _ = tx.send(Ok(()));
+                }
+                Ok(BuildOutcome::Freeze(payload)) => {
+                    best_payload.set(payload);
+                    ctx.metrics
+                        .total_block_built_duration
+                        .record(block_build_start_time.elapsed());
+                    let _ = tx.send(Ok(()));
+                }
+                Ok(BuildOutcome::Cancelled) => {
+                    tracing::warn!("Payload build cancelled");
+                    let _ = tx.send(Err(PayloadBuilderError::MissingPayload));
+                }
+                Ok(_) => {
+                    tracing::warn!("No better payload found");
+                    let _ = tx.send(Err(PayloadBuilderError::MissingPayload));
+                }
+                Err(err) => {
+                    tracing::warn!("Build payload error {}", err);
+                    let _ = tx.send(Err(err));
+                }
             }
-            BuildOutcome::Freeze(payload) => {
-                best_payload.set(payload);
-                self.metrics
-                    .total_block_built_duration
-                    .record(block_build_start_time.elapsed());
-                Ok(())
-            }
-            BuildOutcome::Cancelled => {
-                tracing::warn!("Payload build cancelled");
-                Err(PayloadBuilderError::MissingPayload)
-            }
-            _ => {
-                tracing::warn!("No better payload found");
-                Err(PayloadBuilderError::MissingPayload)
-            }
-        }
+        }));
+        rx.blocking_recv()
+            .map_err(|err| PayloadBuilderError::from(err))?
     }
 }
 
-impl<Pool, Client, EvmConfig, N, T> OpPayloadBuilderVanilla<Pool, Client, EvmConfig, N, T>
+impl<Pool, Client, EvmConfig, N, Tasks, T>
+    OpPayloadBuilderVanilla<Pool, Client, EvmConfig, N, Tasks, T>
 where
-    Pool: TransactionPool<Transaction: PoolTransaction<Consensus = N::SignedTx>>,
-    Client: StateProviderFactory + ChainSpecProvider<ChainSpec: EthChainSpec + OpHardforks>,
+    Pool: TransactionPool<Transaction: PoolTransaction<Consensus = N::SignedTx>> + 'static,
+    Client:
+        StateProviderFactory + ChainSpecProvider<ChainSpec: EthChainSpec + OpHardforks> + 'static,
     N: OpPayloadPrimitives<_TX = OpTransactionSigned>,
     EvmConfig: ConfigureEvmFor<N>,
+    Tasks: TaskSpawner + Clone + Unpin + 'static,
 {
     /// Constructs an Optimism payload from the transactions sent via the
     /// Payload attributes by the sequencer. If the `no_tx_pool` argument is passed in

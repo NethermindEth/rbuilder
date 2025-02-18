@@ -1,7 +1,7 @@
 use futures_util::Future;
 use futures_util::FutureExt;
 use reth::providers::BlockReaderIdExt;
-use reth::{providers::StateProviderFactory, tasks::TaskSpawner};
+use reth::providers::StateProviderFactory;
 use reth_basic_payload_builder::HeaderForPayload;
 use reth_basic_payload_builder::{BasicPayloadJobGeneratorConfig, PayloadConfig};
 use reth_node_api::PayloadBuilderAttributes;
@@ -56,11 +56,10 @@ pub trait PayloadBuilder: Send + Sync + Clone {
 
 /// The generator type that creates new jobs that builds empty blocks.
 #[derive(Debug)]
-pub struct BlockPayloadJobGenerator<Client, Tasks, Builder> {
+pub struct BlockPayloadJobGenerator<Client, Builder> {
     /// The client that can interact with the chain.
     client: Client,
-    /// How to spawn building tasks
-    executor: Tasks,
+
     /// The configuration for the job generator.
     _config: BasicPayloadJobGeneratorConfig,
     /// The type responsible for building payloads.
@@ -75,19 +74,17 @@ pub struct BlockPayloadJobGenerator<Client, Tasks, Builder> {
 
 // === impl EmptyBlockPayloadJobGenerator ===
 
-impl<Client, Tasks, Builder> BlockPayloadJobGenerator<Client, Tasks, Builder> {
+impl<Client, Builder> BlockPayloadJobGenerator<Client, Builder> {
     /// Creates a new [EmptyBlockPayloadJobGenerator] with the given config and custom
     /// [PayloadBuilder]
     pub fn with_builder(
         client: Client,
-        executor: Tasks,
         config: BasicPayloadJobGeneratorConfig,
         builder: Builder,
         ensure_only_one_payload: bool,
     ) -> Self {
         Self {
             client,
-            executor,
             _config: config,
             builder,
             ensure_only_one_payload,
@@ -96,20 +93,18 @@ impl<Client, Tasks, Builder> BlockPayloadJobGenerator<Client, Tasks, Builder> {
     }
 }
 
-impl<Client, Tasks, Builder> PayloadJobGenerator
-    for BlockPayloadJobGenerator<Client, Tasks, Builder>
+impl<Client, Builder> PayloadJobGenerator for BlockPayloadJobGenerator<Client, Builder>
 where
     Client: StateProviderFactory
         + BlockReaderIdExt<Header = HeaderForPayload<Builder::BuiltPayload>>
         + Clone
         + Unpin
         + 'static,
-    Tasks: TaskSpawner + Clone + Unpin + 'static,
     Builder: PayloadBuilder + Unpin + 'static,
     Builder::Attributes: Unpin + Clone,
     Builder::BuiltPayload: Unpin + Clone,
 {
-    type Job = BlockPayloadJob<Tasks, Builder>;
+    type Job = BlockPayloadJob<Builder>;
 
     /// This is invoked when the node receives payload attributes from the beacon node via
     /// `engine_forkchoiceUpdatedV1`
@@ -161,7 +156,6 @@ where
         let config = PayloadConfig::new(Arc::new(parent_header.clone()), attributes);
 
         let mut job = BlockPayloadJob {
-            executor: self.executor.clone(),
             builder: self.builder.clone(),
             config,
             cell: BlockCell::new(),
@@ -182,14 +176,12 @@ use std::{
 };
 
 /// A [PayloadJob] that builds empty blocks.
-pub struct BlockPayloadJob<Tasks, Builder>
+pub struct BlockPayloadJob<Builder>
 where
     Builder: PayloadBuilder,
 {
     /// The configuration for how the payload will be created.
     pub(crate) config: PayloadConfig<Builder::Attributes, HeaderForPayload<Builder::BuiltPayload>>,
-    /// How to spawn building tasks
-    pub(crate) executor: Tasks,
     /// The type responsible for building payloads.
     ///
     /// See [PayloadBuilder]
@@ -202,9 +194,8 @@ where
     pub(crate) build_complete: Option<oneshot::Receiver<Result<(), PayloadBuilderError>>>,
 }
 
-impl<Tasks, Builder> PayloadJob for BlockPayloadJob<Tasks, Builder>
+impl<Builder> PayloadJob for BlockPayloadJob<Builder>
 where
-    Tasks: TaskSpawner + Clone + 'static,
     Builder: PayloadBuilder + Unpin + 'static,
     Builder::Attributes: Unpin + Clone,
     Builder::BuiltPayload: Unpin + Clone,
@@ -245,9 +236,8 @@ pub struct BuildArguments<Attributes, Payload: BuiltPayload> {
 }
 
 /// A [PayloadJob] is a future that's being polled by the `PayloadBuilderService`
-impl<Tasks, Builder> BlockPayloadJob<Tasks, Builder>
+impl<Builder> BlockPayloadJob<Builder>
 where
-    Tasks: TaskSpawner + Clone + 'static,
     Builder: PayloadBuilder + Unpin + 'static,
     Builder::Attributes: Unpin + Clone,
     Builder::BuiltPayload: Unpin + Clone,
@@ -260,24 +250,20 @@ where
 
         let (tx, rx) = oneshot::channel();
         self.build_complete = Some(rx);
+        let args = BuildArguments {
+            cached_reads: Default::default(),
+            config: payload_config,
+            cancel,
+        };
 
-        self.executor.spawn_blocking(Box::pin(async move {
-            let args = BuildArguments {
-                cached_reads: Default::default(),
-                config: payload_config,
-                cancel,
-            };
-
-            let result = builder.try_build(args, cell);
-            let _ = tx.send(result);
-        }));
+        let result = builder.try_build(args, cell);
+        let _ = tx.send(result);
     }
 }
 
 /// A [PayloadJob] is a a future that's being polled by the `PayloadBuilderService`
-impl<Tasks, Builder> Future for BlockPayloadJob<Tasks, Builder>
+impl<Builder> Future for BlockPayloadJob<Builder>
 where
-    Tasks: TaskSpawner + Clone + 'static,
     Builder: PayloadBuilder + Unpin + 'static,
     Builder::Attributes: Unpin + Clone,
     Builder::BuiltPayload: Unpin + Clone,
@@ -601,7 +587,6 @@ mod tests {
         let mut rng = thread_rng();
 
         let client = MockEthProvider::default();
-        let executor = TokioTaskExecutor::default();
         let config = BasicPayloadJobGeneratorConfig::default();
         let builder = MockBuilder::<OpPrimitives>::new();
 
@@ -617,13 +602,8 @@ mod tests {
 
         client.extend_blocks(blocks.iter().cloned().map(|b| (b.hash(), b.unseal())));
 
-        let generator = BlockPayloadJobGenerator::with_builder(
-            client.clone(),
-            executor,
-            config,
-            builder.clone(),
-            false,
-        );
+        let generator =
+            BlockPayloadJobGenerator::with_builder(client.clone(), config, builder.clone(), false);
 
         // this is not nice but necessary
         let mut attr = OpPayloadBuilderAttributes::default();
