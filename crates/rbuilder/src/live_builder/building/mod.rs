@@ -17,7 +17,7 @@ use crate::{
 use revm_primitives::Address;
 use tokio::sync::{broadcast, mpsc};
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, trace};
+use tracing::{debug, info, trace};
 use unfinished_block_building_sink_muxer::UnfinishedBlockBuildingSinkMuxer;
 
 use super::{
@@ -71,6 +71,7 @@ where
         global_cancellation: CancellationToken,
         max_time_to_build: Duration,
     ) {
+        info!("Stared block building prep");
         let block_cancellation = global_cancellation.child_token();
 
         let cancel = block_cancellation.clone();
@@ -83,16 +84,22 @@ where
         // add OrderReplacementManager to manage replacements and cancellations
         let order_replacement_manager = OrderReplacementManager::new(Box::new(sink));
         // sink removal is automatic via OrderSink::is_alive false
+
+        info!("Will add block building sink LOCK");
         let _block_sub = self.orderpool_subscriber.add_sink(
             block_ctx.block_env.number.to(),
             Box::new(order_replacement_manager),
         );
+        info!("Added block building sink UNLOCK");
 
+        info!("Will spawn simulations job");
         let simulations_for_block = self.order_simulation_pool.spawn_simulation_job(
             block_ctx.clone(),
             orders_for_block,
             block_cancellation.clone(),
         );
+        info!("Spawned simulations job");
+
         self.start_building_job(
             block_ctx,
             payload,
@@ -128,7 +135,7 @@ where
             let builder = builder.clone();
             tokio::task::spawn_blocking(move || {
                 builder.build_blocks(input);
-                debug!(block = block_number, builder_name, "Stopped builder job");
+                info!(block = block_number, builder_name, "Stopped builder job");
             });
         }
 

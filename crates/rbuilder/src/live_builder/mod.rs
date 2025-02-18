@@ -205,6 +205,7 @@ where
 
         while let Some(payload) = payload_events_channel.recv().await {
             reset_histogram_metrics();
+            info!("Received new payload");
 
             let blocklist = self.blocklist_provider.get_blocklist()?;
             if blocklist.contains(&payload.fee_recipient()) {
@@ -218,7 +219,7 @@ where
             let current_time = OffsetDateTime::now_utc();
             // see if we can get parent header in a reasonable time
             let time_to_slot = payload.timestamp() - current_time;
-            debug!(
+            info!(
                 slot = payload.slot(),
                 block = payload.block(),
                 ?current_time,
@@ -239,6 +240,7 @@ where
                 continue;
             };
 
+            info!("Will fetch parent header");
             let parent_header = {
                 // @Nicer
                 let parent_block = payload.parent_block_hash();
@@ -253,7 +255,7 @@ where
                 }
             };
 
-            debug!(
+            info!(
                 slot = payload.slot(),
                 block = payload.block(),
                 parent_hash = ?payload.parent_block_hash(),
@@ -290,6 +292,8 @@ where
                 if let Some(watchdog_sender) = watchdog_sender.as_ref() {
                     watchdog_sender.try_send(()).unwrap_or_default();
                 };
+            } else {
+                warn!("Failed to create block building context");
             }
         }
 

@@ -284,9 +284,12 @@ where
             }
 
             {
+                info!("Orderpool commands WAIT FOR LOCK");
                 let mut orderpool = orderpool.lock();
+                info!("Orderpool commands LOCK TAKEN");
                 orderpool.process_commands(new_commands.clone());
             }
+            info!("Orderpool commands LOCK RELEASED");
             new_commands.clear();
         }
 
@@ -342,22 +345,29 @@ where
                                 continue;
                             }
                         };
+                        let (update_time, tx_count, bundle_count) = {
+                            println!("Orderpool cleaner WAIT ON LOCK");
+                            let mut orderpool = orderpool.lock();
+                            println!("Orderpool cleaner LOCK TAKEN");
+                            let start = Instant::now();
 
-                        let mut orderpool = orderpool.lock();
-                        let start = Instant::now();
+                            orderpool.head_updated(block_number, &state);
 
-                        orderpool.head_updated(block_number, &state);
+                            let update_time = start.elapsed();
+                            let (tx_count, bundle_count) = orderpool.content_count();
+                            set_ordepool_count(tx_count, bundle_count);
+                            (update_time, tx_count, bundle_count)
+                        };
 
-                        let update_time = start.elapsed();
-                        let (tx_count, bundle_count) = orderpool.content_count();
-                        set_ordepool_count(tx_count, bundle_count);
-                        debug!(
+                        info!("Orderpool cleaner LOCK RELEASED in {}ms",  update_time.as_millis());
+                        info!(
                             block_number,
                             tx_count,
                             bundle_count,
                             update_time_ms = update_time.as_millis(),
                             "Cleaned orderpool",
                         );
+
                     } else {
                         info!("Clean orderpool job: channel ended");
                         if !global_cancellation.is_cancelled(){

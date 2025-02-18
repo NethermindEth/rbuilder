@@ -22,7 +22,7 @@ use reth::revm::cached::CachedReads;
 use serde::Deserialize;
 use std::time::{Duration, Instant};
 use tokio_util::sync::CancellationToken;
-use tracing::{error, info_span, trace};
+use tracing::{error, info, info_span, trace};
 
 use super::{
     block_building_helper::{BiddableUnfinishedBlock, BlockBuildingHelperFromProvider},
@@ -62,6 +62,7 @@ pub fn run_ordering_builder<P>(input: LiveBuilderInput<P>, config: &OrderingBuil
 where
     P: StateProviderFactory + Clone + 'static,
 {
+    let block_number = input.ctx.block_env.number.to::<u64>();
     let mut order_intake_consumer = OrderIntakeConsumer::new(
         input.provider.clone(),
         input.input,
@@ -77,10 +78,16 @@ where
     );
 
     // this is a hack to mark used orders until built block trace is implemented as a sane thing
+
+    info!(block_num = block_number, "Started block building loop",);
     let mut removed_orders = Vec::new();
     let mut use_suggested_fee_recipient_as_coinbase = config.coinbase_payment;
     'building: loop {
         if input.cancel.is_cancelled() {
+            info!(
+                block_num = block_number,
+                "Block building loop cancelled by cancellation token",
+            );
             break 'building;
         }
 

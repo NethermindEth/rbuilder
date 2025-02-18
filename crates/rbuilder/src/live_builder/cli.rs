@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 
+use alloy_provider::{IpcConnect, ProviderBuilder};
 use clap::Parser;
 use reth::revm::cached::CachedReads;
 use serde::de::DeserializeOwned;
@@ -13,7 +14,7 @@ use crate::{
     live_builder::{
         base_config::load_config_toml_and_env, payload_events::MevBoostSlotDataGenerator,
     },
-    provider::StateProviderFactory,
+    provider::{remote_state_provider::RemoteStateProviderFactory, StateProviderFactory},
     telemetry,
     utils::{bls::generate_random_bls_address, build_info::Version},
 };
@@ -120,7 +121,19 @@ where
         config.base_config().log_enable_dynamic,
     )
     .await?;
-    let provider = config.base_config().create_provider_factory(false)?;
+    //let provider = config.base_config().create_provider_factory(false)?;
+
+    let ipc_path = config
+        .base_config()
+        .el_node_ipc_path
+        .clone()
+        .ok_or_else(|| eyre::eyre!("No IPC path configured"))?;
+
+    let ipc = IpcConnect::new(ipc_path);
+    let ipc_provider = ProviderBuilder::new().on_ipc(ipc).await?;
+
+    let provider = RemoteStateProviderFactory::from_provider(ipc_provider);
+
     let builder = config.new_builder(provider, cancel.clone()).await?;
 
     let ctrlc = tokio::spawn(async move {

@@ -175,9 +175,9 @@ impl BaseConfig {
         let log_level = self.log_level.value()?;
         let config = LoggerConfig {
             env_filter: log_level,
-            file: None,
-            log_json: self.log_json,
-            log_color: self.log_color,
+            file: Some("log.txt".into()),
+            log_json: false,
+            log_color: false,
         };
         setup_reloadable_tracing_subscriber(config)?;
         Ok(())
