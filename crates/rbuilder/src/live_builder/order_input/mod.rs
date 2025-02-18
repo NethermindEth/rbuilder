@@ -16,10 +16,12 @@ use crate::provider::StateProviderFactory;
 use crate::telemetry::{set_current_block, set_ordepool_count};
 use alloy_consensus::Header;
 use jsonrpsee::RpcModule;
-use parking_lot::Mutex;
 use std::{net::Ipv4Addr, path::PathBuf, sync::Arc, time::Duration};
 use std::{path::Path, time::Instant};
-use tokio::{sync::mpsc, task::JoinHandle};
+use tokio::{
+    sync::{mpsc, Mutex},
+    task::JoinHandle,
+};
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, trace, warn};
 
@@ -32,45 +34,19 @@ pub struct OrderPoolSubscriber {
 }
 
 impl OrderPoolSubscriber {
-    pub fn add_sink(
+    pub async fn add_sink(
         &self,
         block_number: u64,
         sink: Box<dyn ReplaceableOrderSink>,
     ) -> OrderPoolSubscriptionId {
-        self.orderpool.lock().add_sink(block_number, sink)
+        self.orderpool.lock().await.add_sink(block_number, sink)
     }
 
-    pub fn remove_sink(
+    pub async fn remove_sink(
         &self,
         id: &OrderPoolSubscriptionId,
     ) -> Option<Box<dyn ReplaceableOrderSink>> {
-        self.orderpool.lock().remove_sink(id)
-    }
-
-    /// Returned AutoRemovingOrderPoolSubscriptionId will call remove when dropped
-    pub fn add_sink_auto_remove(
-        &self,
-        block_number: u64,
-        sink: Box<dyn ReplaceableOrderSink>,
-    ) -> AutoRemovingOrderPoolSubscriptionId {
-        AutoRemovingOrderPoolSubscriptionId {
-            orderpool: self.orderpool.clone(),
-            id: self.add_sink(block_number, sink),
-        }
-    }
-}
-
-/// OrderPoolSubscriptionId that removes on drop.
-/// Call add_sink to get flow and remove_sink to stop it
-/// For easy auto remove we have add_sink_auto_remove
-pub struct AutoRemovingOrderPoolSubscriptionId {
-    orderpool: Arc<Mutex<OrderPool>>,
-    id: OrderPoolSubscriptionId,
-}
-
-impl Drop for AutoRemovingOrderPoolSubscriptionId {
-    fn drop(&mut self) {
-        self.orderpool.lock().remove_sink(&self.id);
+        self.orderpool.lock().await.remove_sink(id)
     }
 }
 
@@ -285,7 +261,7 @@ where
 
             {
                 info!("Orderpool commands WAIT FOR LOCK");
-                let mut orderpool = orderpool.lock();
+                let mut orderpool = orderpool.lock().await;
                 info!("Orderpool commands LOCK TAKEN");
                 orderpool.process_commands(new_commands.clone());
             }
@@ -347,7 +323,7 @@ where
                         };
                         let (update_time, tx_count, bundle_count) = {
                             println!("Orderpool cleaner WAIT ON LOCK");
-                            let mut orderpool = orderpool.lock();
+                            let mut orderpool = orderpool.lock().await;
                             println!("Orderpool cleaner LOCK TAKEN");
                             let start = Instant::now();
 
