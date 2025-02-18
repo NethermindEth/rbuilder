@@ -51,7 +51,8 @@ pub struct RemoteStateProviderFactory {
 
 impl RemoteStateProviderFactory {
     pub fn new(path: &Path) -> Self {
-        let remote_provider = RpcProvider::try_connect(path, None).expect("Can't connect to IPC");
+        let remote_provider = RpcProvider::try_connect(path, Duration::from_millis(100).into())
+            .expect("Can't connect to IPC");
 
         //let future_runner = FutureRunner::new();
 
