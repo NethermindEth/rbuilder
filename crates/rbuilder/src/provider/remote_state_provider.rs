@@ -609,5 +609,5 @@ impl From<BundleAccount> for AccountDiff {
 
 //TODO: this is temp hack, fix it properly
 fn transport_to_provider_error(e: reipc::errors::RpcError) -> ProviderError {
-    ProviderError::Database(reth_db::DatabaseError::Other(e.to_string()))
+    ProviderError::Database(reth_db::DatabaseError::Other(format!("IPC ERROR: {e}")))
 }
