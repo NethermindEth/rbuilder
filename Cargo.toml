@@ -140,7 +140,7 @@ op-alloy-consensus = { version =  "0.9.0", default-features = false }
 
 async-trait = { version = "0.1.83" }
 clap = { version = "4.4.3" }
-thiserror = { version = "1.0.64" }
+thiserror = { version = "2.0.11" }
 eyre = { version = "0.6.12" }
 jsonrpsee = { version = "0.24.4" }
 jsonrpsee-types = { version = "0.24.4" }
@@ -168,4 +168,4 @@ eth-sparse-mpt = { path = "crates/eth-sparse-mpt" }
 sysperf = { path = "crates/sysperf" }
 
 
-reipc = { git = "https://github.com/nethermindeth/reipc.git", rev = "5a2dfaf825c50184398dcf6a37640296592bf998" }
+reipc = { git = "https://github.com/nethermindeth/reipc.git", rev = "893fcd825bb90b2a669e3e32c65dfcba4e05e51a" }

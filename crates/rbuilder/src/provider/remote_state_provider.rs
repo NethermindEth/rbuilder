@@ -1,12 +1,4 @@
-use std::{
-    error::Error,
-    fmt::Debug,
-    future::{Future, IntoFuture},
-    ops::Deref,
-    path::Path,
-    sync::Arc,
-    time::Duration,
-};
+use std::{error::Error, fmt::Debug, path::Path, sync::Arc, time::Duration};
 
 use alloy_consensus::{constants::KECCAK_EMPTY, Header};
 use alloy_eips::{BlockId, BlockNumberOrTag};
@@ -14,7 +6,7 @@ use alloy_primitives::{BlockHash, BlockNumber, StorageKey, StorageValue, U64};
 use alloy_provider::{Provider, RootProvider};
 use alloy_transport::{Transport, TransportError};
 use dashmap::DashMap;
-use reipc::RpcProvider;
+use reipc::rpc_provider::RpcProvider;
 use reth_errors::{ProviderError, ProviderResult};
 use reth_primitives::{Account, Bytecode};
 use reth_provider::{
@@ -40,7 +32,7 @@ use super::{RootHasher, StateProviderFactory};
 /// using either IPC or HTTP/WS
 #[derive(Clone)]
 pub struct RemoteStateProviderFactory {
-    remote_provider: Arc<reipc::RpcProvider>,
+    remote_provider: RpcProvider,
 
     //block_hash_cache: Arc<DashMap<u64, BlockHash>>,
     code_cache: Arc<DashMap<B256, Bytecode>>,
@@ -51,7 +43,7 @@ pub struct RemoteStateProviderFactory {
 
 impl RemoteStateProviderFactory {
     pub fn new(path: &Path) -> Self {
-        let remote_provider = RpcProvider::try_connect(path, Duration::from_millis(100).into())
+        let remote_provider = RpcProvider::try_connect(path, Duration::from_millis(300).into())
             .expect("Can't connect to IPC");
 
         //let future_runner = FutureRunner::new();
@@ -204,7 +196,6 @@ impl StateProviderFactory for RemoteStateProviderFactory {
         }
 
         let block = block.unwrap();
-        let hash = block.header.hash;
         let header = block.header.inner;
 
         //self.block_hash_cache.insert(header.number, hash);
@@ -239,7 +230,7 @@ impl StateProviderFactory for RemoteStateProviderFactory {
 
 #[derive(Clone)]
 pub struct RemoteStateProvider {
-    remote_provider: Arc<RpcProvider>,
+    remote_provider: RpcProvider,
 
     storage_cache: DashMap<(Address, StorageKey), StorageValue>,
     account_cache: DashMap<Address, Account>,
@@ -272,7 +263,7 @@ impl ArcRemoteStateProvider {
 impl RemoteStateProvider {
     /// Crates new instance of state provider
     fn new(
-        remote_provider: Arc<RpcProvider>,
+        remote_provider: RpcProvider,
         block_id: BlockId,
         code_cache: Arc<DashMap<B256, Bytecode>>,
     ) -> Self {
@@ -290,7 +281,7 @@ impl RemoteStateProvider {
 
     /// Crates new instance of state provider on the heap
     fn boxed(
-        remote_provider: Arc<RpcProvider>,
+        remote_provider: RpcProvider,
         block_id: BlockId,
         block_hash_cache: Arc<DashMap<u64, BlockHash>>,
         code_cache: Arc<DashMap<B256, Bytecode>>,
@@ -522,7 +513,7 @@ impl HashedPostStateProvider for ArcRemoteStateProvider {
 
 #[derive(Clone)]
 pub struct StatRootHashCalculator {
-    remote_provider: Arc<RpcProvider>,
+    remote_provider: RpcProvider,
     parent_hash: B256,
 }
 
@@ -617,6 +608,6 @@ impl From<BundleAccount> for AccountDiff {
 }
 
 //TODO: this is temp hack, fix it properly
-fn transport_to_provider_error(_e: Box<dyn Error>) -> ProviderError {
-    ProviderError::Database(reth_db::DatabaseError::Other("IPC ERROR".into()))
+fn transport_to_provider_error(e: reipc::errors::RpcError) -> ProviderError {
+    ProviderError::Database(reth_db::DatabaseError::Other(e.to_string()))
 }
