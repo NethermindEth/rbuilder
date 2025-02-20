@@ -1316,7 +1316,7 @@ where
         })?;
 
     // Create the EIP-1559 transaction
-    let eip1559 = OpTypedTransaction::Eip1559(TxEip1559 {
+    let tx = OpTypedTransaction::Eip1559(TxEip1559 {
         chain_id,
         nonce,
         gas_limit: builder_tx_gas,
@@ -1327,7 +1327,6 @@ where
         input: message.into(),
         ..Default::default()
     });
-    let tx = eip1559;
     // Sign the transaction
     let builder_tx = signer.sign_tx(tx).map_err(PayloadBuilderError::other)?;
 
