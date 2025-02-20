@@ -6,6 +6,7 @@ use crate::{
     tx_signer::Signer,
 };
 use alloy_consensus::constants::EMPTY_WITHDRAWALS;
+use alloy_consensus::transaction::Recovered;
 use alloy_consensus::{
     Eip658Value, Header, Transaction, TxEip1559, Typed2718, EMPTY_OMMER_ROOT_HASH,
 };
@@ -456,7 +457,7 @@ impl<Txs> OpBuilder<'_, Txs> {
         // Check that it's possible to create builder tx, considering max_da_tx_size, otherwise panic
         if let Some(tx_da_limit) = ctx.da_config.max_da_tx_size() {
             // Panic indicate max_da_tx_size misconfiguration
-            assert!(tx_da_limit >= builder_tx_da_size as u64);
+            assert!(tx_da_limit >= builder_tx_da_size as u64, "The configured da_config.max_da_tx_size is too small to accommodate builder tx.");
         }
 
         if !ctx.attributes().no_tx_pool {
@@ -1230,32 +1231,10 @@ where
         self.builder_signer()
             .map(|signer| {
                 let base_fee = self.base_fee();
-                // Create message with block number for the builder to sign
-                let nonce = db
-                    .load_cache_account(signer.address)
-                    .map(|acc| acc.account_info().unwrap_or_default().nonce)
-                    .map_err(|_| {
-                        PayloadBuilderError::other(OpPayloadBuilderError::AccountLoadFailed(
-                            signer.address,
-                        ))
-                    })?;
-
-                // Create the EIP-1559 transaction
-                let eip1559 = OpTypedTransaction::Eip1559(TxEip1559 {
-                    chain_id: self.chain_id(),
-                    nonce,
-                    gas_limit: builder_tx_gas,
-                    max_fee_per_gas: base_fee.into(),
-                    max_priority_fee_per_gas: 0,
-                    to: TxKind::Call(Address::ZERO),
-                    // Include the message as part of the transaction data
-                    input: message.into(),
-                    ..Default::default()
-                });
-                let tx = eip1559;
-
-                // Sign the transaction
-                let builder_tx = signer.sign_tx(tx).map_err(PayloadBuilderError::other)?;
+                let chain_id = self.chain_id();
+                // Create and sign the transaction
+                let builder_tx =
+                    signed_builder_tx(db, builder_tx_gas, message, signer, base_fee, chain_id)?;
 
                 let mut evm = self.evm_config.evm_with_env(&mut *db, self.evm_env.clone());
                 let tx_env = self.evm_config.tx_env(builder_tx.tx(), builder_tx.signer());
@@ -1302,32 +1281,10 @@ where
         self.builder_signer()
             .map(|signer| {
                 let base_fee = self.base_fee();
-                // Create message with block number for the builder to sign
-                let nonce = db
-                    .load_cache_account(signer.address)
-                    .map(|acc| acc.account_info().unwrap_or_default().nonce)
-                    .map_err(|_| {
-                        PayloadBuilderError::other(OpPayloadBuilderError::AccountLoadFailed(
-                            signer.address,
-                        ))
-                    })?;
-
-                // Create the EIP-1559 transaction
-                let eip1559 = OpTypedTransaction::Eip1559(TxEip1559 {
-                    chain_id: self.chain_id(),
-                    nonce,
-                    gas_limit: builder_tx_gas,
-                    max_fee_per_gas: base_fee.into(),
-                    max_priority_fee_per_gas: 0,
-                    to: TxKind::Call(Address::ZERO),
-                    // Include the message as part of the transaction data
-                    input: message.into(),
-                    ..Default::default()
-                });
-                let tx = eip1559;
-                // Sign the transaction
-                let builder_tx = signer.sign_tx(tx).map_err(PayloadBuilderError::other)?;
-
+                let chain_id = self.chain_id();
+                // Create and sign the transaction
+                let builder_tx =
+                    signed_builder_tx(db, builder_tx_gas, message, signer, base_fee, chain_id)?;
                 Ok(builder_tx.length())
             })
             .transpose()
@@ -1336,6 +1293,45 @@ where
                 None
             })
     }
+}
+
+/// Creates signed builder tx to Address::ZERO and specified message as input
+pub fn signed_builder_tx<DB>(
+    db: &mut State<DB>,
+    builder_tx_gas: u64,
+    message: Vec<u8>,
+    signer: Signer,
+    base_fee: u64,
+    chain_id: u64,
+) -> Result<Recovered<OpTransactionSigned>, PayloadBuilderError>
+where
+    DB: Database<Error = ProviderError>,
+{
+    // Create message with block number for the builder to sign
+    let nonce = db
+        .load_cache_account(signer.address)
+        .map(|acc| acc.account_info().unwrap_or_default().nonce)
+        .map_err(|_| {
+            PayloadBuilderError::other(OpPayloadBuilderError::AccountLoadFailed(signer.address))
+        })?;
+
+    // Create the EIP-1559 transaction
+    let eip1559 = OpTypedTransaction::Eip1559(TxEip1559 {
+        chain_id,
+        nonce,
+        gas_limit: builder_tx_gas,
+        max_fee_per_gas: base_fee.into(),
+        max_priority_fee_per_gas: 0,
+        to: TxKind::Call(Address::ZERO),
+        // Include the message as part of the transaction data
+        input: message.into(),
+        ..Default::default()
+    });
+    let tx = eip1559;
+    // Sign the transaction
+    let builder_tx = signer.sign_tx(tx).map_err(PayloadBuilderError::other)?;
+
+    Ok(builder_tx)
 }
 
 fn estimate_gas_for_builder_tx(input: Vec<u8>) -> u64 {
