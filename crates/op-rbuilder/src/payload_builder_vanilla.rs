@@ -313,8 +313,7 @@ where
                 }
             }
         }));
-        rx.blocking_recv()
-            .map_err(PayloadBuilderError::from)?
+        rx.blocking_recv().map_err(PayloadBuilderError::from)?
     }
 }
 
