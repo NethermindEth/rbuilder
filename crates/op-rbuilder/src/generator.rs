@@ -51,7 +51,8 @@ pub trait PayloadBuilder: Send + Sync + Clone {
         &self,
         args: BuildArguments<Self::Attributes, Self::BuiltPayload>,
         best_payload: BlockCell<Self::BuiltPayload>,
-    ) -> Result<(), PayloadBuilderError>;
+        tx: Sender<Result<(), PayloadBuilderError>>,
+    );
 }
 
 /// The generator type that creates new jobs that builds empty blocks.
@@ -174,6 +175,7 @@ use std::{
     pin::Pin,
     task::{Context, Poll},
 };
+use tokio::sync::oneshot::Sender;
 
 /// A [PayloadJob] that builds empty blocks.
 pub struct BlockPayloadJob<Builder>
@@ -256,8 +258,7 @@ where
             cancel,
         };
 
-        let result = builder.try_build(args, cell);
-        let _ = tx.send(result);
+        builder.try_build(args, cell, tx);
     }
 }
 
@@ -545,13 +546,15 @@ mod tests {
             &self,
             args: BuildArguments<Self::Attributes, Self::BuiltPayload>,
             _best_payload: BlockCell<Self::BuiltPayload>,
-        ) -> Result<(), PayloadBuilderError> {
+            tx: Sender<Result<(), PayloadBuilderError>>,
+        ) {
             self.new_event(BlockEvent::Started);
 
             loop {
                 if args.cancel.is_cancelled() {
                     self.new_event(BlockEvent::Cancelled);
-                    return Ok(());
+                    let _ = tx.send(Ok(()));
+                    return;
                 }
 
                 // Small sleep to prevent tight loop

@@ -74,7 +74,7 @@ use revm::{
 };
 use std::error::Error as StdError;
 use std::{fmt::Display, sync::Arc, time::Instant};
-use tokio::sync::oneshot;
+use tokio::sync::oneshot::Sender;
 use tokio_util::sync::CancellationToken;
 use tracing::{info, trace, warn};
 
@@ -274,10 +274,10 @@ where
         &self,
         args: BuildArguments<Self::Attributes, Self::BuiltPayload>,
         best_payload: BlockCell<Self::BuiltPayload>,
-    ) -> Result<(), PayloadBuilderError> {
+        tx: Sender<Result<(), PayloadBuilderError>>,
+    ) {
         let pool = self.pool.clone();
         let block_build_start_time = Instant::now();
-        let (tx, rx) = oneshot::channel();
         let ctx = self.clone();
         self.executor.spawn_blocking(Box::pin(async move {
             match ctx.build_payload(args, |attrs| {
@@ -313,7 +313,6 @@ where
                 }
             }
         }));
-        rx.blocking_recv().map_err(PayloadBuilderError::from)?
     }
 }
 
