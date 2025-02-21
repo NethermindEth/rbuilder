@@ -314,7 +314,7 @@ where
             }
         }));
         rx.blocking_recv()
-            .map_err(|err| PayloadBuilderError::from(err))?
+            .map_err(PayloadBuilderError::from)?
     }
 }
 
