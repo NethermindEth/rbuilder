@@ -284,12 +284,12 @@ where
             }
 
             {
-                info!("Orderpool commands WAIT FOR LOCK");
+                debug!("Orderpool commands WAIT FOR LOCK");
                 let mut orderpool = orderpool.lock();
-                info!("Orderpool commands LOCK TAKEN");
+                debug!("Orderpool commands LOCK TAKEN");
                 orderpool.process_commands(new_commands.clone());
             }
-            info!("Orderpool commands LOCK RELEASED");
+            debug!("Orderpool commands LOCK RELEASED");
             new_commands.clear();
         }
 
@@ -346,9 +346,9 @@ where
                             }
                         };
                         let (update_time, tx_count, bundle_count) = {
-                            println!("Orderpool cleaner WAIT ON LOCK");
+                            debug!("Orderpool cleaner WAIT ON LOCK");
                             let mut orderpool = orderpool.lock();
-                            println!("Orderpool cleaner LOCK TAKEN");
+                            debug!("Orderpool cleaner LOCK TAKEN");
                             let start = Instant::now();
 
                             orderpool.head_updated(block_number, &state);
@@ -360,7 +360,7 @@ where
                         };
 
                         info!("Orderpool cleaner LOCK RELEASED in {}ms",  update_time.as_millis());
-                        info!(
+                        debug!(
                             block_number,
                             tx_count,
                             bundle_count,
