@@ -4070,7 +4070,11 @@ version = "7.5.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "765c9198f173dd59ce26ff9f95ef0aafd0a0fe01fb9d72841bc5066a4c06511d"
 dependencies = [
+ "base64 0.21.7",
  "byteorder",
+ "crossbeam-channel",
+ "flate2",
+ "nom",
  "num-traits",
 ]
 
@@ -8154,7 +8158,7 @@ dependencies = [
 [[package]]
 name = "reipc"
 version = "0.1.0"
-source = "git+https://github.com/nethermindeth/reipc.git?rev=893fcd825bb90b2a669e3e32c65dfcba4e05e51a#893fcd825bb90b2a669e3e32c65dfcba4e05e51a"
+source = "git+https://github.com/nethermindeth/reipc.git?rev=3d9b512500117f809b7bdcecf6b34cd181d35ab0#3d9b512500117f809b7bdcecf6b34cd181d35ab0"
 dependencies = [
  "alloy-json-rpc 0.11.1",
  "alloy-primitives 0.8.21",
@@ -8162,6 +8166,7 @@ dependencies = [
  "bytes",
  "crossbeam",
  "dashmap 6.1.0",
+ "hdrhistogram",
  "serde",
  "serde_json",
  "thiserror 2.0.11",
