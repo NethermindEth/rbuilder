@@ -1,7 +1,7 @@
 use crate::{
     building::{
         sim::{NonceKey, OrderSimResult, SimulatedResult},
-        simulate_order, BlockState,
+        simulate_order, BlockState, OrderErr, TransactionErr,
     },
     live_builder::simulation::CurrentSimulationContexts,
     provider::StateProviderFactory,
@@ -9,6 +9,7 @@ use crate::{
 };
 use parking_lot::Mutex;
 use reth::revm::cached::CachedReads;
+use revm_primitives::InvalidTransaction;
 use std::{
     sync::Arc,
     thread::sleep,
@@ -51,6 +52,8 @@ pub fn run_sim_worker<P>(
         let tsim_start = Instant::now();
         let mut total_count = 0;
         let mut ok_count = 0;
+        let mut base_gas_count = 0;
+        let mut other_err = 0;
 
         while let Ok(task) = current_sim_context.requests.recv() {
             total_count += 1;
@@ -100,8 +103,17 @@ pub fn run_sim_worker<P>(
                                 .unwrap_or_default();
                             true
                         }
+                        OrderSimResult::Failed(OrderErr::Transaction(
+                            TransactionErr::InvalidTransaction(
+                                InvalidTransaction::GasPriceLessThanBasefee,
+                            ),
+                        )) => {
+                            base_gas_count += 1;
+                            false
+                        }
                         OrderSimResult::Failed(e) => {
                             error!(?e, "Order simulation failed");
+                            other_err += 1;
                             false
                         }
                     };
@@ -128,10 +140,16 @@ pub fn run_sim_worker<P>(
         }
 
         tracing::info!(
-            "Simulated orders {}/{} in {}ms",
+            "Simulated orders ok {}/{} in {}ms",
             ok_count,
             total_count,
             tsim_start.elapsed().as_millis()
+        );
+
+        tracing::info!(
+            "Simulated orders gas_price error: {}, other errors {}",
+            base_gas_count,
+            other_err
         );
     }
 }
