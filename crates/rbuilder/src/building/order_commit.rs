@@ -419,6 +419,8 @@ impl<'a, 'b, Tracer: SimulationTracer> PartialBlockFork<'a, 'b, Tracer> {
         let mut tx_env = TxEnv::default();
         let tx_signed = tx_with_blobs.internal_tx_unsecure();
         tx_signed.fill_tx_env(&mut tx_env, tx_signed.signer());
+        let tx_gp = tx_env.gas_price;
+        let tx_gpp = tx_env.gas_priority_fee;
 
         let env = Env {
             cfg: ctx.initialized_cfg.cfg_env.clone(),
@@ -439,6 +441,12 @@ impl<'a, 'b, Tracer: SimulationTracer> PartialBlockFork<'a, 'b, Tracer> {
         let res = match evm.transact() {
             Ok(res) => res,
             Err(err) => match err {
+                EVMError::Transaction(InvalidTransaction::GasPriceLessThanBasefee) => {
+                    tracing::error!("TX Gas error tx gas price: {tx_gp}, tx gas priority fee: {:?}, basefee: {}", tx_gpp,  ctx.block_env.basefee);
+                    return Ok(Err(TransactionErr::InvalidTransaction(
+                        InvalidTransaction::GasPriceLessThanBasefee,
+                    )));
+                }
                 EVMError::Transaction(tx_err) => {
                     return Ok(Err(TransactionErr::InvalidTransaction(tx_err)))
                 }
