@@ -64,7 +64,7 @@ where
     }
 
     /// Connects OrdersForBlock->OrderReplacementManager->Simulations and calls start_building_job
-    pub fn start_block_building(
+    pub async fn start_block_building(
         &mut self,
         payload: payload_events::MevBoostSlotData,
         block_ctx: BlockBuildingContext,
@@ -86,10 +86,13 @@ where
         // sink removal is automatic via OrderSink::is_alive false
 
         info!("Will add block building sink LOCK");
-        let _block_sub = self.orderpool_subscriber.add_sink(
-            block_ctx.block_env.number.to(),
-            Box::new(order_replacement_manager),
-        );
+        let _block_sub = self
+            .orderpool_subscriber
+            .add_sink(
+                block_ctx.block_env.number.to(),
+                Box::new(order_replacement_manager),
+            )
+            .await;
         info!("Added block building sink UNLOCK");
 
         info!("Will spawn simulations job");

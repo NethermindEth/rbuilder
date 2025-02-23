@@ -283,12 +283,14 @@ where
                 root_hasher,
             ) {
                 mark_building_started(block_ctx.timestamp());
-                builder_pool.start_block_building(
-                    payload,
-                    block_ctx,
-                    self.global_cancellation.clone(),
-                    time_until_slot_end.try_into().unwrap_or_default(),
-                );
+                builder_pool
+                    .start_block_building(
+                        payload,
+                        block_ctx,
+                        self.global_cancellation.clone(),
+                        time_until_slot_end.try_into().unwrap_or_default(),
+                    )
+                    .await;
                 if let Some(watchdog_sender) = watchdog_sender.as_ref() {
                     watchdog_sender.try_send(()).unwrap_or_default();
                 };
