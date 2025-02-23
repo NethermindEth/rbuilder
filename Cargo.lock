@@ -6366,6 +6366,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "51d515d32fb182ee37cda2ccdcb92950d6a3c2893aa280e540671c2cd0f3b1d9"
 
 [[package]]
+name = "num-format"
+version = "0.4.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a652d9771a63711fd3c3deb670acfbe5c30a4072e664d7a3bf5a9e1056ac72c3"
+dependencies = [
+ "arrayvec",
+ "itoa",
+]
+
+[[package]]
 name = "num-integer"
 version = "0.1.46"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8158,7 +8168,7 @@ dependencies = [
 [[package]]
 name = "reipc"
 version = "0.1.0"
-source = "git+https://github.com/nethermindeth/reipc.git?rev=08ba52fbf329eeecafdd2f39eb47ffad0975a463#08ba52fbf329eeecafdd2f39eb47ffad0975a463"
+source = "git+https://github.com/nethermindeth/reipc.git?rev=19d87aed11c9f54adcdced215714fa5b79fa4835#19d87aed11c9f54adcdced215714fa5b79fa4835"
 dependencies = [
  "alloy-json-rpc 0.11.1",
  "alloy-primitives 0.8.21",
@@ -8167,6 +8177,7 @@ dependencies = [
  "crossbeam",
  "dashmap 6.1.0",
  "hdrhistogram",
+ "num-format",
  "serde",
  "serde_json",
  "thiserror 2.0.11",
