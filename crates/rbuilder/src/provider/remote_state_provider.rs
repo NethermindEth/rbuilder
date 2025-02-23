@@ -47,6 +47,13 @@ impl RemoteStateProviderFactory {
 
         //let future_runner = FutureRunner::new();
 
+        //alice-bugfix
+        let tokio_handle = tokio::runtime::Handle::current();
+        std::thread::spawn(move || loop {
+            std::thread::sleep(Duration::from_secs(1));
+            tokio_handle.spawn(std::future::ready(()));
+        });
+
         Self {
             remote_provider,
             code_cache: Arc::new(DashMap::new()),
