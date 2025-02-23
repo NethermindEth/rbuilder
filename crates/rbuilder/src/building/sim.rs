@@ -445,7 +445,7 @@ pub fn simulate_order_using_fork<Tracer: SimulationTracer>(
                 blob_gas_used += res.blob_gas_used;
             }
             Err(err) => {
-                tracing::trace!(
+                tracing::error!(
                     "failed to simulate parent order, id: {:?}, err: {:?}",
                     parent.id(),
                     err

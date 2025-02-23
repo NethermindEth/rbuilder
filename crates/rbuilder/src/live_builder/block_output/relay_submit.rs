@@ -453,7 +453,7 @@ async fn validate_block(
         .await
     {
         Ok(()) => {
-            info!(
+            debug!(
                 time_ms = start.elapsed().as_millis(),
                 block_num = block_num,
                 "Validation passed"
