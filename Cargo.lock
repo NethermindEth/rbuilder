@@ -8168,7 +8168,7 @@ dependencies = [
 [[package]]
 name = "reipc"
 version = "0.1.0"
-source = "git+https://github.com/nethermindeth/reipc.git?rev=19d87aed11c9f54adcdced215714fa5b79fa4835#19d87aed11c9f54adcdced215714fa5b79fa4835"
+source = "git+https://github.com/nethermindeth/reipc.git?rev=9a32f19b698abc295798c61197ef79518abcef04#9a32f19b698abc295798c61197ef79518abcef04"
 dependencies = [
  "alloy-json-rpc 0.11.1",
  "alloy-primitives 0.8.21",
