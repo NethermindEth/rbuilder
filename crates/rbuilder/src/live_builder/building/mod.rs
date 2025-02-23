@@ -75,6 +75,7 @@ where
         let block_cancellation = global_cancellation.child_token();
 
         let cancel = block_cancellation.clone();
+        info!("Time to build: {}", max_time_to_build.as_millis());
         tokio::spawn(async move {
             tokio::time::sleep(max_time_to_build).await;
             cancel.cancel();
@@ -85,20 +86,20 @@ where
         let order_replacement_manager = OrderReplacementManager::new(Box::new(sink));
         // sink removal is automatic via OrderSink::is_alive false
 
-        info!("Will add block building sink LOCK");
+        debug!("Will add block building sink LOCK");
         let _block_sub = self.orderpool_subscriber.add_sink(
             block_ctx.block_env.number.to(),
             Box::new(order_replacement_manager),
         );
-        info!("Added block building sink UNLOCK");
+        debug!("Added block building sink UNLOCK");
 
-        info!("Will spawn simulations job");
+        debug!("Will spawn simulations job");
         let simulations_for_block = self.order_simulation_pool.spawn_simulation_job(
             block_ctx.clone(),
             orders_for_block,
             block_cancellation.clone(),
         );
-        info!("Spawned simulations job");
+        debug!("Spawned simulations job");
 
         self.start_building_job(
             block_ctx,

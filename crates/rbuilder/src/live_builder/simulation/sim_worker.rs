@@ -50,6 +50,7 @@ pub fn run_sim_worker<P>(
         let mut last_sim_finished = Instant::now();
         let tsim_start = Instant::now();
         let mut total_count = 0;
+        let mut ok_count = 0;
 
         while let Ok(task) = current_sim_context.requests.recv() {
             total_count += 1;
@@ -80,6 +81,7 @@ pub fn run_sim_worker<P>(
                 Ok(sim_result) => {
                     let sim_ok = match sim_result.result {
                         OrderSimResult::Success(simulated_order, nonces_after) => {
+                            ok_count += 1;
                             let elapsed = start_time.elapsed();
 
                             let result = SimulatedResult {
@@ -123,7 +125,8 @@ pub fn run_sim_worker<P>(
         }
 
         tracing::info!(
-            "Simulated orders {} in {}ms",
+            "Simulated orders {}/{} in {}ms",
+            ok_count,
             total_count,
             tsim_start.elapsed().as_millis()
         );
