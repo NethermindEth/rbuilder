@@ -126,7 +126,7 @@ where
                 let sim_tree = SimTree::new(provider, ctx.attributes.parent);
                 let new_order_sub = input.new_order_sub;
                 let (sim_req_sender, sim_req_receiver) = flume::unbounded();
-                let (sim_results_sender, sim_results_receiver) = mpsc::channel(1024);
+                let (sim_results_sender, sim_results_receiver) = mpsc::channel(2048);
                 {
                     let mut contexts = current_contexts.lock();
                     let sim_context = SimulationContext {

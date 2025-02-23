@@ -76,6 +76,9 @@ pub fn run_sim_worker<P>(
                 Ok(sim_result) => {
                     let sim_ok = match sim_result.result {
                         OrderSimResult::Success(simulated_order, nonces_after) => {
+                            let elapsed = start_time.elapsed();
+                            tracing::info!("Simulated order in {}ms", elapsed.as_millis());
+
                             let result = SimulatedResult {
                                 id: task.id,
                                 simulated_order,
@@ -84,7 +87,7 @@ pub fn run_sim_worker<P>(
                                     .into_iter()
                                     .map(|(address, nonce)| NonceKey { address, nonce })
                                     .collect(),
-                                simulation_time: start_time.elapsed(),
+                                simulation_time: elapsed,
                             };
                             current_sim_context
                                 .results

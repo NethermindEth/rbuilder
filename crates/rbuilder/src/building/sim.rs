@@ -438,19 +438,27 @@ pub fn simulate_order_using_fork<Tracer: SimulationTracer>(
     let mut gas_used = 0;
     let mut blob_gas_used = 0;
     for parent in parent_orders {
-        let result = fork.commit_order(&parent, ctx, gas_used, 0, blob_gas_used, true)?;
+        let result = fork.commit_order(&parent, ctx, gas_used, 0, blob_gas_used, true);
         match result {
-            Ok(res) => {
+            Ok(Ok(res)) => {
                 gas_used += res.gas_used;
                 blob_gas_used += res.blob_gas_used;
             }
-            Err(err) => {
+            Ok(Err(err)) => {
                 tracing::error!(
                     "failed to simulate parent order, id: {:?}, err: {:?}",
                     parent.id(),
                     err
                 );
                 return Ok(OrderSimResult::Failed(err));
+            }
+            Err(err) => {
+                tracing::error!(
+                    "HARD ERR failed to simulate id: {:?}, err: {:?}",
+                    parent.id(),
+                    err
+                );
+                return Err(err);
             }
         }
     }
