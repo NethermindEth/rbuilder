@@ -48,7 +48,11 @@ pub fn run_sim_worker<P>(
 
         let mut cached_reads = CachedReads::default();
         let mut last_sim_finished = Instant::now();
+        let tsim_start = Instant::now();
+        let mut total_count = 0;
+
         while let Ok(task) = current_sim_context.requests.recv() {
+            total_count += 1;
             let sim_thread_wait_time = last_sim_finished.elapsed();
             let sim_start = Instant::now();
 
@@ -77,7 +81,6 @@ pub fn run_sim_worker<P>(
                     let sim_ok = match sim_result.result {
                         OrderSimResult::Success(simulated_order, nonces_after) => {
                             let elapsed = start_time.elapsed();
-                            tracing::info!("Simulated order in {}ms", elapsed.as_millis());
 
                             let result = SimulatedResult {
                                 id: task.id,
@@ -118,5 +121,11 @@ pub fn run_sim_worker<P>(
                 worker_id,
             );
         }
+
+        tracing::info!(
+            "Simulated orders {} in {}ms",
+            total_count,
+            tsim_start.elapsed().as_millis()
+        );
     }
 }
