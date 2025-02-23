@@ -168,4 +168,4 @@ eth-sparse-mpt = { path = "crates/eth-sparse-mpt" }
 sysperf = { path = "crates/sysperf" }
 
 
-reipc = { git = "https://github.com/nethermindeth/reipc.git", rev = "5153393f63eed5d97d116380081d91bbaa0f62ff" , features = ["metrics"]}
+reipc = { git = "https://github.com/nethermindeth/reipc.git", rev = "d762a74721d1ab7242500524388bb8671b2d9c28" , features = ["metrics"]}
