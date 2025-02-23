@@ -101,7 +101,7 @@ pub fn run_sim_worker<P>(
                             true
                         }
                         OrderSimResult::Failed(e) => {
-                            trace::error!(?e, "Order simulation failed");
+                            error!(?e, "Order simulation failed");
                             false
                         }
                     };
