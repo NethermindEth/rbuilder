@@ -112,6 +112,7 @@ async fn get_tx_with_blobs(
         return Ok(None);
     };
 
+    println!("raw_tx: {raw_tx}");
     let raw_tx = hex::decode(raw_tx)?;
     let raw_tx = Bytes::from(raw_tx);
     Ok(Some(
