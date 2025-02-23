@@ -445,7 +445,7 @@ impl<'a, 'b, Tracer: SimulationTracer> PartialBlockFork<'a, 'b, Tracer> {
             Ok(res) => res,
             Err(err) => match err {
                 EVMError::Transaction(InvalidTransaction::GasPriceLessThanBasefee) => {
-                    tracing::error!("TX Gas error tx gas price: {:?}, tx_max_fee_per_gas: {:?} tx gas priority fee: {:?}, basefee: {}, hash {}", tx_gp,tx_mgp, tx_gpp,  ctx.block_env.basefee, hash.to_string());
+                    //tracing::error!("TX Gas error tx gas price: {:?}, tx_max_fee_per_gas: {:?} tx gas priority fee: {:?}, basefee: {}, hash {}", tx_gp,tx_mgp, tx_gpp,  ctx.block_env.basefee, hash.to_string());
                     return Ok(Err(TransactionErr::InvalidTransaction(
                         InvalidTransaction::GasPriceLessThanBasefee,
                     )));
