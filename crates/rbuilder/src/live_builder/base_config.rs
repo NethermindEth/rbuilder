@@ -300,7 +300,7 @@ impl BaseConfig {
         }
         // temporary guard until reth is fixed
         if !self.root_hash_use_sparse_trie || self.root_hash_compare_sparse_trie {
-            eyre::bail!("root_hash_use_sparse_trie=true and root_hash_compare_sparse_trie=false must be set, otherwise node will produce incorrect blocks or confusing error messages. This settings are enforced temporarily because upstream parallel root hash implementation is not correct.")
+            eyre::bail!("root_hash_use_sparse_trie=true and root_hash_compare_sparse_trie=false must be set, otherwise node will produce incorrect blocks or confusing error messages. These settings are enforced temporarily because upstream parallel root hash implementation is not correct.")
         }
         let thread_pool = self.root_hash_thread_pool()?;
         Ok(RootHashContext::new(
