@@ -1,6 +1,7 @@
 use alloy_network::{EthereumWallet, TransactionBuilder};
 use alloy_node_bindings::Anvil;
 use alloy_primitives::U256;
+use alloy_provider::Provider;
 use alloy_provider::ProviderBuilder;
 use alloy_rpc_types::TransactionRequest;
 use alloy_signer_local::PrivateKeySigner;
@@ -31,7 +32,6 @@ async fn txpool_receive_util(count: u32) {
     let wallet = EthereumWallet::from(signer);
 
     let provider = ProviderBuilder::new()
-        .with_recommended_fillers()
         .wallet(wallet)
         .on_http(anvil.endpoint().parse().unwrap());
 
