@@ -67,6 +67,7 @@ serde_with.workspace = true
 serde.workspace = true
 secp256k1.workspace = true
 tokio.workspace = true
+tokio-stream.workspace = true
 jsonrpsee = { workspace = true }
 async-trait = { workspace = true }
 clap_builder = { workspace = true }

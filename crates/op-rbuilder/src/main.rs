@@ -5,7 +5,6 @@ use reth::providers::CanonStateSubscriptions;
 use reth_optimism_cli::{chainspec::OpChainSpecParser, Cli};
 use reth_optimism_node::node::OpAddOnsBuilder;
 use reth_optimism_node::OpNode;
-
 /// CLI argument parsing.
 pub mod args;
 
@@ -19,6 +18,8 @@ mod payload_builder_vanilla;
 #[cfg(test)]
 mod tester;
 mod tx_signer;
+
+mod primitives;
 
 fn main() {
     Cli::<OpChainSpecParser, args::OpRbuilderArgs>::parse()

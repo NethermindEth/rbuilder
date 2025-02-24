@@ -6724,6 +6724,7 @@ dependencies = [
  "tikv-jemallocator",
  "time",
  "tokio",
+ "tokio-stream",
  "tokio-tungstenite 0.26.1",
  "tokio-util",
  "tower 0.4.13",
