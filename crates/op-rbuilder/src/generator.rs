@@ -60,7 +60,6 @@ pub trait PayloadBuilder: Send + Sync + Clone {
 pub struct BlockPayloadJobGenerator<Client, Builder> {
     /// The client that can interact with the chain.
     client: Client,
-
     /// The configuration for the job generator.
     _config: BasicPayloadJobGeneratorConfig,
     /// The type responsible for building payloads.
@@ -399,7 +398,7 @@ mod tests {
     use alloy_eips::eip7685::Requests;
     use alloy_primitives::U256;
     use rand::thread_rng;
-    use reth::tasks::TokioTaskExecutor;
+    use reth::tasks::{TaskSpawner, TokioTaskExecutor};
     use reth_chain_state::ExecutedBlockWithTrieUpdates;
     use reth_node_api::NodePrimitives;
     use reth_optimism_payload_builder::payload::OpPayloadBuilderAttributes;
@@ -482,6 +481,7 @@ mod tests {
     struct MockBuilder<N> {
         events: Arc<Mutex<Vec<BlockEvent>>>,
         _marker: std::marker::PhantomData<N>,
+        executor: TokioTaskExecutor,
     }
 
     impl<N> MockBuilder<N> {
@@ -489,6 +489,7 @@ mod tests {
             Self {
                 events: Arc::new(Mutex::new(vec![])),
                 _marker: std::marker::PhantomData,
+                executor: TokioTaskExecutor::default(),
             }
         }
 
@@ -550,16 +551,22 @@ mod tests {
         ) {
             self.new_event(BlockEvent::Started);
 
-            loop {
-                if args.cancel.is_cancelled() {
-                    self.new_event(BlockEvent::Cancelled);
-                    let _ = tx.send(Ok(()));
-                    return;
-                }
+            let events = self.events.clone();
 
-                // Small sleep to prevent tight loop
-                std::thread::sleep(Duration::from_millis(10));
-            }
+            self.executor.spawn_blocking(Box::pin(async move {
+                loop {
+                    if args.cancel.is_cancelled() {
+                        // copy of new_events to resolve the problem with self-reference on spawn
+                        let mut events = events.lock().unwrap();
+                        events.push(BlockEvent::Cancelled);
+                        let _ = tx.send(Ok(()));
+                        return;
+                    }
+
+                    // Small sleep to prevent tight loop
+                    tokio::time::sleep(Duration::from_millis(10)).await;
+                }
+            }));
         }
     }
 
@@ -588,7 +595,6 @@ mod tests {
     #[tokio::test]
     async fn test_payload_generator() -> eyre::Result<()> {
         let mut rng = thread_rng();
-
         let client = MockEthProvider::default();
         let config = BasicPayloadJobGeneratorConfig::default();
         let builder = MockBuilder::<OpPrimitives>::new();
