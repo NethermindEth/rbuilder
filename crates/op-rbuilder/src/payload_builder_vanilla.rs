@@ -3,20 +3,20 @@ use crate::generator::BuildArguments;
 use crate::{
     generator::{BlockCell, PayloadBuilder},
     metrics::OpRBuilderMetrics,
-    primitives::{ExecutedPayload, ExecutionInfo, PayloadBuilderService},
+    primitives::{
+        estimate_gas_for_builder_tx, signed_builder_tx, ExecutedPayload, ExecutionInfo,
+        PayloadBuilderService,
+    },
     tx_signer::Signer,
 };
 use alloy_consensus::constants::EMPTY_WITHDRAWALS;
-use alloy_consensus::transaction::Recovered;
-use alloy_consensus::{
-    Eip658Value, Header, Transaction, TxEip1559, Typed2718, EMPTY_OMMER_ROOT_HASH,
-};
+use alloy_consensus::{Eip658Value, Header, Transaction, Typed2718, EMPTY_OMMER_ROOT_HASH};
 use alloy_eips::merge::BEACON_NONCE;
 use alloy_primitives::private::alloy_rlp::Encodable;
-use alloy_primitives::{Address, Bytes, TxKind, U256};
+use alloy_primitives::{Bytes, U256};
 use alloy_rpc_types_engine::PayloadId;
 use alloy_rpc_types_eth::Withdrawals;
-use op_alloy_consensus::{OpDepositReceipt, OpTypedTransaction};
+use op_alloy_consensus::OpDepositReceipt;
 use reth::builder::{components::PayloadServiceBuilder, node::FullNodeTypes, BuilderContext};
 use reth::core::primitives::InMemorySize;
 use reth::payload::PayloadBuilderHandle;
@@ -1231,59 +1231,4 @@ where
                 None
             })
     }
-}
-
-/// Creates signed builder tx to Address::ZERO and specified message as input
-pub fn signed_builder_tx<DB>(
-    db: &mut State<DB>,
-    builder_tx_gas: u64,
-    message: Vec<u8>,
-    signer: Signer,
-    base_fee: u64,
-    chain_id: u64,
-) -> Result<Recovered<OpTransactionSigned>, PayloadBuilderError>
-where
-    DB: Database<Error = ProviderError>,
-{
-    // Create message with block number for the builder to sign
-    let nonce = db
-        .load_cache_account(signer.address)
-        .map(|acc| acc.account_info().unwrap_or_default().nonce)
-        .map_err(|_| {
-            PayloadBuilderError::other(OpPayloadBuilderError::AccountLoadFailed(signer.address))
-        })?;
-
-    // Create the EIP-1559 transaction
-    let tx = OpTypedTransaction::Eip1559(TxEip1559 {
-        chain_id,
-        nonce,
-        gas_limit: builder_tx_gas,
-        max_fee_per_gas: base_fee.into(),
-        max_priority_fee_per_gas: 0,
-        to: TxKind::Call(Address::ZERO),
-        // Include the message as part of the transaction data
-        input: message.into(),
-        ..Default::default()
-    });
-    // Sign the transaction
-    let builder_tx = signer.sign_tx(tx).map_err(PayloadBuilderError::other)?;
-
-    Ok(builder_tx)
-}
-
-fn estimate_gas_for_builder_tx(input: Vec<u8>) -> u64 {
-    // Count zero and non-zero bytes
-    let (zero_bytes, nonzero_bytes) = input.iter().fold((0, 0), |(zeros, nonzeros), &byte| {
-        if byte == 0 {
-            (zeros + 1, nonzeros)
-        } else {
-            (zeros, nonzeros + 1)
-        }
-    });
-
-    // Calculate gas cost (4 gas per zero byte, 16 gas per non-zero byte)
-    let zero_cost = zero_bytes * 4;
-    let nonzero_cost = nonzero_bytes * 16;
-
-    zero_cost + nonzero_cost + 21_000
 }
