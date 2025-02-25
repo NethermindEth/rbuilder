@@ -21,6 +21,7 @@ members = [
 default-members = ["crates/rbuilder", "crates/reth-rbuilder", "crates/test-relay"]
 resolver = "2"
 
+
 # Like release, but with full debug symbols. Useful for e.g. `perf`.
 [profile.debug-fast]
 inherits = "release"
@@ -33,6 +34,8 @@ codegen-units = 1
 incremental = false
 
 [workspace.dependencies]
+kona-rpc = {git="https://github.com/op-rs/kona/", features=["interop","client","jsonrpsee"]}
+kona-interop = {git="https://github.com/op-rs/kona/", features=["interop"]}
 reth = { git = "https://github.com/paradigmxyz/reth", tag = "v1.2.0" }
 reth-chain-state = { git = "https://github.com/paradigmxyz/reth", tag = "v1.2.0" }
 reth-beacon-consensus = { git = "https://github.com/paradigmxyz/reth", tag = "v1.2.0" }
@@ -110,6 +113,7 @@ ethereum_ssz_derive = "0.8"
 ethereum_ssz = "0.8"
 
 alloy-primitives = { version = "0.8.15", default-features = false }
+alloy-sol-types = { version = "0.8.15" }
 alloy-rlp = "0.3.10"
 alloy-chains = "0.1.33"
 alloy-provider = { version = "0.11.1", features = ["ipc", "pubsub"] }
@@ -142,8 +146,8 @@ clap = { version = "4.4.3", features = ["derive", "env"] }
 clap_builder = { version = "4.5.19" }
 thiserror = { version = "1.0.64" }
 eyre = { version = "0.6.12" }
-jsonrpsee = { version = "0.24.4" }
-jsonrpsee-types = { version = "0.24.4" }
+jsonrpsee = { version = "0.24.8" }
+jsonrpsee-types = { version = "0.24.8" }
 parking_lot = { version = "0.12.3" }
 tokio = { version = "1.40.0" }
 auto_impl = { version = "1.2.0" }

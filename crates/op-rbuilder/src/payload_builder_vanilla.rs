@@ -1,5 +1,6 @@
 use crate::generator::BlockPayloadJobGenerator;
 use crate::generator::BuildArguments;
+use crate::supervisor::{ExecutingMessageValidator, SupervisorValidator};
 use crate::{
     generator::{BlockCell, PayloadBuilder},
     metrics::OpRBuilderMetrics,
@@ -13,8 +14,11 @@ use alloy_consensus::{
 use alloy_eips::merge::BEACON_NONCE;
 use alloy_primitives::private::alloy_rlp::Encodable;
 use alloy_primitives::{Address, Bytes, TxKind, B256, U256};
+use alloy_rpc_client::ReqwestClient;
 use alloy_rpc_types_engine::PayloadId;
 use alloy_rpc_types_eth::Withdrawals;
+use alloy_transport_http::reqwest::Url;
+use kona_interop::{ExecutingMessage, SafetyLevel, SupervisorClient};
 use op_alloy_consensus::{OpDepositReceipt, OpTypedTransaction};
 use reth::builder::{components::PayloadServiceBuilder, node::FullNodeTypes, BuilderContext};
 use reth::core::primitives::InMemorySize;
@@ -76,15 +80,19 @@ use std::{fmt::Display, sync::Arc, time::Instant};
 use tokio_util::sync::CancellationToken;
 use tracing::{info, trace, warn};
 
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Default)]
 #[non_exhaustive]
 pub struct CustomOpPayloadBuilder {
     builder_signer: Option<Signer>,
+    supervisor_url: Option<Url>,
 }
 
 impl CustomOpPayloadBuilder {
-    pub fn new(builder_signer: Option<Signer>) -> Self {
-        Self { builder_signer }
+    pub fn new(builder_signer: Option<Signer>, supervisor_url: Option<Url>) -> Self {
+        Self {
+            builder_signer,
+            supervisor_url,
+        }
     }
 }
 
@@ -114,6 +122,9 @@ where
             pool,
             ctx.provider().clone(),
             Arc::new(BasicOpReceiptBuilder::default()),
+            self.supervisor_url
+                .clone()
+                .expect("supervisor url is required"),
         ))
     }
 
@@ -195,6 +206,8 @@ pub struct OpPayloadBuilderVanilla<Pool, Client, EvmConfig, N: NodePrimitives, T
     pub metrics: OpRBuilderMetrics,
     /// Node primitive types.
     pub receipt_builder: Arc<dyn OpReceiptBuilder<N::SignedTx, Receipt = N::Receipt>>,
+    /// Client to execute supervisor validation
+    pub supervisor_client: SupervisorClient,
 }
 
 impl<Pool, Client, EvmConfig, N: NodePrimitives>
@@ -207,6 +220,7 @@ impl<Pool, Client, EvmConfig, N: NodePrimitives>
         pool: Pool,
         client: Client,
         receipt_builder: Arc<dyn OpReceiptBuilder<N::SignedTx, Receipt = N::Receipt>>,
+        supervisor_url: Url,
     ) -> Self {
         Self::with_builder_config(
             evm_config,
@@ -214,6 +228,7 @@ impl<Pool, Client, EvmConfig, N: NodePrimitives>
             pool,
             client,
             receipt_builder,
+            supervisor_url,
             Default::default(),
         )
     }
@@ -224,8 +239,10 @@ impl<Pool, Client, EvmConfig, N: NodePrimitives>
         pool: Pool,
         client: Client,
         receipt_builder: Arc<dyn OpReceiptBuilder<N::SignedTx, Receipt = N::Receipt>>,
+        supervisor_url: Url,
         config: OpBuilderConfig,
     ) -> Self {
+        let supervisor_client = SupervisorClient::new(ReqwestClient::new_http(supervisor_url));
         Self {
             pool,
             client,
@@ -235,6 +252,7 @@ impl<Pool, Client, EvmConfig, N: NodePrimitives>
             best_transactions: (),
             metrics: Default::default(),
             builder_signer,
+            supervisor_client,
         }
     }
 }
@@ -333,6 +351,7 @@ where
             receipt_builder: self.receipt_builder.clone(),
             builder_signer: self.builder_signer,
             metrics: Default::default(),
+            supervisor_client: self.supervisor_client.clone(),
         };
 
         let builder = OpBuilder::new(best);
@@ -779,6 +798,8 @@ pub struct OpPayloadBuilderCtx<EvmConfig: ConfigureEvmEnv, ChainSpec, N: NodePri
     pub builder_signer: Option<Signer>,
     /// The metrics for the builder
     pub metrics: OpRBuilderMetrics,
+    /// Client to execute supervisor validation
+    pub supervisor_client: SupervisorClient,
 }
 
 impl<EvmConfig, ChainSpec, N> OpPayloadBuilderCtx<EvmConfig, ChainSpec, N>
@@ -1069,6 +1090,42 @@ where
                     return Err(PayloadBuilderError::EvmExecutionError(Box::new(err)));
                 }
             };
+            // op-supervisor validation
+            let logs = result.clone().into_logs();
+            let executing_messages = SupervisorValidator::parse_messages(logs.as_slice())
+                .flatten()
+                .collect::<Vec<ExecutingMessage>>();
+            if !executing_messages.is_empty() {
+                info!("ExecutingMessage number {}", executing_messages.len());
+                let (tx, rx) = std::sync::mpsc::channel();
+                tokio::task::block_in_place(move || {
+                    let res = tokio::runtime::Handle::current().block_on(async {
+                        SupervisorValidator::validate_messages(
+                            &self.supervisor_client,
+                            executing_messages.as_slice(),
+                            SafetyLevel::Finalized,
+                            None,
+                        )
+                        .await
+                    });
+                    let _ = tx.send(res);
+                });
+                let res = rx.recv();
+
+                match res {
+                    Ok(res) => match res {
+                        Ok(()) => (),
+                        Err(err) => {
+                            trace!(target: "payload_builder", %err, "Error in supervisor validation, skipping.");
+                            continue;
+                        }
+                    },
+                    Err(err) => {
+                        warn!("Channel closed during supervisor validation.");
+                        return Err(PayloadBuilderError::Other(Box::new(err)));
+                    }
+                }
+            }
 
             // commit changes
             evm.db_mut().commit(state);

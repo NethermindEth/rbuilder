@@ -20,6 +20,8 @@ mod payload_builder_vanilla;
 mod tester;
 mod tx_signer;
 
+mod supervisor;
+
 fn main() {
     Cli::<OpChainSpecParser, args::OpRbuilderArgs>::parse()
         .run(|builder, builder_args| async move {
@@ -28,11 +30,10 @@ fn main() {
             let op_node = OpNode::new(rollup_args.clone());
             let handle = builder
                 .with_types::<OpNode>()
-                .with_components(
-                    op_node
-                        .components()
-                        .payload(CustomOpPayloadBuilder::new(builder_args.builder_signer)),
-                )
+                .with_components(op_node.components().payload(CustomOpPayloadBuilder::new(
+                    builder_args.builder_signer,
+                    builder_args.supervisor_url,
+                )))
                 .with_add_ons(
                     OpAddOnsBuilder::default()
                         .with_sequencer(rollup_args.sequencer_http.clone())
