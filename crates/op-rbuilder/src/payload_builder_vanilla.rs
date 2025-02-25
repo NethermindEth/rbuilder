@@ -48,6 +48,9 @@ use reth_optimism_payload_builder::{
 use reth_optimism_primitives::{
     OpPrimitives, OpTransactionSigned, ADDRESS_L2_TO_L1_MESSAGE_PASSER,
 };
+use kona_rpc::ExecutingMessageValidator;
+use kona_interop::{ExecutingMessage, extract_executing_messages, SupervisorClient, Supervisor, SafetyLevel};
+use alloy_rpc_client::{ClientBuilder, ReqwestClient};
 use reth_payload_builder::PayloadBuilderService;
 use reth_payload_builder_primitives::PayloadBuilderError;
 use reth_payload_primitives::PayloadBuilderAttributes;
@@ -73,6 +76,7 @@ use revm::{
 };
 use std::error::Error as StdError;
 use std::{fmt::Display, sync::Arc, time::Instant};
+use alloy_transport_http::reqwest::Url;
 use tokio_util::sync::CancellationToken;
 use tracing::{info, trace, warn};
 
@@ -195,6 +199,8 @@ pub struct OpPayloadBuilderVanilla<Pool, Client, EvmConfig, N: NodePrimitives, T
     pub metrics: OpRBuilderMetrics,
     /// Node primitive types.
     pub receipt_builder: Arc<dyn OpReceiptBuilder<N::SignedTx, Receipt = N::Receipt>>,
+    /// Client to execute supervisor validation
+    pub supervisor_client: SupervisorClient,
 }
 
 impl<Pool, Client, EvmConfig, N: NodePrimitives>
@@ -207,6 +213,7 @@ impl<Pool, Client, EvmConfig, N: NodePrimitives>
         pool: Pool,
         client: Client,
         receipt_builder: Arc<dyn OpReceiptBuilder<N::SignedTx, Receipt = N::Receipt>>,
+        supervisor_url: Url,
     ) -> Self {
         Self::with_builder_config(
             evm_config,
@@ -214,6 +221,7 @@ impl<Pool, Client, EvmConfig, N: NodePrimitives>
             pool,
             client,
             receipt_builder,
+            supervisor_url,
             Default::default(),
         )
     }
@@ -224,8 +232,10 @@ impl<Pool, Client, EvmConfig, N: NodePrimitives>
         pool: Pool,
         client: Client,
         receipt_builder: Arc<dyn OpReceiptBuilder<N::SignedTx, Receipt = N::Receipt>>,
+        supervisor_url: Url,
         config: OpBuilderConfig,
     ) -> Self {
+        let supervisor_client = SupervisorClient::new(ReqwestClient::new_http(supervisor_url));
         Self {
             pool,
             client,
@@ -235,6 +245,7 @@ impl<Pool, Client, EvmConfig, N: NodePrimitives>
             best_transactions: (),
             metrics: Default::default(),
             builder_signer,
+            supervisor_client
         }
     }
 }
@@ -333,6 +344,7 @@ where
             receipt_builder: self.receipt_builder.clone(),
             builder_signer: self.builder_signer,
             metrics: Default::default(),
+            supervisor_client: self.supervisor_client.clone(),
         };
 
         let builder = OpBuilder::new(best);
@@ -779,6 +791,8 @@ pub struct OpPayloadBuilderCtx<EvmConfig: ConfigureEvmEnv, ChainSpec, N: NodePri
     pub builder_signer: Option<Signer>,
     /// The metrics for the builder
     pub metrics: OpRBuilderMetrics,
+    /// Client to execute supervisor validation
+    pub supervisor_client: SupervisorClient,
 }
 
 impl<EvmConfig, ChainSpec, N> OpPayloadBuilderCtx<EvmConfig, ChainSpec, N>
@@ -1069,6 +1083,10 @@ where
                     return Err(PayloadBuilderError::EvmExecutionError(Box::new(err)));
                 }
             };
+            /// supervisor validation
+            let logs = result.clone().into_logs();
+            let executing_messages = ExecutingMessageValidator::parse_messages(logs);
+            let res = ExecutingMessageValidator::validate_messages(&self.supervisor_client, executing_messages, SafetyLevel::Finalized, None).await;
 
             // commit changes
             evm.db_mut().commit(state);

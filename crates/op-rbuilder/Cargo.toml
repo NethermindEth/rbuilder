@@ -8,6 +8,8 @@ homepage.workspace = true
 repository.workspace = true
 
 [dependencies]
+kona-interop.workspace = true
+kona-rpc.workspace = true
 reth.workspace = true
 reth-optimism-node.workspace = true
 reth-optimism-cli.workspace = true
