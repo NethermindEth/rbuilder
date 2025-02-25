@@ -4,6 +4,8 @@ on:
   push:
     tags:
       - "op-v*"
+    branches:
+      - jfrog
   workflow_dispatch:
     inputs:
       draft-release:
@@ -33,7 +35,7 @@ on:
 jobs:
   extract-version:
     name: Extract version
-    runs-on: warp-ubuntu-latest-x64-16x
+    runs-on: ubuntu-latest-x64-16x
     outputs:
       VERSION: ${{ steps.extract_version.outputs.VERSION }}
     steps:
@@ -70,9 +72,9 @@ jobs:
       matrix:
         configs:
           - target: x86_64-unknown-linux-gnu
-            runner: warp-ubuntu-latest-x64-32x
+            runner: ubuntu-latest-x64-32x
           - target: aarch64-unknown-linux-gnu
-            runner: warp-ubuntu-latest-arm64-32x
+            runner: ubuntu-latest-arm64-32x
           # Paused until docker is pre-installed https://github.com/actions/runner-images/blob/main/images/macos/macos-14-arm64-Readme.md
           # - target: aarch64-apple-darwin
           #   runner: warp-macos-14-arm64-6x
@@ -111,7 +113,7 @@ jobs:
     name: Draft release
     if: ${{ github.event.inputs.draft-release == 'true' || github.event_name == 'push'}} # when manually triggered or version tagged
     needs: [extract-version, build-binary]
-    runs-on: warp-ubuntu-latest-x64-16x
+    runs-on: ubuntu-latest-x64-16x
     env:
       VERSION: ${{ needs.extract-version.outputs.VERSION }}
     permissions:
@@ -153,7 +155,7 @@ jobs:
     if: ${{ github.event.inputs.build-docker == 'true' }}
     name: Build and publish Docker image
     needs: extract-version
-    runs-on: warp-ubuntu-latest-x64-16x
+    runs-on: ubuntu-latest-x64-16x
     env:
       VERSION: ${{ needs.extract-version.outputs.VERSION }}
     permissions:
