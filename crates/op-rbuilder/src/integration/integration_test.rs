@@ -25,7 +25,8 @@ mod tests {
     async fn integration_test_chain_produces_blocks() -> eyre::Result<()> {
         // This is a simple test using the integration framework to test that the chain
         // produces blocks.
-        let mut framework = IntegrationFramework::new().unwrap();
+        let mut framework =
+            IntegrationFramework::new("integration_test_chain_produces_blocks").unwrap();
 
         // we are going to use a genesis file pre-generated before the test
         let mut genesis_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
@@ -95,7 +96,8 @@ mod tests {
     async fn integration_test_revert_protection() -> eyre::Result<()> {
         // This is a simple test using the integration framework to test that the chain
         // produces blocks.
-        let mut framework = IntegrationFramework::new().unwrap();
+        let mut framework =
+            IntegrationFramework::new("integration_test_revert_protection").unwrap();
 
         // we are going to use a genesis file pre-generated before the test
         let mut genesis_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
