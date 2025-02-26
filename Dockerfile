@@ -49,22 +49,14 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=$SCCACHE_DIR,sharing=locked \
     cargo build --release --features="$FEATURES" --package=${RBUILDER_BIN}
 
-FROM builder as test-relay
-RUN --mount=type=cache,target=/usr/local/cargo/registry \
-    --mount=type=cache,target=/usr/local/cargo/git \
-    --mount=type=cache,target=$SCCACHE_DIR,sharing=locked \
-    cargo build --release --features="$FEATURES" --package=test-relay
 
 
 
 # Runtime container for rbuilder
 FROM gcr.io/distroless/cc-debian12 as rbuilder-runtime
+ARG RBUILDER_BIN="rbuilder"
 WORKDIR /app
-COPY --from=rbuilder /app/target/release/rbuilder /app/rbuilder
+COPY --from=rbuilder /app/target/release/${RBUILDER_BIN} /app/rbuilder
 ENTRYPOINT ["/app/rbuilder"]
 
-# Runtime container for test-relay
-FROM gcr.io/distroless/cc-debian12 as test-relay-runtime
-WORKDIR /app
-COPY --from=test-relay /app/target/release/test-relay /app/test-relay
-ENTRYPOINT ["/app/test-relay"]
+
