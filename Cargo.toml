@@ -1,7 +1,7 @@
 [workspace.package]
 version = "0.1.0"
-edition = "2021"
-rust-version = "1.82"
+edition = "2024"
+rust-version = "1.85"
 license = "MIT OR Apache-2.0"
 homepage = "https://github.com/flashbots/rbuilder"
 repository = "https://github.com/flashbots/rbuilder"
@@ -34,69 +34,69 @@ codegen-units = 1
 incremental = false
 
 [workspace.dependencies]
-kona-rpc = {git="https://github.com/op-rs/kona/", features=["interop","client","jsonrpsee"]}
-kona-interop = {git="https://github.com/op-rs/kona/", features=["interop"]}
-reth = { git = "https://github.com/paradigmxyz/reth", tag = "v1.2.0" }
-reth-chain-state = { git = "https://github.com/paradigmxyz/reth", tag = "v1.2.0" }
-reth-beacon-consensus = { git = "https://github.com/paradigmxyz/reth", tag = "v1.2.0" }
-reth-cli-util = { git = "https://github.com/paradigmxyz/reth", tag = "v1.2.0" }
-reth-db = { git = "https://github.com/paradigmxyz/reth", tag = "v1.2.0" }
-reth-db-api = { git = "https://github.com/paradigmxyz/reth", tag = "v1.2.0" }
-reth-db-common = { git = "https://github.com/paradigmxyz/reth", tag = "v1.2.0" }
-reth-errors = { git = "https://github.com/paradigmxyz/reth", tag = "v1.2.0" }
-reth-libmdbx = { git = "https://github.com/paradigmxyz/reth", tag = "v1.2.0" }
-reth-payload-builder = { git = "https://github.com/paradigmxyz/reth", tag = "v1.2.0" }
-reth-node-api = { git = "https://github.com/paradigmxyz/reth", tag = "v1.2.0" }
-reth-node-builder = { git = "https://github.com/paradigmxyz/reth", tag = "v1.2.0" }
-reth-node-ethereum = { git = "https://github.com/paradigmxyz/reth", tag = "v1.2.0" }
-reth-trie = { git = "https://github.com/paradigmxyz/reth", tag = "v1.2.0" }
-reth-trie-parallel = { git = "https://github.com/paradigmxyz/reth", tag = "v1.2.0" }
-reth-basic-payload-builder = { git = "https://github.com/paradigmxyz/reth", tag = "v1.2.0" }
-reth-node-core = { git = "https://github.com/paradigmxyz/reth", tag = "v1.2.0" }
-reth-primitives = { git = "https://github.com/paradigmxyz/reth", tag = "v1.2.0" }
-reth-primitives-traits = { git = "https://github.com/paradigmxyz/reth", tag = "v1.2.0" }
-reth-provider = { git = "https://github.com/paradigmxyz/reth", tag = "v1.2.0", features = [
+kona-rpc = {git="https://github.com/NethermindEth/kona/", rev = "00fcc2374be8e7d7edf42660f6d6a4aca29c0ad0", features=["interop","client","jsonrpsee"]}
+kona-interop = {git="https://github.com/NethermindEth/kona/", rev = "00fcc2374be8e7d7edf42660f6d6a4aca29c0ad0", features=["client"]}
+reth = { git = "https://github.com/ferranbt/reth", branch = "v1.2.0-interop" }
+reth-chain-state = { git = "https://github.com/ferranbt/reth", branch = "v1.2.0-interop" }
+reth-beacon-consensus = { git = "https://github.com/ferranbt/reth", branch = "v1.2.0-interop" }
+reth-cli-util = { git = "https://github.com/ferranbt/reth", branch = "v1.2.0-interop" }
+reth-db = { git = "https://github.com/ferranbt/reth", branch = "v1.2.0-interop" }
+reth-db-api = { git = "https://github.com/ferranbt/reth", branch = "v1.2.0-interop" }
+reth-db-common = { git = "https://github.com/ferranbt/reth", branch = "v1.2.0-interop" }
+reth-errors = { git = "https://github.com/ferranbt/reth", branch = "v1.2.0-interop" }
+reth-libmdbx = { git = "https://github.com/ferranbt/reth", branch = "v1.2.0-interop" }
+reth-payload-builder = { git = "https://github.com/ferranbt/reth", branch = "v1.2.0-interop" }
+reth-node-api = { git = "https://github.com/ferranbt/reth", branch = "v1.2.0-interop" }
+reth-node-builder = { git = "https://github.com/ferranbt/reth", branch = "v1.2.0-interop" }
+reth-node-ethereum = { git = "https://github.com/ferranbt/reth", branch = "v1.2.0-interop" }
+reth-trie = { git = "https://github.com/ferranbt/reth", branch = "v1.2.0-interop" }
+reth-trie-parallel = { git = "https://github.com/ferranbt/reth", branch = "v1.2.0-interop" }
+reth-basic-payload-builder = { git = "https://github.com/ferranbt/reth", branch = "v1.2.0-interop" }
+reth-node-core = { git = "https://github.com/ferranbt/reth", branch = "v1.2.0-interop" }
+reth-primitives = { git = "https://github.com/ferranbt/reth", branch = "v1.2.0-interop" }
+reth-primitives-traits = { git = "https://github.com/ferranbt/reth", branch = "v1.2.0-interop" }
+reth-provider = { git = "https://github.com/ferranbt/reth", branch = "v1.2.0-interop", features = [
     "test-utils",
 ] }
-reth-chainspec = { git = "https://github.com/paradigmxyz/reth", tag = "v1.2.0" }
-reth-evm = { git = "https://github.com/paradigmxyz/reth", tag = "v1.2.0" }
-reth-evm-ethereum = { git = "https://github.com/paradigmxyz/reth", tag = "v1.2.0" }
-reth-execution-errors = { git = "https://github.com/paradigmxyz/reth", tag = "v1.2.0" }
-reth-exex = { git = "https://github.com/paradigmxyz/reth", tag = "v1.2.0" }
-reth-metrics = { git = "https://github.com/paradigmxyz/reth", tag = "v1.2.0" }
-reth-trie-db = { git = "https://github.com/paradigmxyz/reth", tag = "v1.2.0" }
-reth-payload-primitives = { git = "https://github.com/paradigmxyz/reth", tag = "v1.2.0" }
-reth-transaction-pool = { git = "https://github.com/paradigmxyz/reth", tag = "v1.2.0" }
-reth-consensus = { git = "https://github.com/paradigmxyz/reth", tag = "v1.2.0" }
-reth-optimism-consensus = { git = "https://github.com/paradigmxyz/reth", tag = "v1.2.0" }
-reth-optimism-primitives = { git = "https://github.com/paradigmxyz/reth", tag = "v1.2.0" }
-reth-optimism-cli = { git = "https://github.com/paradigmxyz/reth", tag = "v1.2.0" }
-reth-optimism-forks = { git = "https://github.com/paradigmxyz/reth", tag = "v1.2.0" }
-reth-auto-seal-consensus = { git = "https://github.com/paradigmxyz/reth", tag = "v1.2.0" }
-reth-execution-types = { git = "https://github.com/paradigmxyz/reth", tag = "v1.2.0" }
-reth-revm = { git = "https://github.com/paradigmxyz/reth", tag = "v1.2.0" }
-reth-optimism-evm = { git = "https://github.com/paradigmxyz/reth", tag = "v1.2.0" }
-reth-rpc = { git = "https://github.com/paradigmxyz/reth", tag = "v1.2.0" }
-reth-tracing = { git = "https://github.com/paradigmxyz/reth", tag = "v1.2.0" }
-reth-rpc-types-compat = { git = "https://github.com/paradigmxyz/reth", tag = "v1.2.0" }
-reth-rpc-eth-api = { git = "https://github.com/paradigmxyz/reth", tag = "v1.2.0" }
-reth-rpc-eth-types = { git = "https://github.com/paradigmxyz/reth", tag = "v1.2.0" }
-reth-rpc-api-types = { git = "https://github.com/paradigmxyz/reth", tag = "v1.2.0" }
-reth-discv4 = { git = "https://github.com/paradigmxyz/reth", tag = "v1.2.0" }
-reth-discv5 = { git = "https://github.com/paradigmxyz/reth", tag = "v1.2.0" }
-reth-network = { git = "https://github.com/paradigmxyz/reth", tag = "v1.2.0" }
-reth-optimism-node = { git = "https://github.com/paradigmxyz/reth", tag = "v1.2.0" }
-reth-eth-wire-types = { git = "https://github.com/paradigmxyz/reth", tag = "v1.2.0" }
-reth-storage-api = { git = "https://github.com/paradigmxyz/reth", tag = "v1.2.0" }
-reth-optimism-rpc = { git = "https://github.com/paradigmxyz/reth", tag = "v1.2.0" }
-reth-optimism-payload-builder = { git = "https://github.com/paradigmxyz/reth", tag = "v1.2.0" }
-reth-optimism-chainspec = { git = "https://github.com/paradigmxyz/reth", tag = "v1.2.0" }
-reth-tasks = { git = "https://github.com/paradigmxyz/reth", tag = "v1.2.0" }
-reth-ethereum-payload-builder = { git = "https://github.com/paradigmxyz/reth", tag = "v1.2.0" }
-reth-payload-builder-primitives = { git = "https://github.com/paradigmxyz/reth", tag = "v1.2.0" }
-reth-payload-util = { git = "https://github.com/paradigmxyz/reth", tag = "v1.2.0" }
-reth-rpc-layer = { git = "https://github.com/paradigmxyz/reth", tag = "v1.2.0" }
-reth-testing-utils = { git = "https://github.com/paradigmxyz/reth", tag = "v1.2.0" }
+reth-chainspec = { git = "https://github.com/ferranbt/reth", branch = "v1.2.0-interop" }
+reth-evm = { git = "https://github.com/ferranbt/reth", branch = "v1.2.0-interop" }
+reth-evm-ethereum = { git = "https://github.com/ferranbt/reth", branch = "v1.2.0-interop" }
+reth-execution-errors = { git = "https://github.com/ferranbt/reth", branch = "v1.2.0-interop" }
+reth-exex = { git = "https://github.com/ferranbt/reth", branch = "v1.2.0-interop" }
+reth-metrics = { git = "https://github.com/ferranbt/reth", branch = "v1.2.0-interop" }
+reth-trie-db = { git = "https://github.com/ferranbt/reth", branch = "v1.2.0-interop" }
+reth-payload-primitives = { git = "https://github.com/ferranbt/reth", branch = "v1.2.0-interop" }
+reth-transaction-pool = { git = "https://github.com/ferranbt/reth", branch = "v1.2.0-interop" }
+reth-consensus = { git = "https://github.com/ferranbt/reth", branch = "v1.2.0-interop" }
+reth-optimism-consensus = { git = "https://github.com/ferranbt/reth", branch = "v1.2.0-interop" }
+reth-optimism-primitives = { git = "https://github.com/ferranbt/reth", branch = "v1.2.0-interop" }
+reth-optimism-cli = { git = "https://github.com/ferranbt/reth", branch = "v1.2.0-interop" }
+reth-optimism-forks = { git = "https://github.com/ferranbt/reth", branch = "v1.2.0-interop" }
+reth-auto-seal-consensus = { git = "https://github.com/ferranbt/reth", branch = "v1.2.0-interop" }
+reth-execution-types = { git = "https://github.com/ferranbt/reth", branch = "v1.2.0-interop" }
+reth-revm = { git = "https://github.com/ferranbt/reth", branch = "v1.2.0-interop" }
+reth-optimism-evm = { git = "https://github.com/ferranbt/reth", branch = "v1.2.0-interop" }
+reth-rpc = { git = "https://github.com/ferranbt/reth", branch = "v1.2.0-interop" }
+reth-tracing = { git = "https://github.com/ferranbt/reth", branch = "v1.2.0-interop" }
+reth-rpc-types-compat = { git = "https://github.com/ferranbt/reth", branch = "v1.2.0-interop" }
+reth-rpc-eth-api = { git = "https://github.com/ferranbt/reth", branch = "v1.2.0-interop" }
+reth-rpc-eth-types = { git = "https://github.com/ferranbt/reth", branch = "v1.2.0-interop" }
+reth-rpc-api-types = { git = "https://github.com/ferranbt/reth", branch = "v1.2.0-interop" }
+reth-discv4 = { git = "https://github.com/ferranbt/reth", branch = "v1.2.0-interop" }
+reth-discv5 = { git = "https://github.com/ferranbt/reth", branch = "v1.2.0-interop" }
+reth-network = { git = "https://github.com/ferranbt/reth", branch = "v1.2.0-interop" }
+reth-optimism-node = { git = "https://github.com/ferranbt/reth", branch = "v1.2.0-interop" }
+reth-eth-wire-types = { git = "https://github.com/ferranbt/reth", branch = "v1.2.0-interop" }
+reth-storage-api = { git = "https://github.com/ferranbt/reth", branch = "v1.2.0-interop" }
+reth-optimism-rpc = { git = "https://github.com/ferranbt/reth", branch = "v1.2.0-interop" }
+reth-optimism-payload-builder = { git = "https://github.com/ferranbt/reth", branch = "v1.2.0-interop" }
+reth-optimism-chainspec = { git = "https://github.com/ferranbt/reth", branch = "v1.2.0-interop" }
+reth-tasks = { git = "https://github.com/ferranbt/reth", branch = "v1.2.0-interop" }
+reth-ethereum-payload-builder = { git = "https://github.com/ferranbt/reth", branch = "v1.2.0-interop" }
+reth-payload-builder-primitives = { git = "https://github.com/ferranbt/reth", branch = "v1.2.0-interop" }
+reth-payload-util = { git = "https://github.com/ferranbt/reth", branch = "v1.2.0-interop" }
+reth-rpc-layer = { git = "https://github.com/ferranbt/reth", branch = "v1.2.0-interop" }
+reth-testing-utils = { git = "https://github.com/ferranbt/reth", branch = "v1.2.0-interop" }
 
 # version is copied from reth  "v1.1.5" dependencies
 revm = { version = "19.5.0", features = [
@@ -111,7 +111,6 @@ revm-primitives = { version = "15.1.0", features = [
 
 ethereum_ssz_derive = "0.8"
 ethereum_ssz = "0.8"
-
 alloy-primitives = { version = "0.8.15", default-features = false }
 alloy-sol-types = { version = "0.8.15" }
 alloy-rlp = "0.3.10"
@@ -146,7 +145,7 @@ clap = { version = "4.4.3", features = ["derive", "env"] }
 clap_builder = { version = "4.5.19" }
 thiserror = { version = "1.0.64" }
 eyre = { version = "0.6.12" }
-jsonrpsee = { version = "0.24.8" }
+jsonrpsee = { version = "0.24.8", features = ["client"]}
 jsonrpsee-types = { version = "0.24.8" }
 parking_lot = { version = "0.12.3" }
 tokio = { version = "1.40.0" }

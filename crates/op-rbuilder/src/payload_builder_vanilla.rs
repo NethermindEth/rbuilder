@@ -1,8 +1,5 @@
-use crate::generator::BlockPayloadJobGenerator;
-use crate::generator::BuildArguments;
-use crate::supervisor::{ExecutingMessageValidator, SupervisorValidator};
 use crate::{
-    generator::{BlockCell, PayloadBuilder},
+    generator::{BlockCell, PayloadBuilder, BuildArguments, BlockPayloadJobGenerator},
     metrics::OpRBuilderMetrics,
     tx_signer::Signer,
 };
@@ -11,6 +8,7 @@ use alloy_consensus::transaction::Recovered;
 use alloy_consensus::{
     Eip658Value, Header, Transaction, TxEip1559, Typed2718, EMPTY_OMMER_ROOT_HASH,
 };
+use kona_rpc::{ExecutingMessageValidator, SupervisorApiClient};
 use alloy_eips::merge::BEACON_NONCE;
 use alloy_primitives::private::alloy_rlp::Encodable;
 use alloy_primitives::{Address, Bytes, TxKind, B256, U256};
@@ -77,8 +75,12 @@ use revm::{
 };
 use std::error::Error as StdError;
 use std::{fmt::Display, sync::Arc, time::Instant};
+use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
+use kona_rpc::ExecutingMessageValidatorError;
 use tokio_util::sync::CancellationToken;
 use tracing::{info, trace, warn};
+use tracing::log::error;
+use crate::supervisor::SupervisorValidator;
 
 #[derive(Debug, Clone, Default)]
 #[non_exhaustive]
@@ -205,7 +207,7 @@ pub struct OpPayloadBuilderVanilla<Pool, Client, EvmConfig, N: NodePrimitives, T
     /// Node primitive types.
     pub receipt_builder: Arc<dyn OpReceiptBuilder<N::SignedTx, Receipt = N::Receipt>>,
     /// Client to execute supervisor validation
-    pub supervisor_client: Option<SupervisorClient>,
+    pub supervisor_client: Option<HttpClient>,
 }
 
 impl<Pool, Client, EvmConfig, N: NodePrimitives>
@@ -240,7 +242,8 @@ impl<Pool, Client, EvmConfig, N: NodePrimitives>
         supervisor_url: Option<Url>,
         config: OpBuilderConfig,
     ) -> Self {
-        let supervisor_client = supervisor_url.map(|url| SupervisorClient::new(ReqwestClient::new_http(url)));
+        let supervisor_client =
+            supervisor_url.map(|url| HttpClientBuilder::default().build(url).expect("building supervisor http client"));
         Self {
             pool,
             client,
@@ -797,7 +800,7 @@ pub struct OpPayloadBuilderCtx<EvmConfig: ConfigureEvmEnv, ChainSpec, N: NodePri
     /// The metrics for the builder
     pub metrics: OpRBuilderMetrics,
     /// Client to execute supervisor validation
-    pub supervisor_client: Option<SupervisorClient>,
+    pub supervisor_client: Option<HttpClient>,
 }
 
 impl<EvmConfig, ChainSpec, N> OpPayloadBuilderCtx<EvmConfig, ChainSpec, N>
@@ -1089,42 +1092,21 @@ where
                 }
             };
             // op-supervisor validation
-            if let Some(client) = &self.supervisor_client {
-                // TODO: remove debug
-                info!("Interop enabled, extracting logs");
-                let logs = result.clone().into_logs();
-                let executing_messages = SupervisorValidator::parse_messages(logs.as_slice())
-                    .flatten()
-                    .collect::<Vec<ExecutingMessage>>();
-                if !executing_messages.is_empty() {
-                    // TODO: remove debug
-                    info!("ExecutingMessage number {}", executing_messages.len());
-                    let (tx, rx) = std::sync::mpsc::channel();
-                    tokio::task::block_in_place(move || {
-                        let res = tokio::runtime::Handle::current().block_on(async {
-                            SupervisorValidator::validate_messages(
-                                client,
-                                executing_messages.as_slice(),
-                                SafetyLevel::Finalized,
-                                None,
-                            )
-                                .await
-                        });
-                        // TODO: remove debug
-                        info!("Supervisor validation result {:?}", res);
-                        let _ = tx.send(res);
-                    });
-                    match rx.recv() {
-                        Ok(res) => match res {
-                            Ok(()) => (),
-                            Err(err) => {
-                                trace!(target: "payload_builder", %err, "Error in supervisor validation, skipping.");
-                                continue;
-                            }
+            match self.validate_supervisor_messages(&result)? {
+                Ok(()) => (),
+                Err(err) => {
+                    match err {
+                        ExecutingMessageValidatorError::SupervisorServerError(err) => {
+                            warn!(target: "payload_builder", %err, ?sequencer_tx, "Supervisor error, skipping.");
+                            continue;
                         },
-                        Err(err) => {
-                            warn!("Channel closed during supervisor validation.");
-                            return Err(PayloadBuilderError::Other(Box::new(err)));
+                        ExecutingMessageValidatorError::ValidationTimeout(_) => {
+                            trace!(target: "payload_builder", %err, ?sequencer_tx, "Executing message validation timed out, skipping.");
+                            continue;
+                        },
+                        err => {
+                            trace!(target: "payload_builder", %err, ?sequencer_tx, "Executing message rejected.");
+                            continue;
                         }
                     }
                 }
@@ -1227,6 +1209,31 @@ where
                 }
             };
 
+            match self.validate_supervisor_messages(&result)? {
+                Ok(()) => (),
+                Err(err) => {
+                    match err {
+                        ExecutingMessageValidatorError::SupervisorServerError(err) => {
+                            trace!(target: "payload_builder", %err, ?tx, "Supervisor error, skipping.");
+                            continue;
+                        },
+                        ExecutingMessageValidatorError::ValidationTimeout(_) => {
+                            trace!(target: "payload_builder", %err, ?tx, "Executing message validation timed out, skipping.");
+                            continue;
+                        },
+                        err => {
+                            trace!(target: "payload_builder", %err, ?tx, "Executing message rejected.");
+                            // It's possible that transaction invalid now, but would be valid later.
+                            // We should keep limited queue for transactions that could become valid.
+                            // We should have the limit to ensure that builder won't get overwhelmed.
+                            best_txs.mark_invalid(tx.signer(), tx.nonce());
+                            continue;
+                        }
+                    }
+                }
+            }
+
+
             self.metrics
                 .tx_simulation_duration
                 .record(tx_simulation_start_time.elapsed());
@@ -1280,6 +1287,39 @@ where
             .record(num_txs_simulated_fail as f64);
 
         Ok(None)
+    }
+
+    pub fn validate_supervisor_messages(&self, result: &ExecutionResult) -> Result<Result<(), ExecutingMessageValidatorError>, PayloadBuilderError> {
+        if let Some(client) = &self.supervisor_client {
+            // TODO: remove debug
+            error!("Interop enabled, extracting logs");
+            let logs = result.clone().into_logs();
+            let executing_messages = SupervisorValidator::parse_messages(logs.as_slice())
+                .flatten()
+                .collect::<Vec<ExecutingMessage>>();
+            if !executing_messages.is_empty() {
+                // TODO: remove debug
+                error!("ExecutingMessage {:?}", serde_json::value::to_raw_value(executing_messages.clone().as_slice()));
+                let (channel_tx, rx) = std::sync::mpsc::channel();
+                tokio::task::block_in_place(move || {
+                    let res = tokio::runtime::Handle::current().block_on(async {
+                        SupervisorValidator::validate_messages(
+                            client,
+                            executing_messages.as_slice(),
+                            SafetyLevel::CrossUnsafe,
+                            Some(core::time::Duration::from_millis(100)),
+                        )
+                            .await
+                    });
+                    // TODO: remove debug
+                    error!("Supervisor validation result {:?}", res);
+                    let _ = channel_tx.send(res);
+                });
+                return rx.recv().map_err(|_| PayloadBuilderError::ChannelClosed);
+            }
+        }
+        Ok(Ok(()))
+
     }
 
     pub fn add_builder_tx<DB>(
