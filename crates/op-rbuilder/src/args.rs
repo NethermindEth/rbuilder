@@ -21,4 +21,7 @@ pub struct OpRbuilderArgs {
     /// Supervisor URL
     #[arg(long = "rollup.supervisor-url", env = "SUPERVISOR_URL")]
     pub supervisor_url: Option<Url>,
+    /// URL of the supervisor service for transaction validation
+    #[clap(long)]
+    pub supervisor: Option<String>,
 }

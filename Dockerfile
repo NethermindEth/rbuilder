@@ -6,7 +6,7 @@
 #
 # Based on https://depot.dev/blog/rust-dockerfile-best-practices
 #
-FROM rust:1.82 as base
+FROM rust:1.85 as base
 
 ARG FEATURES
 
