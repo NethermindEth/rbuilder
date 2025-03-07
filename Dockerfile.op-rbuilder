@@ -7,7 +7,7 @@
 # Based on https://depot.dev/blog/rust-dockerfile-best-practices
 #
 ARG FEATURES
-ARG RBUILDER_BIN="rbuilder"
+ARG RBUILDER_BIN="op-rbuilder"
 
 FROM rust:1.82 AS base
 
@@ -56,20 +56,6 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
     --mount=type=cache,target=$SCCACHE_DIR,sharing=locked \
     cargo build --release --features="$FEATURES" --package=${RBUILDER_BIN}
-
-FROM builder AS test-relay
-ARG FEATURES
-RUN --mount=type=cache,target=/usr/local/cargo/registry \
-    --mount=type=cache,target=/usr/local/cargo/git \
-    --mount=type=cache,target=$SCCACHE_DIR,sharing=locked \
-    cargo build --release --features="$FEATURES" --package=test-relay
-
-
-# Runtime container for test-relay
-FROM gcr.io/distroless/cc-debian12 AS test-relay-runtime
-WORKDIR /app
-COPY --from=test-relay /app/target/release/test-relay /app/test-relay
-ENTRYPOINT ["/app/test-relay"]
 
 # Runtime container for rbuilder
 FROM gcr.io/distroless/cc-debian12 AS rbuilder-runtime
