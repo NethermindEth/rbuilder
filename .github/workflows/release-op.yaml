@@ -117,7 +117,7 @@ jobs:
     needs: [extract-version, build-binary]
     runs-on: ubuntu-latest
     env:
-      VERSION: ${{ needs.extract-version.outputs.VERSION }}
+      VERSION: op-${{ needs.extract-version.outputs.VERSION }}
     permissions:
       contents: write
     steps:
