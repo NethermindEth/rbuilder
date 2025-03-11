@@ -181,7 +181,7 @@ jobs:
         uses: docker/metadata-action@v5
         id: meta
         with:
-          images: ghcr.io/${{ github.repository_owner }}/op-rbuilder
+          images: nethermind.jfrog.io/${{ github.repository_owner }}/op-rbuilder
           labels: org.opencontainers.image.source=${{ github.repositoryUrl }}
           tags: |
             type=sha
