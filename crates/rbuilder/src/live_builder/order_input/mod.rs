@@ -260,12 +260,12 @@ where
             }
 
             {
-                info!("Orderpool commands WAIT FOR LOCK");
+                trace!("Orderpool commands WAIT FOR LOCK");
                 let mut orderpool = orderpool.lock().await;
-                info!("Orderpool commands LOCK TAKEN");
+                trace!("Orderpool commands LOCK TAKEN");
                 orderpool.process_commands(new_commands.clone());
             }
-            info!("Orderpool commands LOCK RELEASED");
+            trace!("Orderpool commands LOCK RELEASED");
             new_commands.clear();
         }
 
