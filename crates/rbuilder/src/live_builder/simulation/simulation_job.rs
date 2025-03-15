@@ -254,7 +254,7 @@ where
             match new_commnad {
                 OrderPoolCommand::Insert(order) => {
                     if !self.process_new_order(order.clone()) {
-                        return false;
+                        //return false;
                     }
                 }
                 OrderPoolCommand::Remove(order_id) => {

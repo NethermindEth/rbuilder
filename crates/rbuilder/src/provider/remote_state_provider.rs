@@ -190,10 +190,10 @@ where
         //    return Ok(Some(*hash));
         //}
 
-        let future = self
-            .remote_provider
-            .client()
-            .request::<_, B256>("rbuilder_getBlockHash", (BlockNumberOrTag::Number(number),));
+        let future = self.remote_provider.client().request::<_, Option<B256>>(
+            "rbuilder_getBlockHash",
+            (BlockNumberOrTag::Number(number),),
+        );
         let block_hash = self
             .future_runner
             .run(future)
@@ -201,7 +201,7 @@ where
 
         // self.block_hash_cache.insert(number, block_hash);
         trace!("block_hash: got");
-        Ok(Some(block_hash))
+        Ok(block_hash)
     }
 
     //TODO: is this correct?
@@ -273,7 +273,7 @@ pub struct RemoteStateProvider<T> {
     future_runner: FutureRunner,
 
     storage_cache: DashMap<(Address, StorageKey), StorageValue>,
-    account_cache: DashMap<Address, Account>,
+    account_cache: DashMap<Address, Option<Account>>,
 
     block_id: BlockId,
 
@@ -478,14 +478,17 @@ where
 
         if let Some(account) = self.inner.account_cache.get(address) {
             trace!("account cache hit");
-            return Ok(Some(*account));
+            return Ok(*account);
         }
 
         let future = self
             .inner
             .remote_provider
             .client()
-            .request::<_, AccountState>("rbuilder_getAccount", (*address, self.inner.block_id));
+            .request::<_, Option<AccountState>>(
+                "rbuilder_getAccount",
+                (*address, self.inner.block_id),
+            );
 
         let account = match self.inner.future_runner.run(future) {
             Ok(a) => a,
@@ -494,14 +497,19 @@ where
                 return Err(transport_to_provider_error(e));
             }
         };
+        if account.is_none() {
+            self.inner.account_cache.insert(*address, None);
+            return Ok(None);
+        }
 
+        let account = account.unwrap();
         let account = Account {
             nonce: account.nonce.try_into().unwrap(),
             bytecode_hash: account.code_hash.into(),
             balance: account.balance,
         };
 
-        self.inner.account_cache.insert(*address, account);
+        self.inner.account_cache.insert(*address, Some(account));
 
         trace!("account: got");
         Ok(Some(account))
