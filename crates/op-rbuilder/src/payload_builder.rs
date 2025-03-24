@@ -77,6 +77,7 @@ use tokio_tungstenite::accept_async;
 use tokio_tungstenite::WebSocketStream;
 use url::Url;
 
+use crate::txpool_trait::BuilderTransactionPool;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -689,7 +690,7 @@ where
 pub trait OpPayloadTransactions<Transaction>: Clone + Send + Sync + Unpin + 'static {
     /// Returns an iterator that yields the transaction in the order they should get included in the
     /// new payload.
-    fn best_transactions<Pool: TransactionPool<Transaction = Transaction>>(
+    fn best_transactions<Pool: BuilderTransactionPool<Transaction = Transaction>>(
         &self,
         pool: Pool,
         attr: BestTransactionsAttributes,
@@ -697,7 +698,7 @@ pub trait OpPayloadTransactions<Transaction>: Clone + Send + Sync + Unpin + 'sta
 }
 
 impl<T: PoolTransaction> OpPayloadTransactions<T> for () {
-    fn best_transactions<Pool: TransactionPool<Transaction = T>>(
+    fn best_transactions<Pool: BuilderTransactionPool<Transaction = T>>(
         &self,
         pool: Pool,
         attr: BestTransactionsAttributes,
