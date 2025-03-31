@@ -1,11 +1,9 @@
 use super::{
     create_payout_tx, tracers::SimulationTracer, BlockBuildingContext, EstimatePayoutGasErr,
 };
+use crate::building::evm::EvmFactory;
 use crate::{
-    building::{
-        estimate_payout_gas_limit,
-        evm_inspector::{RBuilderEVMInspector, UsedStateTrace},
-    },
+    building::{estimate_payout_gas_limit, evm_inspector::UsedStateTrace},
     primitives::{
         Bundle, Order, OrderId, RefundConfig, ShareBundle, ShareBundleBody, ShareBundleInner,
         TransactionSignedEcRecoveredWithBlobs,
@@ -18,12 +16,12 @@ use alloy_eips::eip4844::{DATA_GAS_PER_BLOB, MAX_DATA_GAS_PER_BLOCK};
 use alloy_primitives::{Address, B256, U256};
 use reth::revm::{cached::CachedReads, database::StateProviderDatabase};
 use reth_errors::ProviderError;
-use reth_evm::{tx::FromRecoveredTx, Evm, EvmEnv, EvmFactory};
-use reth_primitives::{Receipt, TransactionSigned};
+use reth_evm::{Evm, EvmEnv};
+use reth_primitives::Receipt;
 use reth_provider::{StateProvider, StateProviderBox};
 use revm::{
     context::result::ResultAndState,
-    context_interface::result::{EVMError, ExecutionResult, HaltReason, InvalidTransaction},
+    context_interface::result::{EVMError, ExecutionResult, InvalidTransaction},
     database::{states::bundle_state::BundleRetention, BundleState, State, WrapDatabaseRef},
     Database, DatabaseCommit,
 };
@@ -1213,23 +1211,20 @@ fn update_nonce_list_with_updates(
 ///
 /// Gas checks must be done before calling this methods
 /// thats why it can't return `TransactionErr::GasLeft` and  `TransactionErr::BlobGasLeft`
-fn execute_evm<F, DB>(
-    evm_factory: &F,
-    evm_env: EvmEnv<F::Spec>,
+fn execute_evm(
+    evm_factory: &impl EvmFactory,
+    evm_env: EvmEnv,
     tx_with_blobs: &TransactionSignedEcRecoveredWithBlobs,
-    used_state_tracer: Option<&mut UsedStateTrace>,
-    db: DB,
-    blocklist: &HashSet<Address>,
-) -> Result<Result<ResultAndState, TransactionErr>, CriticalCommitOrderError>
-where
-    DB: Database<Error = ProviderError>,
-    F: EvmFactory<Error<DB::Error> = EVMError<DB::Error>, HaltReason = HaltReason>,
-    F::Tx: FromRecoveredTx<TransactionSigned>,
-{
+    _used_state_tracer: Option<&mut UsedStateTrace>,
+    db: impl Database<Error = ProviderError>,
+    _blocklist: &HashSet<Address>,
+) -> Result<Result<ResultAndState, TransactionErr>, CriticalCommitOrderError> {
     let tx = tx_with_blobs.internal_tx_unsecure();
-    let mut rbuilder_inspector = RBuilderEVMInspector::new(tx, used_state_tracer);
+    // let mut rbuilder_inspector = RBuilderEVMInspector::new(tx, used_state_tracer);
 
-    let mut evm = evm_factory.create_evm_with_inspector(db, evm_env, &mut rbuilder_inspector);
+    // let mut evm = evm_factory.create_evm_with_inspector(db, evm_env, rbuilder_inspector);
+    let mut evm = evm_factory.create_evm(db, evm_env);
+
     let res = match evm.transact(tx) {
         Ok(res) => res,
         Err(err) => match err {
@@ -1241,11 +1236,12 @@ where
             }
         },
     };
-    drop(evm);
-    let access_list = rbuilder_inspector.into_access_list();
-    if access_list.flatten().any(|(a, _)| blocklist.contains(&a)) {
-        return Ok(Err(TransactionErr::Blocklist));
-    }
+    // drop(evm);
+
+    // let access_list = rbuilder_inspector.into_access_list();
+    // if access_list.flatten().any(|(a, _)| blocklist.contains(&a)) {
+    //     return Ok(Err(TransactionErr::Blocklist));
+    // }
 
     Ok(Ok(res))
 }

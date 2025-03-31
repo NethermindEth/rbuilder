@@ -1,3 +1,23 @@
+pub mod block_orders;
+pub mod builders;
+pub mod built_block_trace;
+#[cfg(test)]
+pub mod conflict;
+pub mod evm;
+pub mod evm_inspector;
+pub mod fmt;
+pub mod order_commit;
+pub mod payout_tx;
+pub mod sim;
+pub mod testing;
+pub mod tracers;
+use alloy_consensus::{Header, EMPTY_OMMER_ROOT_HASH};
+use alloy_primitives::{Address, Bytes, U256};
+use builders::mock_block_building_helper::MockRootHasher;
+use evm::RevmEvmFactory;
+use reth_primitives::BlockBody;
+use reth_primitives_traits::{proofs, Block as _};
+
 use crate::{
     live_builder::{block_list_provider::BlockList, payload_events::InternalPayloadId},
     primitives::{Order, OrderId, SimValue, SimulatedOrder, TransactionSignedEcRecoveredWithBlobs},
@@ -74,7 +94,7 @@ pub use conflict::*;
 
 #[derive(Debug, Clone)]
 pub struct BlockBuildingContext {
-    pub evm_factory: EthCachedEvmFactory,
+    pub evm_factory: RevmEvmFactory,
     pub evm_env: EvmEnv,
     pub attributes: EthPayloadBuilderAttributes,
     pub chain_spec: Arc<ChainSpec>,
@@ -163,7 +183,7 @@ impl BlockBuildingContext {
             )
         });
         Some(BlockBuildingContext {
-            evm_factory: EthCachedEvmFactory::default(),
+            evm_factory: RevmEvmFactory,
             evm_env,
             attributes,
             chain_spec,
@@ -246,7 +266,7 @@ impl BlockBuildingContext {
             )
         });
         BlockBuildingContext {
-            evm_factory: EthCachedEvmFactory::default(),
+            evm_factory: RevmEvmFactory,
             evm_env,
             attributes,
             chain_spec,

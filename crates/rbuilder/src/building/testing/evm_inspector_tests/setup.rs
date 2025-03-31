@@ -1,10 +1,11 @@
 use crate::building::{
+    evm::EvmFactory,
     evm_inspector::{RBuilderEVMInspector, UsedStateTrace},
     testing::test_chain_state::{BlockArgs, NamedAddr, TestChainState, TestContracts, TxArgs},
     BlockState,
 };
 use alloy_primitives::Address;
-use reth_evm::{Evm, EvmFactory};
+use reth_evm::Evm;
 use reth_primitives::{Recovered, TransactionSigned};
 
 #[derive(Debug)]
@@ -93,11 +94,14 @@ impl TestSetup {
         // execute transaction
         {
             let ctx = self.test_chain.block_building_context();
-            let mut evm = ctx.evm_factory.create_evm_with_inspector(
-                db_ref.as_mut(),
-                ctx.evm_env.clone(),
-                &mut inspector,
-            );
+            // let mut evm = ctx.evm_factory.create_evm_with_inspector(
+            //     db_ref.as_mut(),
+            //     ctx.evm_env.clone(),
+            //     &mut inspector,
+            // );
+            let mut evm = ctx
+                .evm_factory
+                .create_evm(db_ref.as_mut(), ctx.evm_env.clone());
             evm.transact(&tx)
                 .map_err(|e| eyre::eyre!("execution failure: {:?}", e))?;
         }
