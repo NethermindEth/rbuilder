@@ -94,14 +94,11 @@ impl TestSetup {
         // execute transaction
         {
             let ctx = self.test_chain.block_building_context();
-            // let mut evm = ctx.evm_factory.create_evm_with_inspector(
-            //     db_ref.as_mut(),
-            //     ctx.evm_env.clone(),
-            //     &mut inspector,
-            // );
-            let mut evm = ctx
-                .evm_factory
-                .create_evm(db_ref.as_mut(), ctx.evm_env.clone());
+            let mut evm = ctx.evm_factory.create_evm_with_inspector(
+                db_ref.as_mut(),
+                ctx.evm_env.clone(),
+                &mut inspector,
+            );
             evm.transact(&tx)
                 .map_err(|e| eyre::eyre!("execution failure: {:?}", e))?;
         }

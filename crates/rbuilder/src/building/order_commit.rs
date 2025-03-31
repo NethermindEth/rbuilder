@@ -3,7 +3,10 @@ use super::{
 };
 use crate::building::evm::EvmFactory;
 use crate::{
-    building::{estimate_payout_gas_limit, evm_inspector::UsedStateTrace},
+    building::{
+        estimate_payout_gas_limit,
+        evm_inspector::{RBuilderEVMInspector, UsedStateTrace},
+    },
     primitives::{
         Bundle, Order, OrderId, RefundConfig, ShareBundle, ShareBundleBody, ShareBundleInner,
         TransactionSignedEcRecoveredWithBlobs,
@@ -1215,16 +1218,14 @@ fn execute_evm(
     evm_factory: &impl EvmFactory,
     evm_env: EvmEnv,
     tx_with_blobs: &TransactionSignedEcRecoveredWithBlobs,
-    _used_state_tracer: Option<&mut UsedStateTrace>,
+    used_state_trace: Option<&mut UsedStateTrace>,
     db: impl Database<Error = ProviderError>,
-    _blocklist: &HashSet<Address>,
+    blocklist: &HashSet<Address>,
 ) -> Result<Result<ResultAndState, TransactionErr>, CriticalCommitOrderError> {
     let tx = tx_with_blobs.internal_tx_unsecure();
-    // let mut rbuilder_inspector = RBuilderEVMInspector::new(tx, used_state_tracer);
+    let mut rbuilder_inspector = RBuilderEVMInspector::new(tx, used_state_trace);
 
-    // let mut evm = evm_factory.create_evm_with_inspector(db, evm_env, rbuilder_inspector);
-    let mut evm = evm_factory.create_evm(db, evm_env);
-
+    let mut evm = evm_factory.create_evm_with_inspector(db, evm_env, &mut rbuilder_inspector);
     let res = match evm.transact(tx) {
         Ok(res) => res,
         Err(err) => match err {
@@ -1236,12 +1237,12 @@ fn execute_evm(
             }
         },
     };
-    // drop(evm);
+    drop(evm);
 
-    // let access_list = rbuilder_inspector.into_access_list();
-    // if access_list.flatten().any(|(a, _)| blocklist.contains(&a)) {
-    //     return Ok(Err(TransactionErr::Blocklist));
-    // }
+    let access_list = rbuilder_inspector.into_access_list();
+    if access_list.flatten().any(|(a, _)| blocklist.contains(&a)) {
+        return Ok(Err(TransactionErr::Blocklist));
+    }
 
     Ok(Ok(res))
 }
