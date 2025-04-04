@@ -13,6 +13,10 @@ use revm::{
 /// Allows to use different implementations of EVM with a simpler, more concrete interface than `reth_evm::EvmFactory``.
 /// A type responsible for creating instances of an ethereum virtual machine given a certain input.
 pub trait EvmFactory {
+    // The Evm receives a mutable reference to the database (not revm::DatabaseRef)
+    // This is because `Evm` initially provides state mutability methods (e.g. `transact_commit`)
+    // Custom Evm implementation for RBuilder only requires the implementation of the `transact_raw` method,
+    // and it should not mutate the underlying database.
     type EvmImpl<DB: Database, I: Inspector<Self::Context<DB>>>: Evm<
         Tx = TxEnv,
         Error = EVMError<DB::Error>,
@@ -30,8 +34,11 @@ pub trait EvmFactory {
     ) -> Self::EvmImpl<DB, I>;
 }
 
-mod revm_evm;
-pub use revm_evm::RevmEvmFactory;
-
 mod nethermind_evm;
-pub use nethermind_evm::NethermindEvmFactory;
+mod revm_evm;
+
+// Default to RevmEvmFactory
+#[cfg(not(feature = "nethermind_evm"))]
+pub type RBuilderEvm = revm_evm::RevmEvmFactory;
+#[cfg(feature = "nethermind_evm")]
+pub type RBuilderEvm = nethermind_evm::NethermindEvmFactory;

@@ -11,7 +11,6 @@ use revm::{
     Context, Inspector,
 };
 
-#[expect(missing_debug_implementations)]
 #[allow(dead_code)]
 pub struct NethermindEvm<DB: Database, I> {
     inner: DB,

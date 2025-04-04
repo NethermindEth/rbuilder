@@ -14,7 +14,7 @@ pub mod tracers;
 use alloy_consensus::{Header, EMPTY_OMMER_ROOT_HASH};
 use alloy_primitives::{Address, Bytes, U256};
 use builders::mock_block_building_helper::MockRootHasher;
-use evm::RevmEvmFactory;
+use evm::RBuilderEvm;
 use reth_primitives::BlockBody;
 use reth_primitives_traits::{proofs, Block as _};
 
@@ -94,7 +94,7 @@ pub use conflict::*;
 
 #[derive(Debug, Clone)]
 pub struct BlockBuildingContext {
-    pub evm_factory: RevmEvmFactory,
+    pub evm_factory: RBuilderEvm,
     pub evm_env: EvmEnv,
     pub attributes: EthPayloadBuilderAttributes,
     pub chain_spec: Arc<ChainSpec>,
@@ -183,7 +183,7 @@ impl BlockBuildingContext {
             )
         });
         Some(BlockBuildingContext {
-            evm_factory: RevmEvmFactory,
+            evm_factory: RBuilderEvm::default(),
             evm_env,
             attributes,
             chain_spec,
@@ -266,7 +266,7 @@ impl BlockBuildingContext {
             )
         });
         BlockBuildingContext {
-            evm_factory: RevmEvmFactory,
+            evm_factory: RBuilderEvm::default(),
             evm_env,
             attributes,
             chain_spec,
