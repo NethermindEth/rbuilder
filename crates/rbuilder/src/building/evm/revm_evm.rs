@@ -1,4 +1,4 @@
-use crate::building::evm::EvmFactory;
+use crate::building::evm::{BuilderEvm, EvmFactory};
 use reth_evm::{Database, EthEvm, EvmEnv};
 use revm::{
     context::{BlockEnv, CfgEnv, TxEnv},
@@ -10,10 +10,9 @@ use revm::{
 pub struct RevmEvmFactory;
 
 impl EvmFactory for RevmEvmFactory {
-    type EvmImpl<DB: Database, I: Inspector<Self::Context<DB>>> = EthEvm<DB, I>;
     type Context<DB: Database> = Context<BlockEnv, TxEnv, CfgEnv, DB>;
 
-    fn create_evm<DB: Database>(&self, db: DB, env: EvmEnv) -> Self::EvmImpl<DB, NoOpInspector> {
+    fn create_evm<DB: Database>(&self, db: DB, env: EvmEnv) -> impl BuilderEvm<DB> {
         EthEvm::new(
             Context::mainnet()
                 .with_block(env.block_env)
@@ -29,7 +28,7 @@ impl EvmFactory for RevmEvmFactory {
         db: DB,
         env: EvmEnv,
         inspector: I,
-    ) -> Self::EvmImpl<DB, I> {
+    ) -> impl BuilderEvm<DB> {
         EthEvm::new(
             Context::mainnet()
                 .with_block(env.block_env)

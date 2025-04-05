@@ -1,13 +1,11 @@
-use crate::building::evm::EvmFactory;
-use alloy_primitives::{Address, Bytes};
-use reth_evm::{Database, Evm, EvmEnv};
+use crate::building::evm::{BuilderEvm, EvmFactory};
+use reth_evm::{Database, EvmEnv, IntoTxEnv};
 use revm::{
     context::{
         result::{EVMError, HaltReason, ResultAndState},
         BlockEnv, CfgEnv, TxEnv,
     },
     inspector::NoOpInspector,
-    primitives::hardfork::SpecId,
     Context, Inspector,
 };
 
@@ -28,53 +26,28 @@ impl<DB: Database, I: Inspector<Context<BlockEnv, TxEnv, CfgEnv, DB>>> Nethermin
     }
 }
 
-#[derive(Debug, Default, Clone, Copy)]
-pub struct NethermindEvmFactory;
-
-impl<DB: Database, I: Inspector<Context<BlockEnv, TxEnv, CfgEnv, DB>>> Evm
+impl<DB: Database, I: Inspector<Context<BlockEnv, TxEnv, CfgEnv, DB>>> BuilderEvm<DB>
     for NethermindEvm<DB, I>
 {
-    type DB = DB;
-    type Tx = TxEnv;
-    type Error = EVMError<DB::Error>;
-    type HaltReason = HaltReason;
-    type Spec = SpecId;
-
-    fn block(&self) -> &BlockEnv {
-        unimplemented!()
-    }
-
-    fn transact_raw(&mut self, _tx: Self::Tx) -> Result<ResultAndState, Self::Error> {
+    fn transact(
+        &mut self,
+        _tx: impl IntoTxEnv<TxEnv>,
+    ) -> Result<ResultAndState<HaltReason>, EVMError<DB::Error>> {
         todo!()
     }
 
-    fn transact_system_call(
-        &mut self,
-        _caller: Address,
-        _contract: Address,
-        _data: Bytes,
-    ) -> Result<ResultAndState, Self::Error> {
-        unimplemented!()
-    }
-
-    fn db_mut(&mut self) -> &mut Self::DB {
-        unimplemented!()
-    }
-
-    fn finish(self) -> (Self::DB, EvmEnv<Self::Spec>) {
-        unimplemented!()
-    }
-
-    fn set_inspector_enabled(&mut self, _enabled: bool) {
-        unimplemented!()
+    fn db_mut(&mut self) -> &mut DB {
+        &mut self.inner
     }
 }
 
+#[derive(Debug, Default, Clone, Copy)]
+pub struct NethermindEvmFactory;
+
 impl EvmFactory for NethermindEvmFactory {
-    type EvmImpl<DB: Database, I: Inspector<Self::Context<DB>>> = NethermindEvm<DB, I>;
     type Context<DB: Database> = Context<BlockEnv, TxEnv, CfgEnv, DB>;
 
-    fn create_evm<DB: Database>(&self, db: DB, env: EvmEnv) -> Self::EvmImpl<DB, NoOpInspector> {
+    fn create_evm<DB: Database>(&self, db: DB, env: EvmEnv) -> impl BuilderEvm<DB> {
         NethermindEvm::new(db, env, NoOpInspector {}, false)
     }
 
@@ -83,7 +56,7 @@ impl EvmFactory for NethermindEvmFactory {
         db: DB,
         env: EvmEnv,
         inspector: I,
-    ) -> Self::EvmImpl<DB, I> {
+    ) -> impl BuilderEvm<DB> {
         NethermindEvm::new(db, env, inspector, true)
     }
 }

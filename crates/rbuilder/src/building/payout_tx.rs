@@ -1,11 +1,10 @@
 use super::{BlockBuildingContext, BlockState};
-use crate::building::evm::EvmFactory;
+use crate::building::evm::{BuilderEvm, EvmFactory};
 use crate::utils::Signer;
 use alloy_consensus::{constants::KECCAK_EMPTY, TxEip1559};
 use alloy_primitives::{Address, TxKind as TransactionKind, U256};
 use reth_chainspec::ChainSpec;
 use reth_errors::ProviderError;
-use reth_evm::Evm;
 use reth_primitives::{Recovered, Transaction, TransactionSigned};
 use revm::context::result::{EVMError, ExecutionResult};
 

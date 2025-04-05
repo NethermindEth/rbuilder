@@ -1,7 +1,7 @@
 use super::{
     create_payout_tx, tracers::SimulationTracer, BlockBuildingContext, EstimatePayoutGasErr,
 };
-use crate::building::evm::EvmFactory;
+use crate::building::evm::{BuilderEvm, EvmFactory};
 use crate::{
     building::{
         estimate_payout_gas_limit,
@@ -19,7 +19,7 @@ use alloy_eips::eip4844::{DATA_GAS_PER_BLOB, MAX_DATA_GAS_PER_BLOCK};
 use alloy_primitives::{Address, B256, U256};
 use reth::revm::{cached::CachedReads, database::StateProviderDatabase};
 use reth_errors::ProviderError;
-use reth_evm::{Evm, EvmEnv};
+use reth_evm::EvmEnv;
 use reth_primitives::Receipt;
 use reth_provider::{StateProvider, StateProviderBox};
 use revm::{
