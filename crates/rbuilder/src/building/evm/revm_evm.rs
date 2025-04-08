@@ -1,17 +1,11 @@
 use crate::building::evm::{BuilderEvm, EvmFactory};
-use reth_evm::{Database, EthEvm, EvmEnv};
-use revm::{
-    context::{BlockEnv, CfgEnv, TxEnv},
-    inspector::NoOpInspector,
-    Context, Inspector, MainBuilder, MainContext,
-};
+use alloy_evm::{eth::EthEvmContext, Database, EthEvm, EvmEnv};
+use revm::{inspector::NoOpInspector, Context, Inspector, MainBuilder, MainContext};
 
 #[derive(Debug, Default, Clone, Copy)]
 pub struct RevmEvmFactory;
 
 impl EvmFactory for RevmEvmFactory {
-    type Context<DB: Database> = Context<BlockEnv, TxEnv, CfgEnv, DB>;
-
     fn create_evm<DB: Database>(&self, db: DB, env: EvmEnv) -> impl BuilderEvm<DB> {
         EthEvm::new(
             Context::mainnet()
@@ -23,7 +17,7 @@ impl EvmFactory for RevmEvmFactory {
         )
     }
 
-    fn create_evm_with_inspector<DB: Database, I: Inspector<Self::Context<DB>>>(
+    fn create_evm_with_inspector<DB: Database, I: Inspector<EthEvmContext<DB>>>(
         &self,
         db: DB,
         env: EvmEnv,

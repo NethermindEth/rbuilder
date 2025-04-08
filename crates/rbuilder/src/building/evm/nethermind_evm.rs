@@ -1,12 +1,12 @@
 use crate::building::evm::{BuilderEvm, EvmFactory};
-use reth_evm::{Database, EvmEnv, IntoTxEnv};
+use alloy_evm::{eth::EthEvmContext, Database, EvmEnv, IntoTxEnv};
 use revm::{
     context::{
         result::{EVMError, HaltReason, ResultAndState},
-        BlockEnv, CfgEnv, TxEnv,
+        TxEnv,
     },
     inspector::NoOpInspector,
-    Context, Inspector,
+    Inspector,
 };
 
 #[allow(dead_code)]
@@ -16,7 +16,7 @@ pub struct NethermindEvm<DB: Database, I> {
     inspect: bool,
 }
 
-impl<DB: Database, I: Inspector<Context<BlockEnv, TxEnv, CfgEnv, DB>>> NethermindEvm<DB, I> {
+impl<DB: Database, I: Inspector<EthEvmContext<DB>>> NethermindEvm<DB, I> {
     pub fn new(inner: DB, _env: EvmEnv, inspector: I, inspect: bool) -> Self {
         Self {
             inner,
@@ -26,9 +26,7 @@ impl<DB: Database, I: Inspector<Context<BlockEnv, TxEnv, CfgEnv, DB>>> Nethermin
     }
 }
 
-impl<DB: Database, I: Inspector<Context<BlockEnv, TxEnv, CfgEnv, DB>>> BuilderEvm<DB>
-    for NethermindEvm<DB, I>
-{
+impl<DB: Database, I: Inspector<EthEvmContext<DB>>> BuilderEvm<DB> for NethermindEvm<DB, I> {
     fn transact(
         &mut self,
         _tx: impl IntoTxEnv<TxEnv>,
@@ -45,13 +43,11 @@ impl<DB: Database, I: Inspector<Context<BlockEnv, TxEnv, CfgEnv, DB>>> BuilderEv
 pub struct NethermindEvmFactory;
 
 impl EvmFactory for NethermindEvmFactory {
-    type Context<DB: Database> = Context<BlockEnv, TxEnv, CfgEnv, DB>;
-
     fn create_evm<DB: Database>(&self, db: DB, env: EvmEnv) -> impl BuilderEvm<DB> {
         NethermindEvm::new(db, env, NoOpInspector {}, false)
     }
 
-    fn create_evm_with_inspector<DB: Database, I: Inspector<Self::Context<DB>>>(
+    fn create_evm_with_inspector<DB: Database, I: Inspector<EthEvmContext<DB>>>(
         &self,
         db: DB,
         env: EvmEnv,

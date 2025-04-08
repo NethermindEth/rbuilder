@@ -1,11 +1,7 @@
-use reth_evm::{Database, Evm, EvmEnv, IntoTxEnv};
+use alloy_evm::{eth::EthEvmContext, Database, Evm, EvmEnv, IntoTxEnv};
 use revm::{
     context::{result::ResultAndState, TxEnv},
-    context_interface::{
-        result::{EVMError, HaltReason},
-        ContextTr,
-    },
-    inspector::JournalExt,
+    context_interface::result::{EVMError, HaltReason},
     Inspector,
 };
 
@@ -38,11 +34,9 @@ where
 /// Allows to use different implementations of EVM with a simpler, more concrete interface than `reth_evm::EvmFactory`.
 /// A type responsible for creating instances of an ethereum virtual machine given a certain input.
 pub trait EvmFactory {
-    type Context<DB: Database>: ContextTr<Journal: JournalExt>;
-
     fn create_evm<DB: Database>(&self, db: DB, env: EvmEnv) -> impl BuilderEvm<DB>;
 
-    fn create_evm_with_inspector<DB: Database, I: Inspector<Self::Context<DB>>>(
+    fn create_evm_with_inspector<DB: Database, I: Inspector<EthEvmContext<DB>>>(
         &self,
         db: DB,
         env: EvmEnv,
