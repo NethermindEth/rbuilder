@@ -65,10 +65,10 @@ pub fn insert_test_payout_tx(
     )?;
 
     let mut db = state.new_db_ref();
-    let mut evm = ctx.evm_factory.create_evm(db.as_mut(), ctx.evm_env.clone());
-
-    let cache_account = evm.db_mut().load_cache_account(builder_signer.address)?;
+    let cache_account = db.as_mut().load_cache_account(builder_signer.address)?;
     cache_account.increment_balance(tx_value * 2); // double to cover tx value and fee
+
+    let mut evm = ctx.evm_factory.create_evm(db.as_mut(), ctx.evm_env.clone());
 
     let res = evm.transact(&tx)?;
     match res.result {

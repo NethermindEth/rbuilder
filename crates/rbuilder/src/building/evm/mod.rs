@@ -10,8 +10,6 @@ pub trait BuilderEvm<DB: Database> {
         &mut self,
         tx: impl IntoTxEnv<TxEnv>,
     ) -> Result<ResultAndState<HaltReason>, EVMError<DB::Error>>;
-
-    fn db_mut(&mut self) -> &mut DB;
 }
 
 impl<T, DB: Database> BuilderEvm<DB> for T
@@ -23,10 +21,6 @@ where
         tx: impl IntoTxEnv<TxEnv>,
     ) -> Result<ResultAndState<HaltReason>, EVMError<DB::Error>> {
         T::transact(self, tx)
-    }
-
-    fn db_mut(&mut self) -> &mut DB {
-        T::db_mut(self)
     }
 }
 

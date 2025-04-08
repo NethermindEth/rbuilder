@@ -33,10 +33,6 @@ impl<DB: Database, I: Inspector<EthEvmContext<DB>>> BuilderEvm<DB> for Nethermin
     ) -> Result<ResultAndState<HaltReason>, EVMError<DB::Error>> {
         todo!()
     }
-
-    fn db_mut(&mut self) -> &mut DB {
-        &mut self.inner
-    }
 }
 
 #[derive(Debug, Default, Clone, Copy)]
