@@ -1,23 +1,3 @@
-pub mod block_orders;
-pub mod builders;
-pub mod built_block_trace;
-#[cfg(test)]
-pub mod conflict;
-pub mod evm;
-pub mod evm_inspector;
-pub mod fmt;
-pub mod order_commit;
-pub mod payout_tx;
-pub mod sim;
-pub mod testing;
-pub mod tracers;
-use alloy_consensus::{Header, EMPTY_OMMER_ROOT_HASH};
-use alloy_primitives::{Address, Bytes, U256};
-use builders::mock_block_building_helper::MockRootHasher;
-use evm::RBuilderEvm;
-use reth_primitives::BlockBody;
-use reth_primitives_traits::{proofs, Block as _};
-
 use crate::{
     live_builder::{block_list_provider::BlockList, payload_events::InternalPayloadId},
     primitives::{Order, OrderId, SimValue, SimulatedOrder, TransactionSignedEcRecoveredWithBlobs},
@@ -37,8 +17,8 @@ use alloy_eips::{
 use alloy_evm::{block::system_calls::SystemCaller, env::EvmEnv, eth::eip6110};
 use alloy_primitives::{Address, Bytes, B256, U256};
 use alloy_rpc_types_beacon::events::PayloadAttributesEvent;
+use evm::RBuilderEvm;
 use jsonrpsee::core::Serialize;
-use precompile_cache::EthCachedEvmFactory;
 use reth::{
     payload::PayloadId,
     primitives::{Block, Receipt, SealedBlock},
@@ -75,6 +55,7 @@ pub mod builders;
 pub mod built_block_trace;
 #[cfg(test)]
 pub mod conflict;
+pub mod evm;
 pub mod evm_inspector;
 pub mod fmt;
 pub mod order_commit;
