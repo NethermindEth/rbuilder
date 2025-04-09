@@ -10,6 +10,8 @@ use payload_builder::CustomOpPayloadBuilder;
 #[cfg(not(feature = "flashblocks"))]
 use payload_builder_vanilla::CustomOpPayloadBuilder;
 use reth_transaction_pool::TransactionPool;
+use rundler::cli::builder::{BuilderArgs, BuilderCliArgs};
+use rundler::cli::{construct_providers, load_configs};
 
 /// CLI argument parsing.
 pub mod args;
@@ -28,6 +30,7 @@ mod primitives;
 mod tester;
 mod tx_signer;
 use monitor_tx_pool::monitor_tx_pool;
+
 
 fn main() {
     Cli::<OpChainSpecParser, args::OpRbuilderArgs>::parse()
@@ -71,6 +74,41 @@ fn main() {
                         }),
                     );
 
+                    // Spawn pool
+                    let cs = rundler::cli::chain_spec::resolve_chain_spec(&Some(String::from("optimism_sepolia")), &None);
+                    let common = builder_args.common;
+                    {
+                        let cs = cs.clone();
+                        let common = common.clone();
+                        let pool = builder_args.pool;
+                        let task_executor = ctx.task_executor.clone();
+                        let providers = construct_providers(&common, &cs).unwrap();
+                        ctx.task_executor.spawn_critical(
+                            "4337 spawner",
+                            Box::pin(async move {
+                                let (mempool_configs, entry_point_builders) = load_configs(&common).await.unwrap();
+                                let res = rundler::cli::pool::spawn_tasks(task_executor, cs, pool, common, providers, mempool_configs, entry_point_builders).await;
+                                println!("{:?}", res);
+                            }),
+                        );
+                    }
+
+                    {
+                        // Spawn builder
+                        let cs = cs.clone();
+                        let common = common.clone();
+                        let builder = builder_args.builder;
+                        let task_executor = ctx.task_executor.clone();
+                        // TODO: fix unwrap
+                        let providers = construct_providers(&common, &cs).unwrap();
+                        ctx.task_executor.spawn_critical(
+                            "4337 spawner",
+                            Box::pin(async move {
+                                let res = rundler::cli::builder::spawn_tasks(task_executor, cs, builder, common, providers).await;
+                                println!("{:?}", res);
+                            }),
+                        );
+                    }
                     Ok(())
                 })
                 .launch()
