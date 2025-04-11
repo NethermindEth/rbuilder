@@ -65,6 +65,10 @@ op-revm.workspace = true
 
 # rundler
 rundler-rpc.workspace = true
+rundler-sim.workspace = true
+rundler-provider.workspace = true
+rundler-signer.workspace = true
+rundler-utils.workspace = true
 rundler-pool.workspace = true
 rundler-builder.workspace = true
 rundler.workspace = true

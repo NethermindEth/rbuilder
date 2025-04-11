@@ -8244,7 +8244,11 @@ dependencies = [
  "rundler",
  "rundler-builder",
  "rundler-pool",
+ "rundler-provider",
  "rundler-rpc",
+ "rundler-signer",
+ "rundler-sim",
+ "rundler-utils",
  "secp256k1",
  "serde",
  "serde_json",
@@ -13555,6 +13559,7 @@ checksum = "48fd7bd8a6377e15ad9d42a8ec25371b94ddc67abe7c8b9127bec79bebaaae18"
 [[package]]
 name = "rundler"
 version = "0.6.0"
+source = "git+https://github.com/NethermindEth/rundler?rev=49d93de11d9a2852ec42759fae1d5729a63639ff#49d93de11d9a2852ec42759fae1d5729a63639ff"
 dependencies = [
  "alloy-consensus 0.7.3",
  "alloy-eips 0.7.3",
@@ -13609,6 +13614,7 @@ dependencies = [
 [[package]]
 name = "rundler-bindings-fastlz"
 version = "0.6.0"
+source = "git+https://github.com/NethermindEth/rundler?rev=49d93de11d9a2852ec42759fae1d5729a63639ff#49d93de11d9a2852ec42759fae1d5729a63639ff"
 dependencies = [
  "bindgen 0.70.1",
  "cc",
@@ -13617,6 +13623,7 @@ dependencies = [
 [[package]]
 name = "rundler-bls"
 version = "0.6.0"
+source = "git+https://github.com/NethermindEth/rundler?rev=49d93de11d9a2852ec42759fae1d5729a63639ff#49d93de11d9a2852ec42759fae1d5729a63639ff"
 dependencies = [
  "alloy-primitives 0.8.23",
  "async-trait",
@@ -13627,6 +13634,7 @@ dependencies = [
 [[package]]
 name = "rundler-builder"
 version = "0.6.0"
+source = "git+https://github.com/NethermindEth/rundler?rev=49d93de11d9a2852ec42759fae1d5729a63639ff#49d93de11d9a2852ec42759fae1d5729a63639ff"
 dependencies = [
  "alloy-consensus 0.7.3",
  "alloy-eips 0.7.3",
@@ -13665,6 +13673,7 @@ dependencies = [
 [[package]]
 name = "rundler-contracts"
 version = "0.6.0"
+source = "git+https://github.com/NethermindEth/rundler?rev=49d93de11d9a2852ec42759fae1d5729a63639ff#49d93de11d9a2852ec42759fae1d5729a63639ff"
 dependencies = [
  "alloy-contract",
  "alloy-primitives 0.8.23",
@@ -13677,6 +13686,7 @@ dependencies = [
 [[package]]
 name = "rundler-pbh"
 version = "0.6.0"
+source = "git+https://github.com/NethermindEth/rundler?rev=49d93de11d9a2852ec42759fae1d5729a63639ff#49d93de11d9a2852ec42759fae1d5729a63639ff"
 dependencies = [
  "alloy-primitives 0.8.23",
  "alloy-sol-types",
@@ -13689,6 +13699,7 @@ dependencies = [
 [[package]]
 name = "rundler-pool"
 version = "0.6.0"
+source = "git+https://github.com/NethermindEth/rundler?rev=49d93de11d9a2852ec42759fae1d5729a63639ff#49d93de11d9a2852ec42759fae1d5729a63639ff"
 dependencies = [
  "alloy-network-primitives 0.7.3",
  "alloy-primitives 0.8.23",
@@ -13721,6 +13732,7 @@ dependencies = [
 [[package]]
 name = "rundler-provider"
 version = "0.6.0"
+source = "git+https://github.com/NethermindEth/rundler?rev=49d93de11d9a2852ec42759fae1d5729a63639ff#49d93de11d9a2852ec42759fae1d5729a63639ff"
 dependencies = [
  "alloy-consensus 0.7.3",
  "alloy-contract",
@@ -13759,6 +13771,7 @@ dependencies = [
 [[package]]
 name = "rundler-rpc"
 version = "0.6.0"
+source = "git+https://github.com/NethermindEth/rundler?rev=49d93de11d9a2852ec42759fae1d5729a63639ff#49d93de11d9a2852ec42759fae1d5729a63639ff"
 dependencies = [
  "alloy-consensus 0.7.3",
  "alloy-contract",
@@ -13791,6 +13804,7 @@ dependencies = [
 [[package]]
 name = "rundler-signer"
 version = "0.6.0"
+source = "git+https://github.com/NethermindEth/rundler?rev=49d93de11d9a2852ec42759fae1d5729a63639ff#49d93de11d9a2852ec42759fae1d5729a63639ff"
 dependencies = [
  "alloy-consensus 0.7.3",
  "alloy-eips 0.7.3",
@@ -13820,6 +13834,7 @@ dependencies = [
 [[package]]
 name = "rundler-sim"
 version = "0.6.0"
+source = "git+https://github.com/NethermindEth/rundler?rev=49d93de11d9a2852ec42759fae1d5729a63639ff#49d93de11d9a2852ec42759fae1d5729a63639ff"
 dependencies = [
  "alloy-primitives 0.8.23",
  "alloy-sol-types",
@@ -13843,6 +13858,7 @@ dependencies = [
 [[package]]
 name = "rundler-task"
 version = "0.6.0"
+source = "git+https://github.com/NethermindEth/rundler?rev=49d93de11d9a2852ec42759fae1d5729a63639ff#49d93de11d9a2852ec42759fae1d5729a63639ff"
 dependencies = [
  "alloy-primitives 0.8.23",
  "anyhow",
@@ -13862,6 +13878,7 @@ dependencies = [
 [[package]]
 name = "rundler-types"
 version = "0.6.0"
+source = "git+https://github.com/NethermindEth/rundler?rev=49d93de11d9a2852ec42759fae1d5729a63639ff#49d93de11d9a2852ec42759fae1d5729a63639ff"
 dependencies = [
  "alloy-eips 0.7.3",
  "alloy-primitives 0.8.23",
@@ -13885,6 +13902,7 @@ dependencies = [
 [[package]]
 name = "rundler-utils"
 version = "0.6.0"
+source = "git+https://github.com/NethermindEth/rundler?rev=49d93de11d9a2852ec42759fae1d5729a63639ff#49d93de11d9a2852ec42759fae1d5729a63639ff"
 dependencies = [
  "alloy-primitives 0.8.23",
  "alloy-rpc-types-eth 0.7.3",
