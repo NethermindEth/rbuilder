@@ -4,11 +4,14 @@
 
 //! clap [Args](clap::Args) for optimism rollup configuration
 use reth_optimism_node::args::RollupArgs;
-
+use rundler::cli::builder::{BuilderArgs, BuilderCliArgs};
+use rundler::cli::CommonArgs;
+use rundler::cli::rpc::RpcArgs;
+use rundler::cli::pool::{PoolArgs, PoolCliArgs};
 use crate::tx_signer::Signer;
 
 /// Parameters for rollup configuration
-#[derive(Debug, Clone, Default, PartialEq, Eq, clap::Args)]
+#[derive(Debug, Clone, clap::Args)]
 #[command(next_help_heading = "Rollup")]
 pub struct OpRbuilderArgs {
     /// Rollup configuration
@@ -41,4 +44,12 @@ pub struct OpRbuilderArgs {
     /// Signals whether to log pool transaction events
     #[arg(long = "builder.log-pool-transactions", default_value = "false")]
     pub log_pool_transactions: bool,
+    #[command(flatten)]
+    pub builder: BuilderArgs,
+    #[command(flatten)]
+    pub common: CommonArgs,
+    #[command(flatten)]
+    pub pool: PoolArgs,
+    #[command(flatten)]
+    pub rundler_rpc: RpcArgs,
 }

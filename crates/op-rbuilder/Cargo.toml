@@ -63,6 +63,16 @@ op-alloy-network.workspace = true
 revm.workspace = true
 op-revm.workspace = true
 
+# rundler
+rundler-rpc.workspace = true
+rundler-sim.workspace = true
+rundler-provider.workspace = true
+rundler-signer.workspace = true
+rundler-utils.workspace = true
+rundler-pool.workspace = true
+rundler-builder.workspace = true
+rundler.workspace = true
+
 tracing.workspace = true
 futures-util = "0.3.31"
 eyre.workspace = true

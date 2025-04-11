@@ -137,6 +137,16 @@ op-alloy-rpc-jsonrpsee = { version = "0.11.2", default-features = false }
 op-alloy-network = { version = "0.11.2", default-features = false }
 op-alloy-consensus = { version = "0.11.2", default-features = false }
 
+# rundler for 4337
+rundler-rpc = { git = "https://github.com/NethermindEth/rundler", rev = "49d93de11d9a2852ec42759fae1d5729a63639ff" }
+rundler-sim = { git = "https://github.com/NethermindEth/rundler", rev = "49d93de11d9a2852ec42759fae1d5729a63639ff" }
+rundler-builder = { git = "https://github.com/NethermindEth/rundler", rev = "49d93de11d9a2852ec42759fae1d5729a63639ff" }
+rundler-pool = { git = "https://github.com/NethermindEth/rundler", rev = "49d93de11d9a2852ec42759fae1d5729a63639ff" }
+rundler-utils = { git = "https://github.com/NethermindEth/rundler", rev = "49d93de11d9a2852ec42759fae1d5729a63639ff" }
+rundler-signer = { git = "https://github.com/NethermindEth/rundler", rev = "49d93de11d9a2852ec42759fae1d5729a63639ff" }
+rundler-provider = { git = "https://github.com/NethermindEth/rundler", rev = "49d93de11d9a2852ec42759fae1d5729a63639ff" }
+rundler = { git = "https://github.com/NethermindEth/rundler", rev = "49d93de11d9a2852ec42759fae1d5729a63639ff" }
+
 async-trait = { version = "0.1.83" }
 clap = { version = "4.4.3", features = ["derive", "env"] }
 clap_builder = { version = "4.5.19" }
