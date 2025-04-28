@@ -53,7 +53,7 @@ impl OpRethConfig {
 
 impl Service for OpRethConfig {
     fn command(&self) -> Command {
-        let bin_path = PathBuf::from("op-reth");
+        let bin_path = PathBuf::from("../../op-reth");
 
         let mut cmd = Command::new(bin_path);
         let jwt_path = get_or_create_jwt_path(self.jwt_secret_path.as_ref());

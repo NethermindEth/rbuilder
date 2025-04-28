@@ -200,8 +200,12 @@ mod tests {
             assert_eq!(pool.pending, 3, "all txs should be in pending pool");
             assert_eq!(pool.queued, 0, "queued pool should be empty");
 
+            println!("{:?}", provider.txpool_inspect().await?);
+            println!("--------------");
             let block_hash = generator.generate_block().await?;
-
+            println!("{:?}", provider.txpool_inspect().await?);
+            println!("--------------");
+            
             // TODO: uncomment once reth issue is addressed
             // After block is produced  we will remove one of the reverting txs and place another
             // in queue pool because we have nonce gap

@@ -147,6 +147,7 @@ impl Service for OpRbuilderConfig {
 
     #[allow(clippy::manual_async_fn)]
     fn ready(&self, log_path: &Path) -> impl Future<Output = Result<(), IntegrationError>> + Send {
+        println!("{:?}", log_path);
         async move {
             poll_logs(
                 log_path,

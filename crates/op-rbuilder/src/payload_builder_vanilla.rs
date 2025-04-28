@@ -350,6 +350,8 @@ where
     where
         Txs: PayloadTransactions<Transaction: PoolTransaction<Consensus = OpTransactionSigned>>,
     {
+        println!("Pending tx being: {:?}", self.pool.pending_transactions());
+        println!("Queued tx being: {:?}", self.pool.queued_transactions());
         let BuildArguments {
             mut cached_reads,
             config,
@@ -407,14 +409,20 @@ where
                 .with_database(state)
                 .with_bundle_update()
                 .build();
-            builder.build(db, ctx)
+            let res = builder.build(db, ctx);
+            println!("Pending tx after build: {:?}", self.pool.pending_transactions());
+            println!("Queued tx after build: {:?}", self.pool.queued_transactions());
+            res
         } else {
             // sequencer mode we can reuse cachedreads from previous runs
             let db = State::builder()
                 .with_database(cached_reads.as_db_mut(state))
                 .with_bundle_update()
                 .build();
-            builder.build(db, ctx)
+            let res = builder.build(db, ctx);
+            println!("Pending tx after build: {:?}", self.pool.pending_transactions());
+            println!("Queued tx after build: {:?}", self.pool.queued_transactions());
+            res
         }
         .map(|out| out.with_cached_reads(cached_reads))
     }
@@ -554,6 +562,7 @@ impl<Txs> OpBuilder<'_, Txs> {
             .payload_num_tx
             .record(info.executed_transactions.len() as f64);
 
+        println!("Actual removal of this: {:?}", info.invalid_tx_hashes);
         remove_invalid(info.invalid_tx_hashes.iter().copied().collect());
 
         let payload = ExecutedPayload { info };
@@ -719,6 +728,7 @@ impl<Txs> OpBuilder<'_, Txs> {
         } else {
             Ok(BuildOutcomeKind::Better { payload })
         }
+
     }
 }
 
@@ -1108,8 +1118,10 @@ where
             self.metrics.tx_byte_size.record(tx.inner().size() as f64);
             num_txs_simulated += 1;
             if result.is_success() {
+                println!("Inserting valid tx");
                 num_txs_simulated_success += 1;
             } else {
+                println!("Removing invalid tx");
                 num_txs_simulated_fail += 1;
                 trace!(target: "payload_builder", ?tx, "skipping reverted transaction");
                 best_txs.mark_invalid(tx.signer(), tx.nonce());
