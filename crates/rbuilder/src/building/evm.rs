@@ -45,5 +45,5 @@ pub trait EvmFactory {
 mod nethermind;
 mod revm_evm;
 
-pub type RBuilderEvm = revm_evm::EthCachedEvmFactory;
-// pub type RBuilderEvm = nethermind::NethermindEvmFactory;
+// pub type RBuilderEvm = revm_evm::EthCachedEvmFactory;
+pub type RBuilderEvm = nethermind::NethermindEvmFactory;
