@@ -1,45 +1,18 @@
-use crate::building::precompile_cache::{PrecompileCache, WrappedPrecompile};
-use parking_lot::Mutex;
-use reth_evm::{
-    eth::EthEvmContext, EthEvm, EthEvmFactory, Evm as RethEvm, EvmEnv,
-    EvmFactory as RethEvmFactory, IntoTxEnv,
-};
+use reth_evm::{eth::EthEvmContext, EvmEnv, IntoTxEnv};
 use revm::{
     context::{
         result::{EVMError, HaltReason, ResultAndState},
         TxEnv,
     },
-    handler::EthPrecompiles,
     interpreter::interpreter::EthInterpreter,
-    primitives::hardfork::SpecId,
     Database, Inspector,
 };
-use std::sync::Arc;
 
 pub trait Evm<DB: Database> {
     fn transact(
         &mut self,
         tx: impl IntoTxEnv<TxEnv>,
     ) -> Result<ResultAndState<HaltReason>, EVMError<DB::Error>>;
-}
-
-impl<DB, EVM> Evm<DB> for EVM
-where
-    DB: Database<Error: Send + Sync + 'static>,
-    EVM: RethEvm<
-        DB = DB,
-        Tx = TxEnv,
-        Error = EVMError<DB::Error>,
-        HaltReason = HaltReason,
-        Spec = SpecId,
-    >,
-{
-    fn transact(
-        &mut self,
-        tx: impl IntoTxEnv<TxEnv>,
-    ) -> Result<ResultAndState<HaltReason>, EVMError<DB::Error>> {
-        EVM::transact(self, tx)
-    }
 }
 
 /// Custom trait to abstract over EVM construction with a cleaner and more concrete
@@ -69,51 +42,8 @@ pub trait EvmFactory {
         I: Inspector<EthEvmContext<DB>, EthInterpreter>;
 }
 
-#[derive(Debug, Clone, Default)]
-pub struct EthCachedEvmFactory {
-    evm_factory: EthEvmFactory,
-    cache: Arc<Mutex<PrecompileCache>>,
-}
+mod nethermind;
+mod revm_evm;
 
-/// Implementation of the `EvmFactory` trait for `EthCachedEvmFactory`.
-///
-/// This implementation uses `reth_evm::EthEvm` internally and provides a concrete
-/// type for the `Evm` trait.
-///
-/// It also integrates precompile caching using the [`PrecompileCache`] and
-/// [`WrappedPrecompile`] types.
-impl EvmFactory for EthCachedEvmFactory {
-    fn create_evm<DB>(&self, db: DB, env: EvmEnv) -> impl Evm<DB>
-    where
-        DB: Database<Error: Send + Sync + 'static>,
-    {
-        let evm = self
-            .evm_factory
-            .create_evm(db, env)
-            .into_inner()
-            .with_precompiles(WrappedPrecompile::new(
-                EthPrecompiles::default(),
-                self.cache.clone(),
-            ));
-
-        EthEvm::new(evm, false)
-    }
-
-    fn create_evm_with_inspector<DB, I>(&self, db: DB, env: EvmEnv, inspector: I) -> impl Evm<DB>
-    where
-        DB: Database<Error: Send + Sync + 'static>,
-        I: Inspector<EthEvmContext<DB>, EthInterpreter>,
-    {
-        let evm = self
-            .evm_factory
-            .create_evm(db, env)
-            .into_inner()
-            .with_precompiles(WrappedPrecompile::new(
-                EthPrecompiles::default(),
-                self.cache.clone(),
-            ))
-            .with_inspector(inspector);
-
-        EthEvm::new(evm, true)
-    }
-}
+pub type RBuilderEvm = revm_evm::EthCachedEvmFactory;
+// pub type RBuilderEvm = nethermind::NethermindEvmFactory;

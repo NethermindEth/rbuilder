@@ -31,7 +31,7 @@ use alloy_primitives::{Address, Bytes, B256, I256, U256};
 use alloy_rpc_types_beacon::events::PayloadAttributesEvent;
 use cached_reads::{LocalCachedReads, SharedCachedReads};
 use eth_sparse_mpt::SparseTrieLocalCache;
-use evm::EthCachedEvmFactory;
+use evm::RBuilderEvm;
 use jsonrpsee::core::Serialize;
 use reth::{
     payload::PayloadId,
@@ -92,7 +92,7 @@ pub use conflict::*;
 
 #[derive(Debug, Clone)]
 pub struct BlockBuildingContext {
-    pub evm_factory: EthCachedEvmFactory,
+    pub evm_factory: RBuilderEvm,
     pub evm_env: EvmEnv,
     pub attributes: EthPayloadBuilderAttributes,
     pub chain_spec: Arc<ChainSpec>,
@@ -191,7 +191,7 @@ impl BlockBuildingContext {
         let max_blob_gas_per_block =
             Self::max_blob_gas_per_block_at(&chain_spec, attributes.timestamp());
         Some(BlockBuildingContext {
-            evm_factory: EthCachedEvmFactory::default(),
+            evm_factory: RBuilderEvm::default(),
             evm_env,
             attributes,
             chain_spec,
@@ -289,7 +289,7 @@ impl BlockBuildingContext {
         let max_blob_gas_per_block =
             Self::max_blob_gas_per_block_at(&chain_spec, attributes.timestamp());
         BlockBuildingContext {
-            evm_factory: EthCachedEvmFactory::default(),
+            evm_factory: RBuilderEvm::default(),
             evm_env,
             attributes,
             chain_spec,
