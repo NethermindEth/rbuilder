@@ -1,21 +1,21 @@
 use super::{RootHasher, StateProviderFactory};
 use crate::{
     building::ThreadBlockBuildingContext, live_builder::simulation::SimulatedOrderCommand,
+    provider::ipc_provider::rpc_call,
 };
 use alloy_consensus::{constants::KECCAK_EMPTY, Header};
 use alloy_eips::{BlockId, BlockNumHash, BlockNumberOrTag};
-use alloy_json_rpc::RpcSend;
 use alloy_primitives::{
     Address, BlockHash, BlockNumber, Bytes, StorageKey, StorageValue, B256, U256, U64,
 };
 use dashmap::DashMap;
 use quick_cache::sync::Cache;
 use reipc::rpc_provider::RpcProvider;
-use reth_errors::{ProviderError, ProviderResult};
+use reth_errors::ProviderResult;
 use reth_primitives::{Account, Bytecode};
 use reth_provider::{
-    errors::any::AnyError, AccountReader, BlockHashReader, HashedPostStateProvider,
-    StateProofProvider, StateProvider, StateProviderBox, StateRootProvider, StorageRootProvider,
+    AccountReader, BlockHashReader, HashedPostStateProvider, StateProofProvider, StateProvider,
+    StateProviderBox, StateRootProvider, StorageRootProvider,
 };
 use reth_trie::{
     updates::TrieUpdates, AccountProof, HashedPostState, HashedStorage, MultiProof,
@@ -25,11 +25,10 @@ use revm::{
     database::{BundleAccount, BundleState},
     primitives::HashMap,
 };
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use std::{borrow::Cow, fmt::Debug, path::Path, sync::Arc, time::Duration};
+use serde::{Deserialize, Serialize};
+use std::{fmt::Debug, path::Path, sync::Arc, time::Duration};
 use tokio::sync::broadcast;
 use tokio_util::sync::CancellationToken;
-use tracing::{trace, trace_span};
 
 /// For how many blocks to cache state for
 /// Most CL implementations keep state for last 128 blocks in memory,
@@ -478,28 +477,4 @@ impl From<BundleAccount> for AccountDiff {
             },
         }
     }
-}
-fn rpc_call<Param, Resp>(
-    ipc_provider: &RpcProvider,
-    rpc_method: impl Into<Cow<'static, str>> + tracing::Value,
-    params: Param,
-) -> ProviderResult<Resp>
-where
-    Param: RpcSend,
-    Resp: DeserializeOwned + derive_more::with_trait::Debug,
-{
-    let span = trace_span!("rpc_call", rpc_method, id = rand::random::<u64>());
-    let _guard = span.enter();
-    trace!("send request");
-
-    let resp = ipc_provider
-        .call::<Param, Resp>(rpc_method, params)
-        .map_err(ipc_to_provider_error);
-
-    trace!("response received");
-    resp
-}
-
-fn ipc_to_provider_error(e: reipc::errors::RpcError) -> ProviderError {
-    ProviderError::Other(AnyError::new(e))
 }

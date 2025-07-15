@@ -1,5 +1,10 @@
-use serde::Deserialize;
-use std::{fmt::Debug, path::PathBuf};
+use alloy_json_rpc::RpcSend;
+use reipc::rpc_provider::RpcProvider;
+use reth_errors::{ProviderError, ProviderResult};
+use reth_provider::errors::any::AnyError;
+use serde::{de::DeserializeOwned, Deserialize};
+use std::{borrow::Cow, fmt::Debug, path::PathBuf};
+use tracing::{trace, trace_span};
 
 /// After how many milliseconds should we give up on an IPC request (consider it failed)
 /// 100ms was picked up after initial testing using Nethermind client as state provider
@@ -23,4 +28,29 @@ impl Default for IpcProviderConfig {
             ipc_path: PathBuf::new(),
         }
     }
+}
+
+pub(crate) fn rpc_call<Param, Resp>(
+    ipc_provider: &RpcProvider,
+    rpc_method: impl Into<Cow<'static, str>> + tracing::Value,
+    params: Param,
+) -> ProviderResult<Resp>
+where
+    Param: RpcSend,
+    Resp: DeserializeOwned + derive_more::with_trait::Debug,
+{
+    let span = trace_span!("rpc_call", rpc_method, id = rand::random::<u64>());
+    let _guard = span.enter();
+    trace!("send request");
+
+    let resp = ipc_provider
+        .call::<Param, Resp>(rpc_method, params)
+        .map_err(ipc_to_provider_error);
+
+    trace!("response received");
+    resp
+}
+
+fn ipc_to_provider_error(e: reipc::errors::RpcError) -> ProviderError {
+    ProviderError::Other(AnyError::new(e))
 }
