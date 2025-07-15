@@ -1,11 +1,7 @@
-use std::{
-    borrow::Cow,
-    fmt::Debug,
-    path::{Path, PathBuf},
-    sync::Arc,
-    time::Duration,
+use super::{RootHasher, StateProviderFactory};
+use crate::{
+    building::ThreadBlockBuildingContext, live_builder::simulation::SimulatedOrderCommand,
 };
-
 use alloy_consensus::{constants::KECCAK_EMPTY, Header};
 use alloy_eips::{BlockId, BlockNumHash, BlockNumberOrTag};
 use alloy_json_rpc::RpcSend;
@@ -30,21 +26,11 @@ use revm::{
     primitives::HashMap,
 };
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use std::{borrow::Cow, fmt::Debug, path::Path, sync::Arc, time::Duration};
 use tokio::sync::broadcast;
 use tokio_util::sync::CancellationToken;
 use tracing::{trace, trace_span};
 
-use crate::{
-    building::ThreadBlockBuildingContext, live_builder::simulation::SimulatedOrderCommand,
-};
-
-use super::{RootHasher, StateProviderFactory};
-
-/// After how many milliseconds should we give up on an IPC request (consider it failed)
-/// 100ms was picked up after initial testing using Nethermind client as state provider
-/// 99.9% requests return within 50ms; using 100ms gives us error rate of ~0.03%
-/// Median response time is ~300 micro_sec.
-const DEFAULT_IPC_REQUEST_TIMEOUT_MS: u64 = 100;
 /// For how many blocks to cache state for
 /// Most CL implementations keep state for last 128 blocks in memory,
 /// We are mimicking this
@@ -73,24 +59,6 @@ impl IpcStateProviderFactory {
             ipc_provider,
             code_cache: Arc::new(DashMap::new()),
             state_provider_by_hash: Arc::new(Cache::new(DEFAULT_STATE_CACHE_SIZE)),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
-#[serde(default, deny_unknown_fields)]
-pub struct IpcProviderConfig {
-    pub(crate) request_timeout_ms: u64,
-    pub(crate) ipc_path: PathBuf,
-    pub(crate) mempool_server_url: String,
-}
-
-impl Default for IpcProviderConfig {
-    fn default() -> Self {
-        Self {
-            request_timeout_ms: DEFAULT_IPC_REQUEST_TIMEOUT_MS,
-            mempool_server_url: String::new(),
-            ipc_path: PathBuf::new(),
         }
     }
 }

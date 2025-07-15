@@ -4,7 +4,7 @@ use crate::{
     building::builders::UnfinishedBlockBuildingSinkFactory,
     live_builder::{order_input::OrderInputConfig, LiveBuilder},
     provider::{
-        ipc_state_provider::{IpcProviderConfig, IpcStateProviderFactory},
+        ipc_provider::IpcProviderConfig, ipc_state_provider::IpcStateProviderFactory,
         StateProviderFactory,
     },
     roothash::RootHashContext,
