@@ -1,5 +1,6 @@
-use crate::building::evm::{Evm, EvmFactory};
-use crate::building::precompile_cache::{PrecompileCache, WrappedPrecompile};
+use crate::{Evm, EvmFactory};
+use precompile_cache::{PrecompileCache, WrappedPrecompile};
+
 use parking_lot::Mutex;
 use reth_evm::{
     eth::EthEvmContext, EthEvm, EthEvmFactory, Evm as RethEvm, EvmEnv,
@@ -16,6 +17,8 @@ use revm::{
     Database, Inspector,
 };
 use std::sync::Arc;
+
+mod precompile_cache;
 
 /// Implementation of the `Evm` trait for revm (as `RethEvm`)
 impl<DB, EVM> Evm<DB> for EVM

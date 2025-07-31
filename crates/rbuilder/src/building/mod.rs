@@ -31,8 +31,8 @@ use alloy_primitives::{Address, Bytes, B256, I256, U256};
 use alloy_rpc_types_beacon::events::PayloadAttributesEvent;
 use cached_reads::{LocalCachedReads, SharedCachedReads};
 use eth_sparse_mpt::SparseTrieLocalCache;
-use evm::RBuilderEvm;
 use jsonrpsee::core::Serialize;
+use rbuilder_evm::RBuilderEvm;
 use reth::{
     payload::PayloadId,
     primitives::{Block, SealedBlock},
@@ -71,12 +71,10 @@ pub mod built_block_trace;
 pub mod cached_reads;
 #[cfg(test)]
 pub mod conflict;
-pub mod evm;
 pub mod evm_inspector;
 pub mod fmt;
 pub mod order_commit;
 pub mod payout_tx;
-pub mod precompile_cache;
 pub mod sim;
 pub mod testing;
 pub mod tracers;

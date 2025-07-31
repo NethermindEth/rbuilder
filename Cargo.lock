@@ -8914,6 +8914,7 @@ dependencies = [
  "quick_cache",
  "rand 0.8.5",
  "rayon",
+ "rbuilder-evm",
  "reipc",
  "reqwest 0.12.15",
  "reth",
@@ -8956,6 +8957,19 @@ dependencies = [
  "url",
  "uuid",
  "warp",
+]
+
+[[package]]
+name = "rbuilder-evm"
+version = "0.1.0"
+dependencies = [
+ "ahash",
+ "alloy-primitives 1.2.0",
+ "derive_more 2.0.1",
+ "lru 0.12.5",
+ "parking_lot",
+ "reth-evm",
+ "revm",
 ]
 
 [[package]]

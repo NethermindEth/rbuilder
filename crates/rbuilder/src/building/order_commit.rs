@@ -8,7 +8,6 @@ use super::{
 use crate::{
     building::{
         estimate_payout_gas_limit,
-        evm::{Evm, EvmFactory},
         evm_inspector::{RBuilderEVMInspector, UsedStateTrace},
     },
     primitives::{
@@ -22,6 +21,7 @@ use alloy_consensus::{constants::KECCAK_EMPTY, Transaction};
 use alloy_eips::eip4844::DATA_GAS_PER_BLOB;
 use alloy_primitives::{Address, B256, I256, U256};
 use itertools::Itertools;
+use rbuilder_evm::{Evm, EvmFactory};
 use reth::revm::database::StateProviderDatabase;
 use reth_errors::ProviderError;
 use reth_evm::EvmEnv;

@@ -1,10 +1,8 @@
-use super::{
-    evm::{Evm, EvmFactory},
-    BlockBuildingContext, BlockState, ThreadBlockBuildingContext,
-};
+use super::{BlockBuildingContext, BlockState, ThreadBlockBuildingContext};
 use crate::utils::Signer;
 use alloy_consensus::{constants::KECCAK_EMPTY, TxEip1559};
 use alloy_primitives::{Address, TxKind as TransactionKind, U256};
+use rbuilder_evm::{Evm, EvmFactory};
 use reth_chainspec::ChainSpec;
 use reth_errors::ProviderError;
 use reth_primitives::{Recovered, Transaction, TransactionSigned};

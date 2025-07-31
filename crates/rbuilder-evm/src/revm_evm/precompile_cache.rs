@@ -1,4 +1,5 @@
-use crate::telemetry::{inc_precompile_cache_hits, inc_precompile_cache_misses};
+// use crate::telemetry::{inc_precompile_cache_hits, inc_precompile_cache_misses};
+
 use ahash::HashMap;
 use alloy_primitives::{Address, Bytes};
 use derive_more::{Deref, DerefMut};
@@ -66,12 +67,12 @@ impl<CTX: ContextTr, P: PrecompileProvider<CTX, Output = InterpreterResult>> Pre
         // get the result if it exists
         if let Some(precompiles) = self.cache.lock().get_mut(address) {
             if let Some(result) = precompiles.get(&key) {
-                inc_precompile_cache_hits();
+                // inc_precompile_cache_hits();
                 return result.clone().map(Some);
             }
         }
 
-        inc_precompile_cache_misses();
+        // inc_precompile_cache_misses();
 
         // call the precompile if cache miss
         let output = self
