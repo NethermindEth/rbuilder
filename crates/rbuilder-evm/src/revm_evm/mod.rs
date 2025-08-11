@@ -77,12 +77,12 @@ impl EvmFactory for EthCachedEvmFactory {
         EthEvm::new(evm, false)
     }
 
-    fn create_evm_with_tracers<DB>(
+    fn create_evm_with_tracers<'a, DB>(
         &self,
         db: DB,
         env: EvmEnv,
-        inspector: &mut RBuilderEVMInspector,
-        recorded_state_access_trace: Option<&mut TxStateAccessTrace>,
+        inspector: &'a mut RBuilderEVMInspector,
+        recorded_state_access_trace: Option<&'a mut TxStateAccessTrace>,
     ) -> impl Evm
     where
         DB: Database<Error = ProviderError>,

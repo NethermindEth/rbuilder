@@ -1325,25 +1325,27 @@ fn execute_evm(
     let tx = tx_with_blobs.internal_tx_unsecure();
     let mut rbuilder_inspector = RBuilderEVMInspector::new(tx, used_state_tracer);
 
-    let mut evm = evm_factory.create_evm_with_tracers(
-        db,
-        evm_env,
-        &mut rbuilder_inspector,
-        recorded_state_access_trace,
-    );
+    let res = {
+        let mut evm = evm_factory.create_evm_with_tracers(
+            db,
+            evm_env,
+            &mut rbuilder_inspector,
+            recorded_state_access_trace,
+        );
 
-    let res = match evm.transact(bundle_state, tx) {
-        Ok(res) => res,
-        Err(err) => match err {
-            EVMError::Transaction(tx_err) => {
-                return Ok(Err(TransactionErr::InvalidTransaction(tx_err)))
-            }
-            EVMError::Database(_) | EVMError::Header(_) | EVMError::Custom(_) => {
-                return Err(err.into())
-            }
-        },
+        match evm.transact(bundle_state, tx) {
+            Ok(res) => res,
+            Err(err) => match err {
+                EVMError::Transaction(tx_err) => {
+                    return Ok(Err(TransactionErr::InvalidTransaction(tx_err)))
+                }
+                EVMError::Database(_) | EVMError::Header(_) | EVMError::Custom(_) => {
+                    return Err(err.into())
+                }
+            },
+        }
     };
-    drop(evm);
+
     let access_list = rbuilder_inspector.into_access_list();
     if access_list.flatten().any(|(a, _)| blocklist.contains(&a)) {
         return Ok(Err(TransactionErr::Blocklist));
