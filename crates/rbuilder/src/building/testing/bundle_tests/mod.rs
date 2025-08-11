@@ -2,13 +2,14 @@ pub mod setup;
 
 use alloy_primitives::{Address, Bytes, B256, U256};
 use itertools::Itertools;
+use rbuilder_evm::TransactionErr;
 use reth_primitives::Bytecode;
 use std::collections::{HashMap, HashSet};
 
 use crate::{
     building::{
         testing::bundle_tests::setup::NonceValue, BuiltBlockTrace, BundleErr, ExecutionResult,
-        OrderErr, TransactionErr,
+        OrderErr,
     },
     primitives::{Bundle, BundleRefund, Order, OrderId, Refund, RefundConfig, TxRevertBehavior},
     utils::{constants::BASE_TX_GAS, int_percentage},

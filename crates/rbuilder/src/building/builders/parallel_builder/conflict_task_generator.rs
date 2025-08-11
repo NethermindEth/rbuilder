@@ -424,12 +424,11 @@ mod tests {
     };
     use alloy_consensus::TxLegacy;
     use alloy_primitives::{Address, TxHash, B256, U256};
+    use rbuilder_evm::evm_inspector::{SlotKey, UsedStateTrace};
     use reth::primitives::{Transaction, TransactionSigned};
     use reth_primitives::Recovered;
-    use std::sync::Arc;
-
-    use crate::building::evm_inspector::{SlotKey, UsedStateTrace};
     use std::sync::mpsc;
+    use std::sync::Arc;
 
     struct DataGenerator {
         last_used_id: u64,

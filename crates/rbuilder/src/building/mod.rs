@@ -33,6 +33,7 @@ use cached_reads::{LocalCachedReads, SharedCachedReads};
 use eth_sparse_mpt::SparseTrieLocalCache;
 use jsonrpsee::core::Serialize;
 use rbuilder_evm::RBuilderEvm;
+use rbuilder_evm::{tx_sim_cache::TxExecutionCache, TransactionErr};
 use reth::{
     payload::PayloadId,
     primitives::{Block, SealedBlock},
@@ -63,7 +64,6 @@ use std::{
 use thiserror::Error;
 use time::OffsetDateTime;
 use tracing::{error, trace};
-use tx_sim_cache::TxExecutionCache;
 
 pub mod block_orders;
 pub mod builders;
@@ -71,14 +71,12 @@ pub mod built_block_trace;
 pub mod cached_reads;
 #[cfg(test)]
 pub mod conflict;
-pub mod evm_inspector;
 pub mod fmt;
 pub mod order_commit;
 pub mod payout_tx;
 pub mod sim;
 pub mod testing;
 pub mod tracers;
-pub mod tx_sim_cache;
 
 pub use self::{
     block_orders::*, builders::mock_block_building_helper::MockRootHasher, built_block_trace::*,

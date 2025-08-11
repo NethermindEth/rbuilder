@@ -4,6 +4,7 @@ use ahash::{HashMap, HashSet};
 use alloy_eips::BlockNumHash;
 use alloy_primitives::Address;
 use eth_sparse_mpt::*;
+use rbuilder_evm::evm_inspector::SlotKey;
 use reth::providers::providers::ConsistentDbView;
 use reth_provider::{BlockReader, DatabaseProviderFactory, StateCommitmentProvider};
 use tokio::sync::broadcast::{
@@ -14,8 +15,8 @@ use tokio_util::sync::CancellationToken;
 use tracing::{error, trace, warn};
 
 use crate::{
-    building::evm_inspector::SlotKey, live_builder::simulation::SimulatedOrderCommand,
-    telemetry::inc_root_hash_prefetch_count, utils::elapsed_ms,
+    live_builder::simulation::SimulatedOrderCommand, telemetry::inc_root_hash_prefetch_count,
+    utils::elapsed_ms,
 };
 
 const CONSUME_SIM_ORDERS_BATCH: usize = 128;

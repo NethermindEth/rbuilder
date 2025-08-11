@@ -5,6 +5,7 @@ use std::sync::Arc;
 
 use ahash::RandomState;
 use alloy_primitives::Address;
+use alloy_primitives::Sign;
 use alloy_primitives::B256;
 use alloy_primitives::I256;
 use alloy_primitives::U256;
@@ -18,11 +19,16 @@ use revm::state::AccountInfo;
 use revm::{context::result::ResultAndState, Database};
 use tracing::info;
 
-use crate::utils::signed_uint_delta;
+// use crate::utils::signed_uint_delta;
+// TODO: Refactor this
+pub fn signed_uint_delta(a: U256, b: U256) -> I256 {
+    let a = I256::checked_from_sign_and_abs(Sign::Positive, a).expect("A is too big");
+    let b = I256::checked_from_sign_and_abs(Sign::Positive, b).expect("B is too big");
+    a.checked_sub(b).expect("Subtraction overflow")
+}
 
-use super::evm_inspector::UsedStateTrace;
-use super::CriticalCommitOrderError;
-use super::TransactionErr;
+use crate::evm_inspector::UsedStateTrace;
+use crate::TransactionErr;
 
 mod evm_db;
 mod result_store;
@@ -232,7 +238,7 @@ impl TxExecutionCache {
         mut db: impl Database<Error = ProviderError>,
         tx_hash: &B256,
         coinbase: &Address,
-    ) -> Result<CachingResult, CriticalCommitOrderError> {
+    ) -> Result<CachingResult, ProviderError> {
         if !self.enabled {
             return Ok(CachingResult::new_cache_miss(false));
         }

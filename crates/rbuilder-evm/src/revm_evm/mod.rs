@@ -1,31 +1,35 @@
-use crate::{Evm, EvmFactory};
+use crate::{
+    evm_inspector::RBuilderEVMInspector,
+    tx_sim_cache::{EVMRecordingDatabase, TxStateAccessTrace},
+    Evm, EvmFactory,
+};
 use precompile_cache::{PrecompileCache, WrappedPrecompile};
 
 use parking_lot::Mutex;
+use reth_errors::ProviderError;
 use reth_evm::{
-    eth::EthEvmContext, EthEvm, EthEvmFactory, Evm as RethEvm, EvmEnv,
-    EvmFactory as RethEvmFactory, IntoTxEnv,
+    EthEvm, EthEvmFactory, Evm as RethEvm, EvmEnv, EvmFactory as RethEvmFactory, IntoTxEnv,
 };
 use revm::{
     context::{
         result::{EVMError, HaltReason, ResultAndState},
         TxEnv,
     },
+    database::BundleState,
     handler::EthPrecompiles,
-    interpreter::interpreter::EthInterpreter,
     primitives::hardfork::SpecId,
-    Database, Inspector,
+    Database,
 };
 use std::sync::Arc;
 
 mod precompile_cache;
 
 /// Implementation of the `Evm` trait for revm (as `RethEvm`)
-impl<DB, EVM> Evm<DB> for EVM
+impl<'a, EVM, DB> Evm for EVM
 where
-    DB: Database<Error: Send + Sync + 'static>,
+    DB: Database<Error = ProviderError>,
     EVM: RethEvm<
-        DB = DB,
+        DB = EVMRecordingDatabase<'a, DB>,
         Tx = TxEnv,
         Error = EVMError<DB::Error>,
         HaltReason = HaltReason,
@@ -34,8 +38,10 @@ where
 {
     fn transact(
         &mut self,
+        _bundle_state: Option<BundleState>,
         tx: impl IntoTxEnv<TxEnv>,
-    ) -> Result<ResultAndState<HaltReason>, EVMError<DB::Error>> {
+    ) -> Result<ResultAndState<HaltReason>, EVMError<ProviderError>> {
+        // BundleState is not used as the db is already in sync with the current bundle state with revm
         EVM::transact(self, tx)
     }
 }
@@ -54,10 +60,11 @@ pub struct EthCachedEvmFactory {
 /// It also integrates precompile caching using the [`PrecompileCache`] and
 /// [`WrappedPrecompile`] types.
 impl EvmFactory for EthCachedEvmFactory {
-    fn create_evm<DB>(&self, db: DB, env: EvmEnv) -> impl Evm<DB>
+    fn create_evm<DB>(&self, db: DB, env: EvmEnv) -> impl Evm
     where
-        DB: Database<Error: Send + Sync + 'static>,
+        DB: Database<Error = ProviderError>,
     {
+        let db = EVMRecordingDatabase::new(db, false, None);
         let evm = self
             .evm_factory
             .create_evm(db, env)
@@ -70,11 +77,22 @@ impl EvmFactory for EthCachedEvmFactory {
         EthEvm::new(evm, false)
     }
 
-    fn create_evm_with_inspector<DB, I>(&self, db: DB, env: EvmEnv, inspector: I) -> impl Evm<DB>
+    fn create_evm_with_tracers<DB>(
+        &self,
+        db: DB,
+        env: EvmEnv,
+        inspector: &mut RBuilderEVMInspector,
+        recorded_state_access_trace: Option<&mut TxStateAccessTrace>,
+    ) -> impl Evm
     where
-        DB: Database<Error: Send + Sync + 'static>,
-        I: Inspector<EthEvmContext<DB>, EthInterpreter>,
+        DB: Database<Error = ProviderError>,
     {
+        let db = EVMRecordingDatabase::new(
+            db,
+            recorded_state_access_trace.is_some(),
+            recorded_state_access_trace,
+        );
+
         let evm = self
             .evm_factory
             .create_evm(db, env)

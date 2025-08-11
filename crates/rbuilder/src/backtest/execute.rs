@@ -3,7 +3,7 @@ use crate::{
     building::{
         builders::BacktestSimulateBlockInput, multi_share_bundle_merger::MultiShareBundleMerger,
         sim::simulate_all_orders_with_sim_tree, BlockBuildingContext, BundleErr, OrderErr,
-        SimulatedOrderSink, SimulatedOrderStore, TransactionErr,
+        SimulatedOrderSink, SimulatedOrderStore,
     },
     live_builder::{block_list_provider::BlockList, cli::LiveBuilderConfig},
     primitives::{OrderId, SimulatedOrder},
@@ -12,6 +12,7 @@ use crate::{
 };
 use alloy_eips::BlockNumHash;
 use alloy_primitives::{Address, U256};
+use rbuilder_evm::TransactionErr;
 use reth_chainspec::ChainSpec;
 use serde::{Deserialize, Serialize};
 use std::{cell::RefCell, rc::Rc, sync::Arc};

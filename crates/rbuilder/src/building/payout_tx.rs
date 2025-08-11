@@ -84,6 +84,7 @@ pub fn insert_test_payout_tx(
     )?;
 
     let mut db = state.new_db_ref(&ctx.shared_cached_reads, &mut local_ctx.cached_reads);
+    let bundle_state = db.bundle_state();
     let cache_account = db.as_mut().load_cache_account(builder_signer.address)?;
 
     let gas_fee = ctx.evm_env.block_env.basefee as u128 * gas_limit as u128;
@@ -91,7 +92,7 @@ pub fn insert_test_payout_tx(
 
     let mut evm = ctx.evm_factory.create_evm(db.as_mut(), ctx.evm_env.clone());
 
-    let res = evm.transact(&tx)?;
+    let res = evm.transact(bundle_state, &tx)?;
     match res.result {
         ExecutionResult::Success {
             gas_used,

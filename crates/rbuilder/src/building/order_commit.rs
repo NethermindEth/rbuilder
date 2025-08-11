@@ -2,14 +2,10 @@ use super::{
     cached_reads::{CachedDB, LocalCachedReads, SharedCachedReads},
     create_payout_tx,
     tracers::SimulationTracer,
-    tx_sim_cache::{CachedExecutionResult, EVMRecordingDatabase},
     BlockBuildingContext, EstimatePayoutGasErr, ThreadBlockBuildingContext,
 };
 use crate::{
-    building::{
-        estimate_payout_gas_limit,
-        evm_inspector::{RBuilderEVMInspector, UsedStateTrace},
-    },
+    building::estimate_payout_gas_limit,
     primitives::{
         Bundle, Order, OrderId, RefundConfig, ShareBundle, ShareBundleBody, ShareBundleInner,
         TransactionSignedEcRecoveredWithBlobs,
@@ -21,7 +17,11 @@ use alloy_consensus::{constants::KECCAK_EMPTY, Transaction};
 use alloy_eips::eip4844::DATA_GAS_PER_BLOB;
 use alloy_primitives::{Address, B256, I256, U256};
 use itertools::Itertools;
-use rbuilder_evm::{Evm, EvmFactory};
+use rbuilder_evm::{
+    evm_inspector::{RBuilderEVMInspector, UsedStateTrace},
+    tx_sim_cache::{CachedExecutionResult, TxStateAccessTrace},
+    Evm, EvmFactory, TransactionErr,
+};
 use reth::revm::database::StateProviderDatabase;
 use reth_errors::ProviderError;
 use reth_evm::EvmEnv;
@@ -29,7 +29,7 @@ use reth_primitives::Receipt;
 use reth_provider::{StateProvider, StateProviderBox};
 use revm::{
     context::result::{ExecutionResult, ResultAndState},
-    context_interface::result::{EVMError, InvalidTransaction},
+    context_interface::result::EVMError,
     database::{states::bundle_state::BundleRetention, BundleState, State},
     Database, DatabaseCommit,
 };
@@ -153,6 +153,10 @@ where
     pub fn db(&mut self) -> &mut State<DB> {
         &mut self.db
     }
+
+    pub fn bundle_state(&self) -> Option<BundleState> {
+        self.parent_bundle_state_ref.as_ref().cloned()
+    }
 }
 
 impl<DB> Drop for BlockStateDBRef<'_, DB>
@@ -200,18 +204,6 @@ pub struct TransactionOk {
     /// nonces_updates is nonce after tx was applied.
     /// account nonce was 0, tx was included, nonce is 1. => nonce_updated.1 == 1
     pub nonce_updated: (Address, u64),
-}
-
-#[derive(Error, Debug, Clone, PartialEq, Eq)]
-pub enum TransactionErr {
-    #[error("Invalid transaction: {0:?}")]
-    InvalidTransaction(InvalidTransaction),
-    #[error("Blocklist violation error")]
-    Blocklist,
-    #[error("Gas left is too low")]
-    GasLeft,
-    #[error("Blob Gas left is too low")]
-    BlobGasLeft,
 }
 
 #[derive(Debug, Clone)]
@@ -320,6 +312,8 @@ pub struct PartialBlockFork<'a, 'b, 'c, 'd, Tracer: SimulationTracer> {
     pub tracer: Option<&'b mut Tracer>,
     /// Temporary state trace used as a scratchpad for tx execution
     tmp_used_state_tracer: UsedStateTrace,
+    /// Temporary state access trace for db access recording during tx execution
+    tmp_state_access_trace: TxStateAccessTrace,
 }
 
 pub struct PartialBlockRollobackPoint {
@@ -369,6 +363,7 @@ impl<'a, 'b, 'c, 'd, Tracer: SimulationTracer> PartialBlockFork<'a, 'b, 'c, 'd, 
             local_ctx: self.local_ctx,
             tracer: Some(tracer),
             tmp_used_state_tracer: self.tmp_used_state_tracer,
+            tmp_state_access_trace: self.tmp_state_access_trace,
         }
     }
 
@@ -497,15 +492,23 @@ impl<'a, 'b, 'c, 'd, Tracer: SimulationTracer> PartialBlockFork<'a, 'b, 'c, 'd, 
                 None
             };
 
-            let mut db = EVMRecordingDatabase::new(db.as_mut(), caching_result.should_cache);
+            let recorded_state_access_trace = if caching_result.should_cache {
+                self.tmp_state_access_trace.clear();
+                Some(&mut self.tmp_state_access_trace)
+            } else {
+                None
+            };
 
+            let bundle_state = db.bundle_state();
             let res = execute_evm(
                 &self.ctx.evm_factory,
                 self.ctx.evm_env.clone(),
                 tx_with_blobs,
                 used_state_tracer,
-                &mut db,
+                recorded_state_access_trace,
+                db.as_mut(),
                 &self.ctx.blocklist,
+                bundle_state,
             )?;
 
             if caching_result.should_cache {
@@ -514,7 +517,7 @@ impl<'a, 'b, 'c, 'd, Tracer: SimulationTracer> PartialBlockFork<'a, 'b, 'c, 'd, 
                     .store_result(CachedExecutionResult {
                         tx_hash: *tx.hash(),
                         coinbase: self.ctx.evm_env.block_env.beneficiary,
-                        recorded_trace: db.recorded_trace,
+                        recorded_trace: self.tmp_state_access_trace.clone(),
                         result: res.clone(),
                         used_state_trace: Arc::new(self.tmp_used_state_tracer.clone()),
                     });
@@ -1277,6 +1280,7 @@ impl<'a, 'c, 'd> PartialBlockFork<'a, '_, 'c, 'd, ()> {
             state,
             tracer: None,
             tmp_used_state_tracer: Default::default(),
+            tmp_state_access_trace: Default::default(),
         }
     }
 }
@@ -1313,14 +1317,22 @@ fn execute_evm(
     evm_env: EvmEnv,
     tx_with_blobs: &TransactionSignedEcRecoveredWithBlobs,
     used_state_tracer: Option<&mut UsedStateTrace>,
+    recorded_state_access_trace: Option<&mut TxStateAccessTrace>,
     db: impl Database<Error = ProviderError>,
     blocklist: &HashSet<Address>,
+    bundle_state: Option<BundleState>,
 ) -> Result<Result<ResultAndState, TransactionErr>, CriticalCommitOrderError> {
     let tx = tx_with_blobs.internal_tx_unsecure();
     let mut rbuilder_inspector = RBuilderEVMInspector::new(tx, used_state_tracer);
 
-    let mut evm = evm_factory.create_evm_with_inspector(db, evm_env, &mut rbuilder_inspector);
-    let res = match evm.transact(tx) {
+    let mut evm = evm_factory.create_evm_with_tracers(
+        db,
+        evm_env,
+        &mut rbuilder_inspector,
+        recorded_state_access_trace,
+    );
+
+    let res = match evm.transact(bundle_state, tx) {
         Ok(res) => res,
         Err(err) => match err {
             EVMError::Transaction(tx_err) => {

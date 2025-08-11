@@ -8934,7 +8934,6 @@ dependencies = [
  "reth-trie",
  "reth-trie-parallel",
  "revm",
- "revm-inspectors",
  "secp256k1",
  "serde",
  "serde_json",
@@ -8964,12 +8963,21 @@ name = "rbuilder-evm"
 version = "0.1.0"
 dependencies = [
  "ahash",
+ "alloy-consensus 1.0.9",
  "alloy-primitives 1.2.0",
+ "dashmap 6.1.0",
  "derive_more 2.0.1",
+ "itertools 0.11.0",
  "lru 0.12.5",
  "parking_lot",
+ "reth",
+ "reth-errors",
  "reth-evm",
+ "reth-primitives",
  "revm",
+ "revm-inspectors",
+ "thiserror 1.0.69",
+ "tracing",
 ]
 
 [[package]]

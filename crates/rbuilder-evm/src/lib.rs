@@ -1,18 +1,41 @@
-use reth_evm::{eth::EthEvmContext, EvmEnv, IntoTxEnv};
+use reth_errors::ProviderError;
+use reth_evm::{EvmEnv, IntoTxEnv};
+use revm::context::result::InvalidTransaction;
 use revm::{
     context::{
         result::{EVMError, HaltReason, ResultAndState},
         TxEnv,
     },
-    interpreter::interpreter::EthInterpreter,
-    Database, Inspector,
+    database::BundleState,
+    Database,
 };
+use thiserror::Error;
 
-pub trait Evm<DB: Database> {
+pub mod evm_inspector;
+use evm_inspector::RBuilderEVMInspector;
+
+use crate::tx_sim_cache::TxStateAccessTrace;
+
+pub mod tx_sim_cache;
+
+#[derive(Error, Debug, Clone, PartialEq, Eq)]
+pub enum TransactionErr {
+    #[error("Invalid transaction: {0:?}")]
+    InvalidTransaction(InvalidTransaction),
+    #[error("Blocklist violation error")]
+    Blocklist,
+    #[error("Gas left is too low")]
+    GasLeft,
+    #[error("Blob Gas left is too low")]
+    BlobGasLeft,
+}
+
+pub trait Evm {
     fn transact(
         &mut self,
+        bundle_state: Option<BundleState>,
         tx: impl IntoTxEnv<TxEnv>,
-    ) -> Result<ResultAndState<HaltReason>, EVMError<DB::Error>>;
+    ) -> Result<ResultAndState<HaltReason>, EVMError<ProviderError>>;
 }
 
 /// Custom trait to abstract over EVM construction with a cleaner and more concrete
@@ -30,16 +53,21 @@ pub trait Evm<DB: Database> {
 /// See [`EthCachedEvmFactory`] for an implementation that integrates precompile
 /// caching and uses `reth_evm::EthEvm` internally.
 pub trait EvmFactory {
-    /// Create an EVM instance with default (no-op) inspector.
-    fn create_evm<DB>(&self, db: DB, env: EvmEnv) -> impl Evm<DB>
+    /// Create an EVM instance without any tracing
+    fn create_evm<DB>(&self, db: DB, env: EvmEnv) -> impl Evm
     where
-        DB: Database<Error: Send + Sync + 'static>;
+        DB: Database<Error = ProviderError>;
 
-    /// Create an EVM instance with a provided inspector.
-    fn create_evm_with_inspector<DB, I>(&self, db: DB, env: EvmEnv, inspector: I) -> impl Evm<DB>
+    /// Create an EVM instance with tracers (state access recording, used state tracing inspector, access list inspector)
+    fn create_evm_with_tracers<DB>(
+        &self,
+        db: DB,
+        env: EvmEnv,
+        inspector: &mut RBuilderEVMInspector,
+        recorded_state_access_trace: Option<&mut TxStateAccessTrace>,
+    ) -> impl Evm
     where
-        DB: Database<Error: Send + Sync + 'static>,
-        I: Inspector<EthEvmContext<DB>, EthInterpreter>;
+        DB: Database<Error = ProviderError>;
 }
 
 mod revm_evm;

@@ -1,10 +1,8 @@
-use crate::{
-    building::evm_inspector::SlotKey,
-    primitives::{OrderId, SimulatedOrder},
-};
+use crate::primitives::{OrderId, SimulatedOrder};
 use ahash::{HashMap, HashSet};
 use alloy_primitives::{Address, B256, U256};
 use itertools::Itertools;
+use rbuilder_evm::evm_inspector::SlotKey;
 use std::sync::Arc;
 
 /// ResolutionResult describes order of certain groups of orders.
@@ -385,12 +383,10 @@ mod tests {
     use reth::primitives::{Transaction, TransactionSigned};
     use reth_primitives::Recovered;
 
-    use crate::{
-        building::evm_inspector::{SlotKey, UsedStateTrace},
-        primitives::{
-            MempoolTx, Order, SimValue, SimulatedOrder, TransactionSignedEcRecoveredWithBlobs,
-        },
+    use crate::primitives::{
+        MempoolTx, Order, SimValue, SimulatedOrder, TransactionSignedEcRecoveredWithBlobs,
     };
+    use rbuilder_evm::evm_inspector::{SlotKey, UsedStateTrace};
 
     use super::ConflictFinder;
 

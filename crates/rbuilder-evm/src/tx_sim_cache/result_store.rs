@@ -131,17 +131,20 @@ impl<R: Clone + std::fmt::Debug> ExecutionResultStoreWalker<R> {
 
 #[cfg(test)]
 mod tests {
-    use crate::utils::test_utils::{addr, u256};
-
     use super::*;
 
     type Store = ExecutionResultStore<u64>;
+
+    // TODO: Refactor this
+    fn addr(id: u64) -> Address {
+        Address::from_slice(&U256::from(id).as_le_slice()[0..20])
+    }
 
     fn account(address: u64, balance: u64) -> AccessRecord {
         AccessRecord::Account {
             address: addr(address),
             result: Some(AccountInfo {
-                balance: u256(balance),
+                balance: U256::from(balance),
                 nonce: 0,
                 code_hash: Default::default(),
                 code: None,
@@ -152,8 +155,8 @@ mod tests {
     fn storage(address: u64, slot: u64, value: u64) -> AccessRecord {
         AccessRecord::Storage {
             address: addr(address),
-            index: u256(slot),
-            result: u256(value),
+            index: U256::from(slot),
+            result: U256::from(value),
         }
     }
 

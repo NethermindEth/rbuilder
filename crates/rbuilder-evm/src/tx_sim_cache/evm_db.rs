@@ -19,14 +19,18 @@ pub enum AccessRecord {
     },
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct TxStateAccessTrace {
     pub trace: Vec<AccessRecord>,
 }
 
 impl TxStateAccessTrace {
-    fn new() -> Self {
+    pub fn new() -> Self {
         Self { trace: Vec::new() }
+    }
+
+    pub fn clear(&mut self) {
+        self.trace.clear();
     }
 
     fn push(&mut self, record: AccessRecord) {
@@ -36,23 +40,33 @@ impl TxStateAccessTrace {
 
 /// revm database wrapper that records state access
 #[derive(Debug)]
-pub struct EVMRecordingDatabase<DB> {
+pub struct EVMRecordingDatabase<'a, DB> {
     pub should_record: bool,
     pub inner_db: DB,
-    pub recorded_trace: TxStateAccessTrace,
+    pub recorded_trace: Option<&'a mut TxStateAccessTrace>,
 }
 
-impl<DB> EVMRecordingDatabase<DB> {
-    pub fn new(inner_db: DB, should_record: bool) -> Self {
+impl<'a, DB> EVMRecordingDatabase<'a, DB> {
+    pub fn new(
+        inner_db: DB,
+        should_record: bool,
+        recorded_trace: Option<&'a mut TxStateAccessTrace>,
+    ) -> Self {
+        if should_record {
+            assert!(
+                recorded_trace.is_some(),
+                "recorded_trace must be provided if should_record is true"
+            );
+        }
         Self {
             inner_db,
-            recorded_trace: TxStateAccessTrace::new(),
+            recorded_trace,
             should_record,
         }
     }
 }
 
-impl<DB: Database> Database for EVMRecordingDatabase<DB> {
+impl<'a, DB: Database<Error: Send + Sync + 'static>> Database for EVMRecordingDatabase<'a, DB> {
     type Error = DB::Error;
 
     fn basic(&mut self, address: Address) -> Result<Option<AccountInfo>, Self::Error> {
@@ -61,10 +75,13 @@ impl<DB: Database> Database for EVMRecordingDatabase<DB> {
             return Ok(result);
         }
 
-        self.recorded_trace.push(AccessRecord::Account {
-            address,
-            result: result.as_ref().map(|r| r.copy_without_code()),
-        });
+        self.recorded_trace
+            .as_mut()
+            .unwrap()
+            .push(AccessRecord::Account {
+                address,
+                result: result.as_ref().map(|r| r.copy_without_code()),
+            });
         Ok(result)
     }
 
@@ -77,11 +94,15 @@ impl<DB: Database> Database for EVMRecordingDatabase<DB> {
         if !self.should_record {
             return Ok(result);
         }
-        self.recorded_trace.push(AccessRecord::Storage {
-            address,
-            index,
-            result,
-        });
+
+        self.recorded_trace
+            .as_mut()
+            .unwrap()
+            .push(AccessRecord::Storage {
+                address,
+                index,
+                result,
+            });
         Ok(result)
     }
 

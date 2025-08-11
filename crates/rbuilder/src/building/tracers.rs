@@ -1,4 +1,4 @@
-use crate::building::evm_inspector::UsedStateTrace;
+use rbuilder_evm::evm_inspector::UsedStateTrace;
 
 /// Trait to trace ANY use of an EVM instance for metrics
 pub trait SimulationTracer {

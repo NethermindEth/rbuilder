@@ -4,7 +4,6 @@ mod simulation_job;
 use crate::{
     building::{
         sim::{SimTree, SimulatedResult, SimulationRequest},
-        tx_sim_cache::TxExecutionCache,
         BlockBuildingContext,
     },
     live_builder::order_input::orderpool::OrdersForBlock,
@@ -14,6 +13,7 @@ use crate::{
 };
 use ahash::HashMap;
 use parking_lot::Mutex;
+use rbuilder_evm::tx_sim_cache::TxExecutionCache;
 use simulation_job::SimulationJob;
 use std::sync::Arc;
 use tokio::{sync::mpsc, task::JoinHandle};
