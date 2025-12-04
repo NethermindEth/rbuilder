@@ -63,7 +63,7 @@ reqwest = { workspace = true, features = ["blocking"] }
 serde_with = { workspace = true, features = ["time_0_3"] }
 primitive-types = "0.12.1"
 url.workspace = true
-sqlx = { version = "0.7.1", features = [
+sqlx = { version = "0.8.1", features = [
     "runtime-tokio-native-tls",
     "postgres",
     "sqlite",
@@ -73,7 +73,7 @@ sqlx = { version = "0.7.1", features = [
     "uuid",
 ] }
 tracing.workspace = true
-tracing-subscriber = { version = "0.3.18", features = ["env-filter", "json"] }
+tracing-subscriber = { version = "0.3.20", features = ["env-filter", "json"] }
 futures = "0.3.28"
 time.workspace = true
 bigdecimal = "0.4.1"
